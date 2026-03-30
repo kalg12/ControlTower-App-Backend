@@ -1,0 +1,48 @@
+services:
+
+  # ── PostgreSQL 17 ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: controltower-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-controltower}
+      POSTGRES_USER:     ${DB_USERNAME:-controltower}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-controltower123}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-controltower} -d ${DB_NAME:-controltower}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Redis 7 ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: controltower-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass "${REDIS_PASSWORD:-}"
+      --save 60 1
+      --loglevel warning
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
