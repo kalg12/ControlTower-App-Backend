@@ -1,0 +1,57 @@
+package com.controltower.app.clients.domain;
+
+import com.controltower.app.identity.domain.Tenant;
+import com.controltower.app.shared.domain.BaseEntity;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * A Client is an external business or organization managed through Control Tower.
+ * Examples: a restaurant chain using the POS system, a retail group using a third-party SaaS.
+ *
+ * Note: This is NOT the end-user of those systems — it is the business itself.
+ */
+@Entity
+@Table(name = "clients")
+@Getter
+@Setter
+public class Client extends BaseEntity {
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
+
+    @Column(name = "name", nullable = false)
+    private String name;
+
+    @Column(name = "legal_name")
+    private String legalName;
+
+    /** Tax identifier (e.g., RFC for Mexico, EIN for USA). */
+    @Column(name = "tax_id")
+    private String taxId;
+
+    @Column(name = "country", nullable = false)
+    private String country = "México";
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private ClientStatus status = ClientStatus.ACTIVE;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
+    @OneToMany(mappedBy = "client", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<ClientBranch> branches = new ArrayList<>();
+
+    @OneToMany(mappedBy = "client", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<ClientContact> contacts = new ArrayList<>();
+
+    public enum ClientStatus {
+        ACTIVE, INACTIVE, SUSPENDED
+    }
+}
