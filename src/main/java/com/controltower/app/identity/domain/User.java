@@ -1,0 +1,63 @@
+package com.controltower.app.identity.domain;
+
+import com.controltower.app.shared.domain.BaseEntity;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * A user belongs to a tenant and has one or more roles.
+ * Super-admins (isSuperAdmin = true) can access all tenants and have no tenant restriction.
+ */
+@Entity
+@Table(
+    name = "users",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"tenant_id", "email"})
+)
+@Getter
+@Setter
+public class User extends BaseEntity {
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", nullable = false)
+    private Tenant tenant;
+
+    @Column(name = "email", nullable = false)
+    private String email;
+
+    @Column(name = "password_hash", nullable = false)
+    private String passwordHash;
+
+    @Column(name = "full_name", nullable = false)
+    private String fullName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private UserStatus status = UserStatus.ACTIVE;
+
+    /** Super-admins bypass tenant isolation and have all permissions. */
+    @Column(name = "is_super_admin", nullable = false)
+    private boolean superAdmin = false;
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+        name = "user_roles",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    private Set<Role> roles = new HashSet<>();
+
+    /** Returns all permission codes from assigned roles. */
+    public Set<String> getAllPermissions() {
+        Set<String> perms = new HashSet<>();
+        roles.forEach(r -> r.getPermissions().forEach(p -> perms.add(p.getCode())));
+        return perms;
+    }
+
+    public enum UserStatus {
+        ACTIVE, SUSPENDED, PENDING_VERIFICATION
+    }
+}
