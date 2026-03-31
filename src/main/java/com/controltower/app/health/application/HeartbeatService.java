@@ -11,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 /**
  * Processes incoming heartbeat pings from client systems.
  * After saving the check, triggers incident evaluation.
@@ -44,6 +46,24 @@ public class HeartbeatService {
         log.debug("Heartbeat received from branch {} (slug: {})", branch.getId(), branchSlug);
 
         // Evaluate incident rules asynchronously
+        incidentService.evaluateAfterCheck(branch, check);
+    }
+
+    /** Called by PullScheduler — resolves branch directly by UUID. */
+    @Transactional
+    public void processHeartbeatByBranchId(UUID branchId, HeartbeatRequest request) {
+        ClientBranch branch = branchRepository.findById(branchId)
+                .filter(b -> b.getDeletedAt() == null)
+                .orElseThrow(() -> new ResourceNotFoundException("ClientBranch", branchId));
+
+        HealthCheck check = new HealthCheck();
+        check.setTenantId(branch.getTenant().getId());
+        check.setBranchId(branch.getId());
+        check.setStatus(HealthCheck.HealthStatus.UP);
+        check.setLatencyMs(request.getLatencyMs());
+        check.setVersion(request.getVersion());
+        check.setSource(HealthCheck.CheckSource.PULL);
+        healthCheckRepository.save(check);
         incidentService.evaluateAfterCheck(branch, check);
     }
 }
