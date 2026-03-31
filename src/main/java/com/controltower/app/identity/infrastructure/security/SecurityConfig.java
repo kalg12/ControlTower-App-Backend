@@ -44,9 +44,13 @@ public class SecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
+        "/api/v1/auth/forgot-password",
+        "/api/v1/auth/reset-password",
+        "/api/v1/auth/2fa/verify",
         "/api/v1/health/heartbeat/**",    // public heartbeat from client systems
         "/api/v1/integrations/events",    // public push events from client systems
         "/api/v1/billing/stripe/webhook", // Stripe webhook (signature verified internally)
+        "/api/v1/tenants/onboard",        // public tenant onboarding
         "/actuator/health",
         "/actuator/info",
         // Swagger UI

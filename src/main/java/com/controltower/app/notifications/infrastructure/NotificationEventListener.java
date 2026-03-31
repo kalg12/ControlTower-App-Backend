@@ -3,6 +3,7 @@ package com.controltower.app.notifications.infrastructure;
 import com.controltower.app.health.domain.HealthIncidentOpenedEvent;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
+import com.controltower.app.shared.infrastructure.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -23,6 +24,7 @@ import java.util.Map;
 public class NotificationEventListener {
 
     private final NotificationService notificationService;
+    private final EmailService emailService;
 
     @Async
     @EventListener

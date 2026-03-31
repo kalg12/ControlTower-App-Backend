@@ -50,6 +50,17 @@ spring:
           max-idle: 4
           min-idle: 1
 
+  # ── Mail ─────────────────────────────────────────────────────────────
+  mail:
+    host: ${MAIL_HOST:smtp.mailtrap.io}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    from: ${MAIL_FROM:noreply@controltower.io}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
   # ── Jackson ──────────────────────────────────────────────────────────
   jackson:
     serialization:
@@ -91,6 +102,8 @@ app:
 
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+
+  base-url: ${APP_BASE_URL:http://localhost:8080}
 
   stripe:
     secret-key: ${STRIPE_SECRET_KEY:}

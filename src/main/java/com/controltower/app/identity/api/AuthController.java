@@ -43,4 +43,20 @@ public class AuthController {
         authService.logout(request.getRefreshToken());
         return ResponseEntity.ok(ApiResponse.ok("Logged out successfully"));
     }
+
+    /** Initiate password reset — always returns 200 to prevent user enumeration. */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request.getEmail());
+        return ResponseEntity.ok(ApiResponse.ok("If the email exists, a reset link has been sent"));
+    }
+
+    /** Reset password using a valid token. */
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok(ApiResponse.ok("Password reset successfully"));
+    }
 }

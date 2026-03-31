@@ -3,21 +3,28 @@ package com.controltower.app.identity.application;
 import com.controltower.app.identity.api.dto.LoginRequest;
 import com.controltower.app.identity.api.dto.LoginResponse;
 import com.controltower.app.identity.api.dto.RefreshRequest;
+import com.controltower.app.identity.domain.PasswordResetToken;
+import com.controltower.app.identity.domain.PasswordResetTokenRepository;
 import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.identity.infrastructure.security.JwtTokenProvider;
 import com.controltower.app.shared.exception.ControlTowerException;
+import com.controltower.app.shared.infrastructure.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /**
@@ -36,6 +43,12 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
     private final StringRedisTemplate redisTemplate;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
+
+    @Value("${app.base-url:http://localhost:8080}")
+    private String baseUrl;
 
     private static final String REFRESH_KEY_PREFIX = "refresh_token:";
 
@@ -131,5 +144,49 @@ public class AuthService {
         String tokenId = jwtTokenProvider.getTokenId(refreshToken);
         redisTemplate.delete(REFRESH_KEY_PREFIX + userId + ":" + tokenId);
         log.info("User {} logged out, refresh token revoked", userId);
+    }
+
+    /**
+     * Initiates a password reset. Always returns success to prevent user enumeration.
+     */
+    @Transactional
+    public void forgotPassword(String email) {
+        userRepository.findByEmailAndDeletedAtIsNull(email).ifPresent(user -> {
+            String token = UUID.randomUUID().toString();
+            PasswordResetToken resetToken = new PasswordResetToken();
+            resetToken.setUserId(user.getId());
+            resetToken.setToken(token);
+            resetToken.setExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
+            passwordResetTokenRepository.save(resetToken);
+
+            String resetLink = baseUrl + "/reset-password?token=" + token;
+            emailService.sendPasswordReset(email, resetLink);
+            log.info("Password reset token created for user {}", user.getId());
+        });
+    }
+
+    /**
+     * Resets the user password using a valid token.
+     */
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        PasswordResetToken resetToken = passwordResetTokenRepository
+                .findByTokenAndUsedAtIsNull(token)
+                .orElseThrow(() -> new ControlTowerException("Invalid or expired reset token", HttpStatus.BAD_REQUEST));
+
+        if (resetToken.isExpired()) {
+            throw new ControlTowerException("Reset token has expired", HttpStatus.BAD_REQUEST);
+        }
+
+        User user = userRepository.findByIdAndDeletedAtIsNull(resetToken.getUserId())
+                .orElseThrow(() -> new ControlTowerException("User not found", HttpStatus.NOT_FOUND));
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        resetToken.setUsedAt(Instant.now());
+        passwordResetTokenRepository.save(resetToken);
+
+        log.info("Password reset successfully for user {}", user.getId());
     }
 }
