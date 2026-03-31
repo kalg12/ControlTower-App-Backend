@@ -5,6 +5,7 @@ import com.controltower.app.shared.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
@@ -19,6 +20,7 @@ public class StripeWebhookController {
 
     private final StripeWebhookService webhookService;
 
+    @Operation(summary = "Stripe webhook receiver", description = "Receives webhook events from Stripe. Public endpoint — the request signature is verified internally using the Stripe-Signature header.")
     @PostMapping("/webhook")
     public ResponseEntity<ApiResponse<Void>> webhook(
             @RequestBody String payload,

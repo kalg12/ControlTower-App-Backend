@@ -3,6 +3,7 @@ package com.controltower.app.identity.api;
 import com.controltower.app.identity.api.dto.*;
 import com.controltower.app.identity.application.AuthService;
 import com.controltower.app.shared.response.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -24,6 +25,7 @@ public class AuthController {
     private final AuthService authService;
 
     /** Login with email + password. Returns access token and refresh token. */
+    @Operation(summary = "Login", description = "Authenticates a user with email and password. Returns a short-lived access token and a refresh token on success.")
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request) {
@@ -32,6 +34,7 @@ public class AuthController {
     }
 
     /** Rotate tokens using a valid refresh token. */
+    @Operation(summary = "Refresh tokens", description = "Issues a new access token and rotates the refresh token. The old refresh token is invalidated after use.")
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<LoginResponse>> refresh(
             @Valid @RequestBody RefreshRequest request) {
@@ -40,6 +43,7 @@ public class AuthController {
     }
 
     /** Invalidate the refresh token (logout). */
+    @Operation(summary = "Logout", description = "Invalidates the provided refresh token, effectively ending the user's session.")
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @Valid @RequestBody LogoutRequest request) {
@@ -48,6 +52,7 @@ public class AuthController {
     }
 
     /** Initiate password reset — always returns 200 to prevent user enumeration. */
+    @Operation(summary = "Forgot password", description = "Sends a password reset link to the given email address if it exists. Always returns 200 to prevent user enumeration.")
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request) {
@@ -56,6 +61,7 @@ public class AuthController {
     }
 
     /** Reset password using a valid token. */
+    @Operation(summary = "Reset password", description = "Sets a new password for the account associated with the one-time reset token. The token is invalidated after use.")
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request) {
@@ -66,6 +72,7 @@ public class AuthController {
     // ── 2FA endpoints ────────────────────────────────────────────────
 
     /** Generates a TOTP secret and QR URL. Requires authentication. */
+    @Operation(summary = "Set up 2FA", description = "Generates a TOTP secret and provisioning QR code URL for the authenticated user. Requires a valid bearer token.")
     @PostMapping("/2fa/setup")
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ApiResponse<TotpSetupResponse>> setup2fa(
@@ -76,6 +83,7 @@ public class AuthController {
     }
 
     /** Enables 2FA after verifying the first code. Requires authentication. */
+    @Operation(summary = "Enable 2FA", description = "Enables two-factor authentication for the authenticated user after verifying the first TOTP code. Requires a valid bearer token.")
     @PostMapping("/2fa/enable")
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ApiResponse<Void>> enable2fa(
@@ -87,6 +95,7 @@ public class AuthController {
     }
 
     /** Disables 2FA after confirming with a valid TOTP code. Requires authentication. */
+    @Operation(summary = "Disable 2FA", description = "Disables two-factor authentication for the authenticated user after confirming with a valid TOTP code. Requires a valid bearer token.")
     @PostMapping("/2fa/disable")
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ApiResponse<Void>> disable2fa(
@@ -98,6 +107,7 @@ public class AuthController {
     }
 
     /** Verifies MFA token + TOTP code and returns full access + refresh tokens. Public. */
+    @Operation(summary = "Verify 2FA", description = "Completes the MFA login flow by verifying the temporary MFA token and TOTP code. Returns full access and refresh tokens on success.")
     @PostMapping("/2fa/verify")
     public ResponseEntity<ApiResponse<LoginResponse>> verify2fa(
             @Valid @RequestBody TotpVerifyRequest request) {

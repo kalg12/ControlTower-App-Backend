@@ -125,18 +125,33 @@ Request body:
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/tickets` | `ticket:read` | List tickets (filter by `status`, `assigneeId`, `clientId`). |
+| GET | `/tickets` | `ticket:read` | List tickets. Filters: `status`, `assigneeId`, `clientId`, `priority`, `createdAfter`, `createdBefore`. Use `slaAtRisk=true` to show tickets expiring within `slaWindowHours` (default 4). |
 | POST | `/tickets` | `ticket:write` | Create a ticket manually. |
 | GET | `/tickets/{id}` | `ticket:read` | Get ticket by ID. |
+| GET | `/tickets/export` | `ticket:read` | Download all matching tickets as a CSV file. Accepts same filter params as GET /tickets. |
 | PATCH | `/tickets/{id}/status` | `ticket:write` | Transition ticket status (state machine validated). |
 | POST | `/tickets/{id}/assign` | `ticket:write` | Assign ticket to a user (`?assigneeId=`). |
 | POST | `/tickets/{id}/escalate` | `ticket:write` | Escalate ticket priority by one level. |
 | POST | `/tickets/{id}/comments` | `ticket:write` | Add a comment (set `internal: true` for agent-only notes). |
 | DELETE | `/tickets/{id}` | `ticket:write` | Soft-close a ticket. |
+| POST | `/tickets/bulk/status` | `ticket:write` | Update status of multiple tickets at once. Body: `{ ticketIds: [...], status: "RESOLVED" }`. |
+| POST | `/tickets/bulk/assign` | `ticket:write` | Assign multiple tickets to one user. Body: `{ ticketIds: [...], assigneeId: "uuid" }`. |
 | POST | `/tickets/{id}/attachments` | `ticket:write` | Upload file attachment (`multipart/form-data`, field: `file`). |
 | GET | `/tickets/{id}/attachments` | `ticket:read` | List all attachments for a ticket. |
 | GET | `/attachments/{attachmentId}` | `ticket:read` | Download a file attachment. |
 | DELETE | `/attachments/{attachmentId}` | `ticket:write` | Delete an attachment. |
+
+**Advanced filters for GET /tickets:**
+| Param | Type | Description |
+|-------|------|-------------|
+| `status` | enum | OPEN, IN_PROGRESS, WAITING, RESOLVED, CLOSED |
+| `priority` | enum | LOW, MEDIUM, HIGH, CRITICAL |
+| `assigneeId` | UUID | Filter by assignee |
+| `clientId` | UUID | Filter by client |
+| `createdAfter` | ISO-8601 | e.g. `2026-01-01T00:00:00Z` |
+| `createdBefore` | ISO-8601 | e.g. `2026-12-31T23:59:59Z` |
+| `slaAtRisk` | boolean | Show only tickets whose SLA expires soon |
+| `slaWindowHours` | int | Hours ahead to consider "at risk" (default 4) |
 
 **Status transitions:**
 ```

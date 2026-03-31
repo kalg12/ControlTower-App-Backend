@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -31,6 +32,7 @@ public class TenantController {
 
     private final TenantService tenantService;
 
+    @Operation(summary = "List tenants", description = "Returns a paginated list of all tenants in the system. Super-admin only; requires the 'tenant:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('tenant:read')")
     public ResponseEntity<ApiResponse<PageResponse<TenantResponse>>> listTenants(
@@ -40,12 +42,14 @@ public class TenantController {
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(tenantService.listTenants(pageable))));
     }
 
+    @Operation(summary = "Get tenant by ID", description = "Retrieves the full details of a specific tenant by UUID. Requires the 'tenant:read' permission.")
     @GetMapping("/{tenantId}")
     @PreAuthorize("hasAuthority('tenant:read')")
     public ResponseEntity<ApiResponse<TenantResponse>> getTenant(@PathVariable UUID tenantId) {
         return ResponseEntity.ok(ApiResponse.ok(tenantService.getTenant(tenantId)));
     }
 
+    @Operation(summary = "Create tenant", description = "Creates a new tenant organization in the system. Requires the 'tenant:write' permission.")
     @PostMapping
     @PreAuthorize("hasAuthority('tenant:write')")
     public ResponseEntity<ApiResponse<TenantResponse>> createTenant(
@@ -54,6 +58,7 @@ public class TenantController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Tenant created", created));
     }
 
+    @Operation(summary = "Update tenant", description = "Replaces all updatable fields of the specified tenant. Requires the 'tenant:write' permission.")
     @PutMapping("/{tenantId}")
     @PreAuthorize("hasAuthority('tenant:write')")
     public ResponseEntity<ApiResponse<TenantResponse>> updateTenant(
@@ -62,6 +67,7 @@ public class TenantController {
         return ResponseEntity.ok(ApiResponse.ok("Tenant updated", tenantService.updateTenant(tenantId, request)));
     }
 
+    @Operation(summary = "Suspend tenant", description = "Suspends the tenant, blocking all its users from accessing the system. Requires the 'tenant:write' permission.")
     @PostMapping("/{tenantId}/suspend")
     @PreAuthorize("hasAuthority('tenant:write')")
     public ResponseEntity<ApiResponse<Void>> suspendTenant(@PathVariable UUID tenantId) {
@@ -69,6 +75,7 @@ public class TenantController {
         return ResponseEntity.ok(ApiResponse.ok("Tenant suspended"));
     }
 
+    @Operation(summary = "Reactivate tenant", description = "Reactivates a previously suspended tenant, restoring access for all its users. Requires the 'tenant:write' permission.")
     @PostMapping("/{tenantId}/reactivate")
     @PreAuthorize("hasAuthority('tenant:write')")
     public ResponseEntity<ApiResponse<Void>> reactivateTenant(@PathVariable UUID tenantId) {
@@ -78,12 +85,14 @@ public class TenantController {
 
     // ── Config ───────────────────────────────────────────────────────
 
+    @Operation(summary = "Get tenant config", description = "Returns all configuration key-value pairs for the specified tenant. Requires the 'tenant:read' permission.")
     @GetMapping("/{tenantId}/config")
     @PreAuthorize("hasAuthority('tenant:read')")
     public ResponseEntity<ApiResponse<Map<String, String>>> getConfig(@PathVariable UUID tenantId) {
         return ResponseEntity.ok(ApiResponse.ok(tenantService.getConfig(tenantId)));
     }
 
+    @Operation(summary = "Set tenant config value", description = "Creates or updates a single configuration key for the specified tenant. Requires the 'tenant:write' permission.")
     @PutMapping("/{tenantId}/config/{key}")
     @PreAuthorize("hasAuthority('tenant:write')")
     public ResponseEntity<ApiResponse<Void>> setConfig(

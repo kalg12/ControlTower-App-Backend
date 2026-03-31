@@ -6,6 +6,7 @@ import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.support.domain.TicketAttachment;
 import com.controltower.app.support.domain.TicketAttachmentRepository;
 import com.controltower.app.support.domain.TicketRepository;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class TicketAttachmentController {
     private final TicketRepository           ticketRepository;
     private final FileStorageService         fileStorageService;
 
+    @Operation(summary = "Upload ticket attachment", description = "Uploads a file and attaches it to the specified support ticket. Requires the 'ticket:write' permission.")
     @PostMapping("/api/v1/tickets/{id}/attachments")
     @PreAuthorize("hasAuthority('ticket:write')")
     public ResponseEntity<ApiResponse<TicketAttachment>> upload(
@@ -57,6 +59,7 @@ public class TicketAttachmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("File uploaded", saved));
     }
 
+    @Operation(summary = "List ticket attachments", description = "Returns all file attachments associated with the specified support ticket. Requires the 'ticket:read' permission.")
     @GetMapping("/api/v1/tickets/{id}/attachments")
     @PreAuthorize("hasAuthority('ticket:read')")
     public ResponseEntity<ApiResponse<List<TicketAttachment>>> list(@PathVariable UUID id) {
@@ -66,6 +69,7 @@ public class TicketAttachmentController {
         return ResponseEntity.ok(ApiResponse.ok(attachments));
     }
 
+    @Operation(summary = "Download attachment", description = "Streams the file content of an attachment by its UUID, with the appropriate Content-Type and Content-Disposition headers. Requires the 'ticket:read' permission.")
     @GetMapping("/api/v1/attachments/{attachmentId}")
     @PreAuthorize("hasAuthority('ticket:read')")
     public ResponseEntity<Resource> download(@PathVariable UUID attachmentId) {
@@ -85,6 +89,7 @@ public class TicketAttachmentController {
                 .body(resource);
     }
 
+    @Operation(summary = "Delete attachment", description = "Permanently removes an attachment from storage and the database. Requires the 'ticket:write' permission.")
     @DeleteMapping("/api/v1/attachments/{attachmentId}")
     @PreAuthorize("hasAuthority('ticket:write')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID attachmentId) {

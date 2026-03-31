@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -34,6 +35,7 @@ public class ClientController {
 
     // ── Clients ───────────────────────────────────────────────────────
 
+    @Operation(summary = "List clients", description = "Returns a paginated list of clients scoped to the current tenant. Supports optional full-text search. Requires the 'client:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('client:read')")
     public ResponseEntity<ApiResponse<PageResponse<ClientResponse>>> listClients(
@@ -44,12 +46,14 @@ public class ClientController {
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(clientService.listClients(search, pageable))));
     }
 
+    @Operation(summary = "Get client by ID", description = "Retrieves the full details of a single client by their UUID. Requires the 'client:read' permission.")
     @GetMapping("/{clientId}")
     @PreAuthorize("hasAuthority('client:read')")
     public ResponseEntity<ApiResponse<ClientResponse>> getClient(@PathVariable UUID clientId) {
         return ResponseEntity.ok(ApiResponse.ok(clientService.getClient(clientId)));
     }
 
+    @Operation(summary = "Create client", description = "Creates a new client under the current tenant. Requires the 'client:write' permission.")
     @PostMapping
     @PreAuthorize("hasAuthority('client:write')")
     public ResponseEntity<ApiResponse<ClientResponse>> createClient(
@@ -58,6 +62,7 @@ public class ClientController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Client created", created));
     }
 
+    @Operation(summary = "Update client", description = "Replaces all updatable fields of the specified client with the provided data. Requires the 'client:write' permission.")
     @PutMapping("/{clientId}")
     @PreAuthorize("hasAuthority('client:write')")
     public ResponseEntity<ApiResponse<ClientResponse>> updateClient(
@@ -66,6 +71,7 @@ public class ClientController {
         return ResponseEntity.ok(ApiResponse.ok("Client updated", clientService.updateClient(clientId, request)));
     }
 
+    @Operation(summary = "Delete client", description = "Permanently removes a client and all associated data. Requires the 'client:write' permission.")
     @DeleteMapping("/{clientId}")
     @PreAuthorize("hasAuthority('client:write')")
     public ResponseEntity<ApiResponse<Void>> deleteClient(@PathVariable UUID clientId) {
@@ -75,12 +81,14 @@ public class ClientController {
 
     // ── Branches ──────────────────────────────────────────────────────
 
+    @Operation(summary = "List branches", description = "Returns all branches belonging to the specified client. Requires the 'client:read' permission.")
     @GetMapping("/{clientId}/branches")
     @PreAuthorize("hasAuthority('client:read')")
     public ResponseEntity<ApiResponse<List<BranchResponse>>> listBranches(@PathVariable UUID clientId) {
         return ResponseEntity.ok(ApiResponse.ok(clientService.listBranches(clientId)));
     }
 
+    @Operation(summary = "Create branch", description = "Adds a new branch location to the specified client. Requires the 'client:write' permission.")
     @PostMapping("/{clientId}/branches")
     @PreAuthorize("hasAuthority('client:write')")
     public ResponseEntity<ApiResponse<BranchResponse>> createBranch(
@@ -90,6 +98,7 @@ public class ClientController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Branch created", created));
     }
 
+    @Operation(summary = "Delete branch", description = "Permanently removes a branch by its UUID. Requires the 'client:write' permission.")
     @DeleteMapping("/branches/{branchId}")
     @PreAuthorize("hasAuthority('client:write')")
     public ResponseEntity<ApiResponse<Void>> deleteBranch(@PathVariable UUID branchId) {

@@ -7,6 +7,7 @@ import com.controltower.app.identity.application.RoleService;
 import com.controltower.app.identity.domain.PermissionRepository;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,6 +33,7 @@ public class RoleController {
     private final RoleService roleService;
     private final PermissionRepository permissionRepository;
 
+    @Operation(summary = "List roles", description = "Returns a paginated list of all roles defined in the system. Requires the 'user:read' permission.")
     @GetMapping("/roles")
     @PreAuthorize("hasAuthority('user:read')")
     public ResponseEntity<ApiResponse<PageResponse<RoleResponse>>> listRoles(
@@ -44,6 +46,7 @@ public class RoleController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    @Operation(summary = "Create role", description = "Creates a new role with the specified name, code, and description. Requires the 'user:write' permission.")
     @PostMapping("/roles")
     @PreAuthorize("hasAuthority('user:write')")
     public ResponseEntity<ApiResponse<RoleResponse>> createRole(
@@ -53,6 +56,7 @@ public class RoleController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Role created", role));
     }
 
+    @Operation(summary = "Delete role", description = "Permanently deletes the role with the given ID. Requires the 'user:write' permission.")
     @DeleteMapping("/roles/{id}")
     @PreAuthorize("hasAuthority('user:write')")
     public ResponseEntity<ApiResponse<Void>> deleteRole(@PathVariable UUID id) {
@@ -60,6 +64,7 @@ public class RoleController {
         return ResponseEntity.ok(ApiResponse.ok("Role deleted"));
     }
 
+    @Operation(summary = "Add permission to role", description = "Assigns the specified permission to a role. Requires the 'user:write' permission.")
     @PostMapping("/roles/{id}/permissions/{permissionId}")
     @PreAuthorize("hasAuthority('user:write')")
     public ResponseEntity<ApiResponse<RoleResponse>> addPermission(
@@ -69,6 +74,7 @@ public class RoleController {
         return ResponseEntity.ok(ApiResponse.ok("Permission added", role));
     }
 
+    @Operation(summary = "Remove permission from role", description = "Revokes a specific permission from a role. Requires the 'user:write' permission.")
     @DeleteMapping("/roles/{id}/permissions/{permissionId}")
     @PreAuthorize("hasAuthority('user:write')")
     public ResponseEntity<ApiResponse<RoleResponse>> removePermission(
@@ -78,6 +84,7 @@ public class RoleController {
         return ResponseEntity.ok(ApiResponse.ok("Permission removed", role));
     }
 
+    @Operation(summary = "Assign role to user", description = "Grants the specified role to a user, effective immediately. Requires the 'user:write' permission.")
     @PostMapping("/users/{id}/roles/{roleId}")
     @PreAuthorize("hasAuthority('user:write')")
     public ResponseEntity<ApiResponse<Void>> assignRoleToUser(
@@ -87,6 +94,7 @@ public class RoleController {
         return ResponseEntity.ok(ApiResponse.ok("Role assigned to user"));
     }
 
+    @Operation(summary = "Remove role from user", description = "Revokes the specified role from a user. Requires the 'user:write' permission.")
     @DeleteMapping("/users/{id}/roles/{roleId}")
     @PreAuthorize("hasAuthority('user:write')")
     public ResponseEntity<ApiResponse<Void>> removeRoleFromUser(
@@ -96,6 +104,7 @@ public class RoleController {
         return ResponseEntity.ok(ApiResponse.ok("Role removed from user"));
     }
 
+    @Operation(summary = "List permissions", description = "Returns all available permissions in the system. Requires the 'user:read' permission.")
     @GetMapping("/permissions")
     @PreAuthorize("hasAuthority('user:read')")
     public ResponseEntity<ApiResponse<List<PermissionResponse>>> listPermissions() {

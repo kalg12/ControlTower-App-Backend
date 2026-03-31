@@ -11,6 +11,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -23,6 +24,7 @@ public class BillingController {
 
     private final BillingEventRepository billingEventRepository;
 
+    @Operation(summary = "List billing events", description = "Returns a paginated history of billing events (payments, refunds, subscription changes) for the current tenant. Requires the 'billing:read' permission.")
     @GetMapping("/events")
     @PreAuthorize("hasAuthority('billing:read')")
     public ResponseEntity<ApiResponse<PageResponse<BillingEvent>>> listEvents(

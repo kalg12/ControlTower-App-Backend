@@ -17,6 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -29,6 +30,7 @@ public class IntegrationController {
 
     private final IntegrationService integrationService;
 
+    @Operation(summary = "List integration endpoints", description = "Returns a paginated list of all registered integration endpoints for the current tenant. Requires the 'integration:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('integration:read')")
     public ResponseEntity<ApiResponse<PageResponse<IntegrationEndpoint>>> list(
@@ -39,6 +41,7 @@ public class IntegrationController {
                 ApiResponse.ok(PageResponse.from(integrationService.listEndpoints(pageable))));
     }
 
+    @Operation(summary = "Register integration endpoint", description = "Registers a new external integration endpoint and generates an API key. Requires the 'integration:write' permission.")
     @PostMapping
     @PreAuthorize("hasAuthority('integration:write')")
     public ResponseEntity<ApiResponse<IntegrationEndpoint>> register(
@@ -47,6 +50,7 @@ public class IntegrationController {
                 .body(ApiResponse.ok(integrationService.register(request)));
     }
 
+    @Operation(summary = "Update integration endpoint", description = "Updates the configuration of an existing integration endpoint. Requires the 'integration:write' permission.")
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('integration:write')")
     public ResponseEntity<ApiResponse<IntegrationEndpoint>> update(
@@ -55,6 +59,7 @@ public class IntegrationController {
         return ResponseEntity.ok(ApiResponse.ok(integrationService.update(id, request)));
     }
 
+    @Operation(summary = "Deactivate integration endpoint", description = "Deactivates the specified integration endpoint, preventing further event ingestion via its API key. Requires the 'integration:write' permission.")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('integration:write')")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable UUID id) {
@@ -66,6 +71,7 @@ public class IntegrationController {
      * Receives a push event from an external client system.
      * Public endpoint — authenticated via X-Api-Key header.
      */
+    @Operation(summary = "Ingest integration event", description = "Receives a push event from an external system. Public endpoint authenticated via the X-Api-Key header tied to a registered integration endpoint.")
     @PostMapping("/events")
     public ResponseEntity<ApiResponse<Void>> ingestEvent(
             @Valid @RequestBody PushEventRequest request,

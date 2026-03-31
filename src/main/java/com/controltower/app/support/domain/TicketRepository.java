@@ -4,8 +4,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,6 +21,8 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
     Optional<Ticket> findByIdAndTenantIdAndDeletedAtIsNull(UUID id, UUID tenantId);
 
+    List<Ticket> findByIdInAndTenantIdAndDeletedAtIsNull(List<UUID> ids, UUID tenantId);
+
     @Query("""
         SELECT t FROM Ticket t
         WHERE t.tenantId = :tenantId
@@ -25,13 +30,59 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
           AND (:status IS NULL OR t.status = :status)
           AND (:assigneeId IS NULL OR t.assigneeId = :assigneeId)
           AND (:clientId IS NULL OR t.clientId = :clientId)
+          AND (:priority IS NULL OR t.priority = :priority)
+          AND (:createdAfter IS NULL OR t.createdAt >= :createdAfter)
+          AND (:createdBefore IS NULL OR t.createdAt <= :createdBefore)
         ORDER BY t.createdAt DESC
         """)
     Page<Ticket> findFiltered(
-        UUID tenantId,
-        Ticket.TicketStatus status,
-        UUID assigneeId,
-        UUID clientId,
+        @Param("tenantId")     UUID tenantId,
+        @Param("status")       Ticket.TicketStatus status,
+        @Param("assigneeId")   UUID assigneeId,
+        @Param("clientId")     UUID clientId,
+        @Param("priority")     Ticket.Priority priority,
+        @Param("createdAfter") Instant createdAfter,
+        @Param("createdBefore") Instant createdBefore,
         Pageable pageable
+    );
+
+    /** Tickets whose SLA is not yet breached but will expire before :threshold (SLA at risk). */
+    @Query("""
+        SELECT t FROM Ticket t
+        JOIN TicketSla s ON s.ticket = t
+        WHERE t.tenantId = :tenantId
+          AND t.deletedAt IS NULL
+          AND t.status NOT IN ('RESOLVED', 'CLOSED')
+          AND s.breached = false
+          AND s.dueAt <= :threshold
+        ORDER BY s.dueAt ASC
+        """)
+    Page<Ticket> findSlaAtRisk(
+        @Param("tenantId")  UUID tenantId,
+        @Param("threshold") Instant threshold,
+        Pageable pageable
+    );
+
+    /** Used for CSV export — no pagination. */
+    @Query("""
+        SELECT t FROM Ticket t
+        WHERE t.tenantId = :tenantId
+          AND t.deletedAt IS NULL
+          AND (:status IS NULL OR t.status = :status)
+          AND (:assigneeId IS NULL OR t.assigneeId = :assigneeId)
+          AND (:clientId IS NULL OR t.clientId = :clientId)
+          AND (:priority IS NULL OR t.priority = :priority)
+          AND (:createdAfter IS NULL OR t.createdAt >= :createdAfter)
+          AND (:createdBefore IS NULL OR t.createdAt <= :createdBefore)
+        ORDER BY t.createdAt DESC
+        """)
+    List<Ticket> findAllForExport(
+        @Param("tenantId")      UUID tenantId,
+        @Param("status")        Ticket.TicketStatus status,
+        @Param("assigneeId")    UUID assigneeId,
+        @Param("clientId")      UUID clientId,
+        @Param("priority")      Ticket.Priority priority,
+        @Param("createdAfter")  Instant createdAfter,
+        @Param("createdBefore") Instant createdBefore
     );
 }

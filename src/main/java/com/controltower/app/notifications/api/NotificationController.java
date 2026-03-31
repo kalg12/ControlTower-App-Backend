@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -26,6 +27,7 @@ public class NotificationController {
 
     private final NotificationService notificationService;
 
+    @Operation(summary = "List notifications", description = "Returns a paginated list of in-app notifications for the authenticated user. Requires the 'notification:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('notification:read')")
     public ResponseEntity<ApiResponse<PageResponse<NotificationResponse>>> list(
@@ -38,6 +40,7 @@ public class NotificationController {
                 ApiResponse.ok(PageResponse.from(notificationService.listForUser(userId, pageable))));
     }
 
+    @Operation(summary = "Mark notification as read", description = "Marks a single notification as read for the authenticated user. Requires the 'notification:read' permission.")
     @PatchMapping("/{id}/read")
     @PreAuthorize("hasAuthority('notification:read')")
     public ResponseEntity<ApiResponse<Void>> markRead(
@@ -47,6 +50,7 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.ok("Notification marked as read"));
     }
 
+    @Operation(summary = "Mark all notifications as read", description = "Marks all unread notifications as read for the authenticated user in a single operation. Requires the 'notification:read' permission.")
     @PatchMapping("/read-all")
     @PreAuthorize("hasAuthority('notification:read')")
     public ResponseEntity<ApiResponse<Void>> markAllRead(
@@ -55,6 +59,7 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.ok("All notifications marked as read"));
     }
 
+    @Operation(summary = "Delete notification", description = "Permanently removes a notification for the authenticated user. Requires the 'notification:read' permission.")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('notification:read')")
     public ResponseEntity<ApiResponse<Void>> delete(

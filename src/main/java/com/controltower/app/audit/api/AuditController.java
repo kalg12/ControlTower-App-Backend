@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -32,6 +33,7 @@ public class AuditController {
 
     private final AuditQueryService auditQueryService;
 
+    @Operation(summary = "Query audit logs", description = "Returns a paginated, filterable view of the immutable audit log for the current tenant. Supports filtering by user, action type, and date range. Requires the 'audit:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('audit:read')")
     public ResponseEntity<ApiResponse<PageResponse<AuditLogResponse>>> queryAuditLogs(

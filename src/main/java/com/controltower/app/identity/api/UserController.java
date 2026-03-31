@@ -15,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -30,6 +31,7 @@ public class UserController {
 
     private final UserService userService;
 
+    @Operation(summary = "List users", description = "Returns a paginated list of users belonging to the specified tenant. Requires the 'user:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('user:read')")
     public ResponseEntity<ApiResponse<PageResponse<UserResponse>>> listUsers(
@@ -42,12 +44,14 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    @Operation(summary = "Get user by ID", description = "Retrieves the full profile of a single user by their UUID. Requires the 'user:read' permission.")
     @GetMapping("/{userId}")
     @PreAuthorize("hasAuthority('user:read')")
     public ResponseEntity<ApiResponse<UserResponse>> getUser(@PathVariable UUID userId) {
         return ResponseEntity.ok(ApiResponse.ok(userService.getUser(userId)));
     }
 
+    @Operation(summary = "Create user", description = "Creates a new user under the specified tenant with the provided details. Requires the 'user:write' permission.")
     @PostMapping
     @PreAuthorize("hasAuthority('user:write')")
     public ResponseEntity<ApiResponse<UserResponse>> createUser(
@@ -57,6 +61,7 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("User created", created));
     }
 
+    @Operation(summary = "Delete user", description = "Permanently removes the user with the given UUID. Requires the 'user:write' permission.")
     @DeleteMapping("/{userId}")
     @PreAuthorize("hasAuthority('user:write')")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable UUID userId) {

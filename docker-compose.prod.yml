@@ -1,0 +1,167 @@
+# ── Production docker-compose ─────────────────────────────────────────────────
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   1. Copy .env.example → .env and fill in real values (strong secrets, real SMTP, etc.)
+#   2. Place SSL certificate files at:
+#        ./nginx/ssl/cert.pem
+#        ./nginx/ssl/key.pem
+#      Or use Certbot/Let's Encrypt (see nginx.conf comments).
+#   3. Set SPRING_PROFILES_ACTIVE=prod in .env to use application-prod.yml.
+#
+# Differences from development docker-compose.yml:
+#   - Nginx terminates SSL on port 443 and redirects HTTP → HTTPS
+#   - App service does NOT expose port 8080 externally (only Nginx connects)
+#   - restart: always (not unless-stopped)
+#   - Resource limits set on all containers
+#   - No hot-reload mounts
+
+services:
+
+  # ── PostgreSQL 17 ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: controltower-postgres
+    restart: always
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-controltower}
+      POSTGRES_USER:     ${DB_USERNAME:-controltower}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-controltower} -d ${DB_NAME:-controltower}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  # ── Redis 7 ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: controltower-redis
+    restart: always
+    command: >
+      redis-server
+      --requirepass "${REDIS_PASSWORD}"
+      --save 60 1
+      --loglevel warning
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ── Control Tower App ──────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: controltower-app:latest
+    container_name: controltower-app
+    restart: always
+    # Port NOT exposed to host — only reachable through Nginx on the internal network
+    environment:
+      SPRING_PROFILES_ACTIVE:       prod
+      DB_HOST:                      postgres
+      DB_PORT:                      5432
+      DB_NAME:                      ${DB_NAME:-controltower}
+      DB_USERNAME:                  ${DB_USERNAME:-controltower}
+      DB_PASSWORD:                  ${DB_PASSWORD}
+      REDIS_HOST:                   redis
+      REDIS_PORT:                   6379
+      REDIS_PASSWORD:               ${REDIS_PASSWORD}
+      JWT_SECRET:                   ${JWT_SECRET}
+      JWT_ACCESS_EXPIRATION:        ${JWT_ACCESS_EXPIRATION:-900}
+      JWT_REFRESH_EXPIRATION:       ${JWT_REFRESH_EXPIRATION:-604800}
+      STRIPE_SECRET_KEY:            ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET:        ${STRIPE_WEBHOOK_SECRET}
+      CORS_ALLOWED_ORIGINS:         ${CORS_ALLOWED_ORIGINS}
+      LOG_LEVEL:                    ${LOG_LEVEL:-WARN}
+      SECURITY_LOG_LEVEL:           ${SECURITY_LOG_LEVEL:-WARN}
+      ENCRYPTION_KEY:               ${ENCRYPTION_KEY}
+      STORAGE_PATH:                 /app/uploads
+      MAIL_HOST:                    ${MAIL_HOST}
+      MAIL_PORT:                    ${MAIL_PORT:-587}
+      MAIL_USERNAME:                ${MAIL_USERNAME}
+      MAIL_PASSWORD:                ${MAIL_PASSWORD}
+      MAIL_FROM:                    ${MAIL_FROM:-noreply@controltower.io}
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+
+  # ── Nginx (SSL termination + reverse proxy) ────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: controltower-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      # For Let's Encrypt ACME challenge renewal:
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local
+  certbot_www:
+    driver: local
