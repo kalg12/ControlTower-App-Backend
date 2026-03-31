@@ -15,4 +15,6 @@ public interface ClientBranchRepository extends JpaRepository<ClientBranch, UUID
     Optional<ClientBranch> findByIdAndTenantIdAndDeletedAtIsNull(UUID id, UUID tenantId);
 
     Optional<ClientBranch> findBySlugAndDeletedAtIsNull(String slug);
+
+    long countByTenantIdAndDeletedAtIsNull(UUID tenantId);
 }

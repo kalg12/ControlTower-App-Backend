@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    # Testcontainers needs Docker; ubuntu-latest includes Docker out of the box
+    # on GitHub-hosted runners.
+
+    steps:
+      # ── Checkout ─────────────────────────────────────────────────────
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # ── Java 21 ──────────────────────────────────────────────────────
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # ── Gradle wrapper permissions ────────────────────────────────────
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # ── Build (compile + unit test) ───────────────────────────────────
+      - name: Build with Gradle
+        run: ./gradlew build -x test --no-daemon
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g"
+
+      # ── Integration tests (Testcontainers / Docker-in-Docker) ─────────
+      - name: Run integration tests
+        run: ./gradlew test --no-daemon
+        env:
+          GRADLE_OPTS:   "-Dorg.gradle.jvmargs=-Xmx2g"
+          # Testcontainers auto-detects Docker socket — no extra env needed
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+
+      # ── Test report ───────────────────────────────────────────────────
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: JUnit Test Results
+          path: build/test-results/test/*.xml
+          reporter: java-junit
+
+      # ── Build Docker image ────────────────────────────────────────────
+      - name: Build Docker image
+        run: docker build -t controltower-app:${{ github.sha }} .
+
+      # ── Security scan (optional, non-blocking) ────────────────────────
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        if: github.ref == 'refs/heads/master'
+        with:
+          image-ref: controltower-app:${{ github.sha }}
+          format: table
+          exit-code: '0'          # non-blocking — report only
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true

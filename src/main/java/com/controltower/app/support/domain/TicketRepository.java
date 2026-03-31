@@ -14,6 +14,8 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
     Page<Ticket> findByTenantIdAndDeletedAtIsNull(UUID tenantId, Pageable pageable);
 
+    long countByTenantIdAndStatusAndDeletedAtIsNull(UUID tenantId, Ticket.TicketStatus status);
+
     Optional<Ticket> findByIdAndTenantIdAndDeletedAtIsNull(UUID id, UUID tenantId);
 
     @Query("""

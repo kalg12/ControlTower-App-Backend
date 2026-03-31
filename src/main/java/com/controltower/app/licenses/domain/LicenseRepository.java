@@ -18,6 +18,8 @@ public interface LicenseRepository extends JpaRepository<License, UUID> {
 
     Page<License> findByTenantIdAndDeletedAtIsNull(UUID tenantId, Pageable pageable);
 
+    long countByTenantIdAndStatusAndDeletedAtIsNull(UUID tenantId, License.LicenseStatus status);
+
     /** Licenses that are about to expire (for grace period transition). */
     @Query("""
         SELECT l FROM License l

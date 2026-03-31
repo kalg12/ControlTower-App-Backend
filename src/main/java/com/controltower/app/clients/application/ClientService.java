@@ -112,7 +112,7 @@ public class ClientService {
         branch.setCountry(request.getCountry());
         branch.setLatitude(request.getLatitude());
         branch.setLongitude(request.getLongitude());
-        branch.setSlug(request.getSlug());
+        branch.setSlug(resolveSlug(request.getSlug(), request.getName(), clientId));
         if (StringUtils.hasText(request.getTimezone())) branch.setTimezone(request.getTimezone());
 
         return toBranchResponse(branchRepository.save(branch));
@@ -125,6 +125,25 @@ public class ClientService {
                 .orElseThrow(() -> new ResourceNotFoundException("ClientBranch", branchId));
         branch.softDelete();
         branchRepository.save(branch);
+    }
+
+    // ── Slug generation ───────────────────────────────────────────────
+
+    /**
+     * If the caller provides a slug, use it; otherwise derive one from the branch name.
+     * Appends a random 4-char suffix to prevent collisions across the same client.
+     * Result: lowercase alphanumeric + hyphens, max 60 chars.
+     */
+    private String resolveSlug(String providedSlug, String branchName, UUID clientId) {
+        if (StringUtils.hasText(providedSlug)) {
+            return providedSlug.toLowerCase().replaceAll("[^a-z0-9-]", "-");
+        }
+        String base = branchName.toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
+        if (base.length() > 50) base = base.substring(0, 50);
+        String suffix = Long.toHexString(System.currentTimeMillis()).substring(4);
+        return base + "-" + suffix;
     }
 
     // ── Mapping ───────────────────────────────────────────────────────

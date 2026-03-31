@@ -14,6 +14,8 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
 
     Page<Client> findByTenantIdAndDeletedAtIsNull(UUID tenantId, Pageable pageable);
 
+    long countByTenantIdAndDeletedAtIsNull(UUID tenantId);
+
     Optional<Client> findByIdAndTenantIdAndDeletedAtIsNull(UUID id, UUID tenantId);
 
     @Query("""

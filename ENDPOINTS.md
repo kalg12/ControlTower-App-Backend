@@ -246,6 +246,16 @@ TRIAL → ACTIVE → GRACE → SUSPENDED → CANCELLED
 
 ---
 
+## Dashboard
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/dashboard` | Authenticated | Aggregated stats: clients, branches, health status, tickets, licenses, unread notifications for current tenant. |
+
+Response fields: `totalClients`, `activeBranches`, `branchesUp`, `branchesDown`, `branchesDegraded`, `openIncidents`, `openTickets`, `ticketsInProgress`, `slaBreachedTickets`, `activeLicenses`, `trialLicenses`, `expiredLicenses`, `unreadNotifications`.
+
+---
+
 ## Billing
 
 | Method | Path | Auth | Description |
