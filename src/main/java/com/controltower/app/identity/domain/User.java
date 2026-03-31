@@ -50,6 +50,12 @@ public class User extends BaseEntity {
     )
     private Set<Role> roles = new HashSet<>();
 
+    @Column(name = "totp_secret")
+    private String totpSecret;
+
+    @Column(name = "totp_enabled", nullable = false)
+    private boolean totpEnabled = false;
+
     /** Returns all permission codes from assigned roles. */
     public Set<String> getAllPermissions() {
         Set<String> perms = new HashSet<>();

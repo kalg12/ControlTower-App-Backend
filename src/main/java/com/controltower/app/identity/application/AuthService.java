@@ -46,6 +46,7 @@ public class AuthService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    private final TotpService totpService;
 
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
@@ -67,6 +68,18 @@ public class AuthService {
 
         if (user.getStatus() != User.UserStatus.ACTIVE) {
             throw new ControlTowerException("Account is not active", HttpStatus.FORBIDDEN);
+        }
+
+        // If 2FA is enabled, return an MFA token instead of full tokens
+        if (user.isTotpEnabled()) {
+            String mfaToken = jwtTokenProvider.generateMfaToken(user.getId());
+            log.info("User {} requires 2FA verification", user.getEmail());
+            return LoginResponse.builder()
+                    .mfaToken(mfaToken)
+                    .userId(user.getId())
+                    .email(user.getEmail())
+                    .requiresMfa(true)
+                    .build();
         }
 
         String tokenId = UUID.randomUUID().toString();
@@ -188,5 +201,99 @@ public class AuthService {
         passwordResetTokenRepository.save(resetToken);
 
         log.info("Password reset successfully for user {}", user.getId());
+    }
+
+    /**
+     * Generates a new TOTP secret and QR URL for the current user.
+     * Saves the secret but does NOT enable 2FA yet (requires confirmation via enable()).
+     */
+    @Transactional
+    public com.controltower.app.identity.api.dto.TotpSetupResponse setupTotp(UUID userId) {
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new ControlTowerException("User not found", HttpStatus.NOT_FOUND));
+        String secret = totpService.generateSecret();
+        user.setTotpSecret(secret);
+        userRepository.save(user);
+        String qrUrl = totpService.getQrUrl(user.getEmail(), secret);
+        return com.controltower.app.identity.api.dto.TotpSetupResponse.builder()
+                .secret(secret)
+                .qrUrl(qrUrl)
+                .build();
+    }
+
+    /**
+     * Enables 2FA after verifying the first TOTP code.
+     */
+    @Transactional
+    public void enableTotp(UUID userId, int code) {
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new ControlTowerException("User not found", HttpStatus.NOT_FOUND));
+        if (user.getTotpSecret() == null) {
+            throw new ControlTowerException("2FA setup not started — call /auth/2fa/setup first", HttpStatus.BAD_REQUEST);
+        }
+        if (!totpService.verifyCode(user.getTotpSecret(), code)) {
+            throw new ControlTowerException("Invalid TOTP code", HttpStatus.BAD_REQUEST);
+        }
+        user.setTotpEnabled(true);
+        userRepository.save(user);
+        log.info("2FA enabled for user {}", userId);
+    }
+
+    /**
+     * Disables 2FA after verifying a valid TOTP code.
+     */
+    @Transactional
+    public void disableTotp(UUID userId, int code) {
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new ControlTowerException("User not found", HttpStatus.NOT_FOUND));
+        if (!user.isTotpEnabled()) {
+            throw new ControlTowerException("2FA is not enabled", HttpStatus.BAD_REQUEST);
+        }
+        if (!totpService.verifyCode(user.getTotpSecret(), code)) {
+            throw new ControlTowerException("Invalid TOTP code", HttpStatus.BAD_REQUEST);
+        }
+        user.setTotpEnabled(false);
+        user.setTotpSecret(null);
+        userRepository.save(user);
+        log.info("2FA disabled for user {}", userId);
+    }
+
+    /**
+     * Completes MFA verification: validates mfaToken + TOTP code, returns full tokens.
+     */
+    @Transactional(readOnly = true)
+    public LoginResponse verifyMfa(String mfaToken, int code) {
+        if (!jwtTokenProvider.validateToken(mfaToken) || !jwtTokenProvider.isMfaPending(mfaToken)) {
+            throw new ControlTowerException("Invalid MFA token", HttpStatus.UNAUTHORIZED);
+        }
+
+        UUID userId = jwtTokenProvider.getUserId(mfaToken);
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new ControlTowerException("User not found", HttpStatus.UNAUTHORIZED));
+
+        if (!totpService.verifyCode(user.getTotpSecret(), code)) {
+            throw new ControlTowerException("Invalid TOTP code", HttpStatus.UNAUTHORIZED);
+        }
+
+        String tokenId = UUID.randomUUID().toString();
+        String accessToken  = jwtTokenProvider.generateAccessToken(user);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user, tokenId);
+
+        String redisKey = REFRESH_KEY_PREFIX + user.getId() + ":" + tokenId;
+        redisTemplate.opsForValue().set(
+            redisKey, "valid",
+            Duration.ofSeconds(jwtTokenProvider.getRefreshTokenExpirationSeconds())
+        );
+
+        log.info("User {} completed MFA verification", user.getEmail());
+
+        return LoginResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .userId(user.getId())
+                .tenantId(user.getTenant().getId())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .build();
     }
 }

@@ -39,8 +39,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = extractToken(request);
 
+        // Reject MFA-pending tokens on all routes except the 2FA verification endpoint
         if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)
-                && !jwtTokenProvider.isRefreshToken(token)) {
+                && jwtTokenProvider.isMfaPending(token)
+                && !request.getRequestURI().equals("/api/v1/auth/2fa/verify")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)
+                && !jwtTokenProvider.isRefreshToken(token)
+                && !jwtTokenProvider.isMfaPending(token)) {
             try {
                 String userId = jwtTokenProvider.getUserId(token).toString();
                 UserDetails userDetails = userDetailsService.loadUserByUsername(userId);

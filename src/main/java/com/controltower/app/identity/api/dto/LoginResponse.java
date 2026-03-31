@@ -16,4 +16,10 @@ public class LoginResponse {
     private final UUID tenantId;
     private final String email;
     private final String fullName;
+
+    /** Present only when 2FA is required. Client must call /auth/2fa/verify with this token. */
+    private final String mfaToken;
+
+    /** True when 2FA is enabled and the client must complete MFA verification. */
+    private final boolean requiresMfa;
 }

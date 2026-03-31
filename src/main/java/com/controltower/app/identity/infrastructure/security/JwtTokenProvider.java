@@ -34,8 +34,10 @@ public class JwtTokenProvider {
     private static final String CLAIM_PERMISSIONS  = "permissions";
     private static final String CLAIM_TOKEN_ID     = "tokenId";
     private static final String CLAIM_TYPE         = "type";
+    private static final String CLAIM_MFA_PENDING  = "mfaPending";
     private static final String TYPE_ACCESS        = "access";
     private static final String TYPE_REFRESH       = "refresh";
+    private static final String TYPE_MFA           = "mfa";
 
     // ── Token generation ─────────────────────────────────────────────
 
@@ -112,6 +114,28 @@ public class JwtTokenProvider {
 
     public boolean isRefreshToken(String token) {
         return TYPE_REFRESH.equals(parseClaims(token).get(CLAIM_TYPE, String.class));
+    }
+
+    public boolean isMfaPending(String token) {
+        Claims claims = parseClaims(token);
+        Boolean mfaPending = claims.get(CLAIM_MFA_PENDING, Boolean.class);
+        return Boolean.TRUE.equals(mfaPending);
+    }
+
+    public String generateMfaToken(UUID userId) {
+        Instant now    = Instant.now();
+        Instant expiry = now.plusSeconds(300); // 5-minute expiry
+
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claims(Map.of(
+                    CLAIM_TYPE,        TYPE_MFA,
+                    CLAIM_MFA_PENDING, true
+                ))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiry))
+                .signWith(getSigningKey())
+                .compact();
     }
 
     public long getRefreshTokenExpirationSeconds() {
