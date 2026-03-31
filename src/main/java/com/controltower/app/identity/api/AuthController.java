@@ -7,10 +7,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Authentication endpoints — all public (no JWT required).
  */
+@Tag(name = "Auth", description = "Authentication — login, token refresh, logout")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor

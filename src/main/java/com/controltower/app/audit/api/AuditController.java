@@ -16,11 +16,15 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 /**
  * Read-only audit log endpoint.
  * Supports filtering by userId, action, and date range.
  */
+@Tag(name = "Audit", description = "Immutable audit log (read-only)")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/audit")
 @RequiredArgsConstructor

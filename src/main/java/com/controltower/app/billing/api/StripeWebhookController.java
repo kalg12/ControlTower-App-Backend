@@ -5,11 +5,13 @@ import com.controltower.app.shared.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Receives Stripe webhook events.
  * Public endpoint — signature verified internally via stripe-java SDK.
  */
+@Tag(name = "Billing", description = "Stripe webhook receiver (public — signature verified internally)")
 @RestController
 @RequestMapping("/api/v1/billing/stripe")
 @RequiredArgsConstructor

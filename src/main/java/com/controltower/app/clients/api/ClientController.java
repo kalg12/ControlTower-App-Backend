@@ -15,12 +15,16 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 /**
  * Client and Branch management endpoints.
  * All data is automatically scoped to the authenticated user's tenant
  * via TenantContext (set by TenantInterceptor).
  */
+@Tag(name = "Clients", description = "Client and branch management")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/clients")
 @RequiredArgsConstructor

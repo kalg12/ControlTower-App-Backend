@@ -21,11 +21,15 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 /**
  * Health monitoring endpoints.
  * POST /heartbeat is public (auth via branchSlug — integration key future).
  */
+@Tag(name = "Health", description = "Health monitoring — heartbeats, incidents, rules")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/health")
 @RequiredArgsConstructor

@@ -44,11 +44,15 @@ public class SecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
-        "/api/v1/health/heartbeat",       // public heartbeat from client systems
+        "/api/v1/health/heartbeat/**",    // public heartbeat from client systems
         "/api/v1/integrations/events",    // public push events from client systems
         "/api/v1/billing/stripe/webhook", // Stripe webhook (signature verified internally)
         "/actuator/health",
-        "/actuator/info"
+        "/actuator/info",
+        // Swagger UI
+        "/v3/api-docs/**",
+        "/swagger-ui/**",
+        "/swagger-ui.html"
     };
 
     @Bean

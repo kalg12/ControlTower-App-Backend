@@ -16,10 +16,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
 /**
  * Tenant management — super-admin only operations.
  */
+@Tag(name = "Tenants", description = "Tenant management (super-admin only)")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/tenants")
 @RequiredArgsConstructor
