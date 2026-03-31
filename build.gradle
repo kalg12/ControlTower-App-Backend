@@ -59,6 +59,7 @@ dependencies {
 
 	// ── Stripe ───────────────────────────────────────────────────────
 	implementation "com.stripe:stripe-java:${stripeVersion}"
+	implementation 'com.google.code.gson:gson:2.11.0'
 
 	// ── Observability ────────────────────────────────────────────────
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'

@@ -1,0 +1,33 @@
+package com.controltower.app.billing.api;
+
+import com.controltower.app.billing.domain.BillingEvent;
+import com.controltower.app.billing.domain.BillingEventRepository;
+import com.controltower.app.shared.response.ApiResponse;
+import com.controltower.app.shared.response.PageResponse;
+import com.controltower.app.tenancy.domain.TenantContext;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/billing")
+@RequiredArgsConstructor
+public class BillingController {
+
+    private final BillingEventRepository billingEventRepository;
+
+    @GetMapping("/events")
+    @PreAuthorize("hasAuthority('billing:read')")
+    public ResponseEntity<ApiResponse<PageResponse<BillingEvent>>> listEvents(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return ResponseEntity.ok(
+                ApiResponse.ok(PageResponse.from(
+                        billingEventRepository.findByTenantIdOrderByCreatedAtDesc(
+                                TenantContext.getTenantId(), pageable))));
+    }
+}
