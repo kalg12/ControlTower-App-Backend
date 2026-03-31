@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Map;
 
@@ -23,7 +22,6 @@ import static org.hamcrest.Matchers.*;
 @DirtiesContext
 class DashboardStatsTest extends BaseIntegrationTest {
 
-    @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
 
     private String token;

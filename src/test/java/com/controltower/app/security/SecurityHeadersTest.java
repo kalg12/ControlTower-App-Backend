@@ -3,8 +3,6 @@ package com.controltower.app.security;
 import com.controltower.app.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -18,7 +16,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 class SecurityHeadersTest extends BaseIntegrationTest {
 
-    @Autowired MockMvc mvc;
 
     @Test
     @DisplayName("Responses include X-Content-Type-Options: nosniff")
