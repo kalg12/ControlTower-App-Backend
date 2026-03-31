@@ -3,6 +3,7 @@ package com.controltower.app.integrations.application;
 import com.controltower.app.integrations.api.dto.IntegrationEndpointRequest;
 import com.controltower.app.integrations.domain.*;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.shared.infrastructure.AesEncryptor;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -22,6 +23,7 @@ public class IntegrationService {
     private final IntegrationEndpointRepository endpointRepository;
     private final IntegrationEventRepository    eventRepository;
     private final ApplicationEventPublisher     publisher;
+    private final AesEncryptor                  aesEncryptor;
 
     @Transactional(readOnly = true)
     public Page<IntegrationEndpoint> listEndpoints(Pageable pageable) {
@@ -36,7 +38,7 @@ public class IntegrationService {
         endpoint.setClientBranchId(request.getClientBranchId());
         endpoint.setType(request.getType());
         endpoint.setPullUrl(request.getPullUrl());
-        endpoint.setApiKey(request.getApiKey());
+        endpoint.setApiKey(aesEncryptor.encrypt(request.getApiKey()));
         endpoint.setHeartbeatIntervalSeconds(request.getHeartbeatIntervalSeconds());
         endpoint.setContractVersion(request.getContractVersion());
         endpoint.setMetadata(request.getMetadata());
@@ -47,11 +49,16 @@ public class IntegrationService {
     public IntegrationEndpoint update(UUID endpointId, IntegrationEndpointRequest request) {
         IntegrationEndpoint endpoint = resolve(endpointId);
         endpoint.setPullUrl(request.getPullUrl());
-        endpoint.setApiKey(request.getApiKey());
+        endpoint.setApiKey(aesEncryptor.encrypt(request.getApiKey()));
         endpoint.setHeartbeatIntervalSeconds(request.getHeartbeatIntervalSeconds());
         endpoint.setContractVersion(request.getContractVersion());
         endpoint.setMetadata(request.getMetadata());
         return endpointRepository.save(endpoint);
+    }
+
+    /** Returns the decrypted API key for comparison. */
+    public String getDecryptedApiKey(IntegrationEndpoint endpoint) {
+        return aesEncryptor.decrypt(endpoint.getApiKey());
     }
 
     @Transactional
@@ -74,8 +81,11 @@ public class IntegrationService {
         if (!endpoint.isActive()) {
             throw new ResourceNotFoundException("IntegrationEndpoint", endpointId);
         }
-        if (endpoint.getApiKey() != null && !endpoint.getApiKey().equals(apiKey)) {
-            throw new SecurityException("Invalid API key");
+        if (endpoint.getApiKey() != null) {
+            String decryptedKey = aesEncryptor.decrypt(endpoint.getApiKey());
+            if (!decryptedKey.equals(apiKey)) {
+                throw new SecurityException("Invalid API key");
+            }
         }
 
         IntegrationEvent event = new IntegrationEvent();
