@@ -1,0 +1,257 @@
+# Control Tower — API Endpoints Reference
+
+Base URL: `http://localhost:8080/api/v1`
+Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+
+> **Auth:** All protected endpoints require `Authorization: Bearer <access_token>`.
+> Get a token via `POST /auth/login`.
+
+---
+
+## Auth
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/auth/login` | Public | Login with email + password. Returns `accessToken` + `refreshToken`. |
+| POST | `/auth/refresh` | Public | Rotate token pair using a valid refresh token. |
+| POST | `/auth/logout` | Public | Invalidate refresh token (server-side). |
+
+---
+
+## Users
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/users` | `user:read` | List users (paginated, filterable by status). |
+| POST | `/users` | `user:write` | Create a new user within the current tenant. |
+| GET | `/users/{id}` | `user:read` | Get user by ID. |
+| PUT | `/users/{id}` | `user:write` | Update user. |
+| DELETE | `/users/{id}` | `user:write` | Soft-delete user. |
+
+---
+
+## Tenants *(super-admin only)*
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/tenants` | `tenant:read` | List all tenants (paginated). |
+| POST | `/tenants` | `tenant:write` | Create a new tenant. |
+| GET | `/tenants/{id}` | `tenant:read` | Get tenant by ID. |
+| PUT | `/tenants/{id}` | `tenant:write` | Update tenant. |
+| POST | `/tenants/{id}/suspend` | `tenant:write` | Suspend a tenant. |
+| POST | `/tenants/{id}/reactivate` | `tenant:write` | Reactivate a suspended tenant. |
+| GET | `/tenants/{id}/config` | `tenant:read` | Get tenant config key-value pairs. |
+| PUT | `/tenants/{id}/config/{key}` | `tenant:write` | Set a tenant config value. |
+
+---
+
+## Clients
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/clients` | `client:read` | List clients (paginated, searchable by name). |
+| POST | `/clients` | `client:write` | Create a client. |
+| GET | `/clients/{id}` | `client:read` | Get client by ID. |
+| PUT | `/clients/{id}` | `client:write` | Update client. |
+| DELETE | `/clients/{id}` | `client:write` | Soft-delete client. |
+| GET | `/clients/{id}/branches` | `client:read` | List branches for a client. |
+| POST | `/clients/{id}/branches` | `client:write` | Create a branch for a client. |
+| PUT | `/clients/{id}/branches/{branchId}` | `client:write` | Update a branch. |
+| DELETE | `/clients/{id}/branches/{branchId}` | `client:write` | Soft-delete a branch. |
+
+---
+
+## Health Monitoring
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/health/heartbeat/{branchSlug}` | **Public** | Receive heartbeat ping from a client system. |
+| GET | `/health/clients` | `health:read` | Overview of all clients and their health status. |
+| GET | `/health/branches/{branchId}` | `health:read` | Paginated health checks for a specific branch. |
+| GET | `/health/incidents` | `health:read` | Paginated list of health incidents. |
+| POST | `/health/incidents/{id}/resolve` | `health:write` | Manually resolve an incident. |
+| POST | `/health/rules` | `health:write` | Create a health rule (threshold, severity, channel). |
+
+---
+
+## Support / Tickets
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/tickets` | `ticket:read` | List tickets (filter by `status`, `assigneeId`, `clientId`). |
+| POST | `/tickets` | `ticket:write` | Create a ticket manually. |
+| GET | `/tickets/{id}` | `ticket:read` | Get ticket by ID. |
+| PATCH | `/tickets/{id}/status` | `ticket:write` | Transition ticket status (state machine validated). |
+| POST | `/tickets/{id}/assign` | `ticket:write` | Assign ticket to a user (`?assigneeId=`). |
+| POST | `/tickets/{id}/escalate` | `ticket:write` | Escalate ticket priority by one level. |
+| POST | `/tickets/{id}/comments` | `ticket:write` | Add a comment (set `internal: true` for agent-only notes). |
+| DELETE | `/tickets/{id}` | `ticket:write` | Soft-close a ticket. |
+
+**Status transitions:**
+```
+OPEN → IN_PROGRESS | RESOLVED | CLOSED
+IN_PROGRESS → WAITING | RESOLVED | CLOSED
+WAITING → IN_PROGRESS | RESOLVED
+RESOLVED → CLOSED | OPEN
+CLOSED → OPEN
+```
+
+**SLA windows by priority:**
+| Priority | Window |
+|----------|--------|
+| LOW | 48 h |
+| MEDIUM | 24 h |
+| HIGH | 8 h |
+| CRITICAL | 2 h |
+
+---
+
+## Audit Log
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/audit` | `audit:read` | Paginated audit log (filter by `action`, `userId`, `resourceType`, date range). |
+
+---
+
+## Licenses
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/licenses` | `license:read` | List licenses for current tenant (paginated). |
+| POST | `/licenses` | `license:write` | Activate a license for a client (assign plan, optional trial days). |
+| GET | `/licenses/{id}` | `license:read` | Get license by ID. |
+| GET | `/licenses/clients/{clientId}` | `license:read` | Get license by client ID. |
+| POST | `/licenses/{id}/suspend` | `license:write` | Suspend a license. |
+| POST | `/licenses/{id}/reactivate` | `license:write` | Reactivate with `?extensionDays=30`. |
+| GET | `/licenses/{id}/features` | `license:read` | List enabled feature codes for a license. |
+| GET | `/licenses/plans` | `license:read` | List all active plans (catalog). |
+
+**License status flow:**
+```
+TRIAL → ACTIVE → GRACE → SUSPENDED → CANCELLED
+                          ↑ payment failure (7-day grace)
+```
+
+---
+
+## Notifications
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/notifications` | `notification:read` | List notifications for the current user (paginated). |
+| PATCH | `/notifications/{id}/read` | `notification:read` | Mark a notification as read. |
+| PATCH | `/notifications/read-all` | `notification:read` | Mark all notifications as read. |
+| DELETE | `/notifications/{id}` | `notification:read` | Delete a notification for the current user. |
+
+**WebSocket (STOMP):** Connect to `/ws` (SockJS), subscribe to `/user/queue/notifications`.
+
+---
+
+## Kanban Boards
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/boards` | `kanban:read` | List boards for current tenant (paginated). |
+| POST | `/boards` | `kanban:write` | Create a board (`PRIVATE` or `TEAM` visibility). |
+| GET | `/boards/{id}` | `kanban:read` | Get board with columns and cards. |
+| PUT | `/boards/{id}` | `kanban:write` | Update board name/description/visibility. |
+| DELETE | `/boards/{id}` | `kanban:write` | Soft-delete board. |
+| POST | `/boards/{id}/columns` | `kanban:write` | Add a column (`?name=&position=`). |
+| DELETE | `/boards/columns/{columnId}` | `kanban:write` | Delete a column (cascades cards). |
+| POST | `/boards/cards` | `kanban:write` | Create a card in a column. |
+| PATCH | `/boards/cards/{cardId}/move` | `kanban:write` | Move card to another column with new position. |
+| DELETE | `/boards/cards/{cardId}` | `kanban:write` | Soft-delete a card. |
+| POST | `/boards/cards/{cardId}/checklist` | `kanban:write` | Add checklist item (`?text=`). |
+| PATCH | `/boards/checklist/{itemId}/toggle` | `kanban:write` | Toggle checklist item completed/incomplete. |
+
+---
+
+## Notes
+
+| Method | Path | Auth | Any authenticated user |
+|--------|------|------|------------------------|
+| GET | `/notes` | Authenticated | List notes (filter by `?linkedTo=CLIENT&linkedId=<uuid>`). |
+| POST | `/notes` | Authenticated | Create a note (optionally linked to `CLIENT`, `TICKET`, or `BRANCH`). |
+| GET | `/notes/{id}` | Authenticated | Get note by ID. |
+| PUT | `/notes/{id}` | Authenticated | Update note title/content. |
+| DELETE | `/notes/{id}` | Authenticated | Soft-delete note. |
+
+---
+
+## Integrations
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/integrations` | `integration:read` | List integration endpoints (paginated). |
+| POST | `/integrations` | `integration:write` | Register a new endpoint (`POS` or `CUSTOM` type). |
+| PUT | `/integrations/{id}` | `integration:write` | Update endpoint config. |
+| DELETE | `/integrations/{id}` | `integration:write` | Deactivate an endpoint. |
+| POST | `/integrations/events` | **Public** (X-Api-Key) | Receive a push event from an external system. |
+
+**Header for push events:** `X-Api-Key: <configured_api_key>`
+
+---
+
+## Billing
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/billing/events` | `billing:read` | Paginated billing event history for current tenant. |
+| POST | `/billing/stripe/webhook` | **Public** (Stripe-Signature) | Stripe webhook receiver (idempotent). |
+
+**Handled Stripe event types:**
+- `customer.subscription.created` / `updated` → activates license
+- `customer.subscription.deleted` → cancels license
+- `invoice.paid` → records payment event
+- `invoice.payment_failed` → enters 7-day grace period
+
+---
+
+## Pagination
+
+All `GET` list endpoints accept:
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `page` | `0` | Zero-based page index |
+| `size` | `20` | Items per page (max varies per endpoint) |
+
+Response envelope:
+```json
+{
+  "success": true,
+  "data": {
+    "content": [...],
+    "page": 0,
+    "size": 20,
+    "totalElements": 100,
+    "totalPages": 5,
+    "last": false
+  }
+}
+```
+
+---
+
+## Standard Response Envelope
+
+```json
+{
+  "success": true,
+  "message": "Optional message",
+  "data": { ... },
+  "timestamp": "2026-03-31T10:00:00Z"
+}
+```
+
+Error response:
+```json
+{
+  "success": false,
+  "message": "Error description",
+  "errors": ["field: validation message"],
+  "timestamp": "2026-03-31T10:00:00Z"
+}
+```

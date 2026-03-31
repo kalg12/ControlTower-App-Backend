@@ -19,6 +19,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - controltower-net
 
   # ── Redis 7 ──────────────────────────────────────────────────────────
   redis:
@@ -40,6 +42,53 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    networks:
+      - controltower-net
+
+  # ── Control Tower App ────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: controltower-app
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE:       ${SPRING_PROFILES_ACTIVE:-dev}
+      DB_HOST:                      postgres
+      DB_PORT:                       5432
+      DB_NAME:                      ${DB_NAME:-controltower}
+      DB_USERNAME:                  ${DB_USERNAME:-controltower}
+      DB_PASSWORD:                  ${DB_PASSWORD:-controltower123}
+      REDIS_HOST:                   redis
+      REDIS_PORT:                   6379
+      REDIS_PASSWORD:               ${REDIS_PASSWORD:-}
+      JWT_SECRET:                   ${JWT_SECRET:-controltower-dev-secret-key-32-chars-minimum-length-ok}
+      JWT_ACCESS_EXPIRATION:        ${JWT_ACCESS_EXPIRATION:-900}
+      JWT_REFRESH_EXPIRATION:       ${JWT_REFRESH_EXPIRATION:-604800}
+      STRIPE_SECRET_KEY:            ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET:        ${STRIPE_WEBHOOK_SECRET:-}
+      CORS_ALLOWED_ORIGINS:         ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      LOG_LEVEL:                    ${LOG_LEVEL:-INFO}
+      SECURITY_LOG_LEVEL:           ${SECURITY_LOG_LEVEL:-WARN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - controltower-net
+
+networks:
+  controltower-net:
+    driver: bridge
 
 volumes:
   postgres_data:
