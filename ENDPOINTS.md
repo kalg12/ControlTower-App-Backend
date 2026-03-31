@@ -13,9 +13,40 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/auth/login` | Public | Login with email + password. Returns `accessToken` + `refreshToken`. |
+| POST | `/auth/login` | Public | Login with email + password. Returns `accessToken` + `refreshToken` (or `mfaToken` if 2FA enabled). |
 | POST | `/auth/refresh` | Public | Rotate token pair using a valid refresh token. |
 | POST | `/auth/logout` | Public | Invalidate refresh token (server-side). |
+| POST | `/auth/forgot-password` | Public | Request password reset email. Always returns 200 (no user enumeration). |
+| POST | `/auth/reset-password` | Public | Reset password using token from email. Body: `{ token, newPassword }`. |
+| POST | `/auth/2fa/setup` | Bearer | Generate TOTP secret + QR URL (does not enable 2FA yet). |
+| POST | `/auth/2fa/enable` | Bearer | Confirm TOTP setup by verifying first code. Body: `{ code }`. |
+| POST | `/auth/2fa/disable` | Bearer | Disable 2FA (requires valid TOTP code). Body: `{ code }`. |
+| POST | `/auth/2fa/verify` | Public | Exchange `mfaToken` + TOTP code for full tokens. Body: `{ mfaToken, code }`. |
+
+**2FA login flow:**
+```
+POST /auth/login  →  { requiresMfa: true, mfaToken: "..." }
+POST /auth/2fa/verify  →  { accessToken: "...", refreshToken: "..." }
+```
+
+---
+
+## Tenant Onboarding *(public — first-time setup)*
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/tenants/onboard` | **Public** | Create tenant + admin user + admin role + trial license in one transaction. |
+
+Request body:
+```json
+{
+  "tenantName": "Acme Corp",
+  "tenantSlug": "acme",
+  "adminEmail": "admin@acme.com",
+  "adminPassword": "Admin123!",
+  "adminFullName": "Admin User"
+}
+```
 
 ---
 
@@ -28,6 +59,21 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 | GET | `/users/{id}` | `user:read` | Get user by ID. |
 | PUT | `/users/{id}` | `user:write` | Update user. |
 | DELETE | `/users/{id}` | `user:write` | Soft-delete user. |
+| POST | `/users/{id}/roles/{roleId}` | `user:write` | Assign a role to a user. |
+| DELETE | `/users/{id}/roles/{roleId}` | `user:write` | Remove a role from a user. |
+
+---
+
+## Roles & Permissions
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/roles` | `user:read` | List roles for current tenant (paginated). |
+| POST | `/roles` | `user:write` | Create a custom role. |
+| DELETE | `/roles/{id}` | `user:write` | Delete role (system roles are protected). |
+| POST | `/roles/{id}/permissions/{permissionId}` | `user:write` | Add a permission to a role. |
+| DELETE | `/roles/{id}/permissions/{permissionId}` | `user:write` | Remove a permission from a role. |
+| GET | `/permissions` | `user:read` | List all available system permissions. |
 
 ---
 
@@ -87,6 +133,10 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 | POST | `/tickets/{id}/escalate` | `ticket:write` | Escalate ticket priority by one level. |
 | POST | `/tickets/{id}/comments` | `ticket:write` | Add a comment (set `internal: true` for agent-only notes). |
 | DELETE | `/tickets/{id}` | `ticket:write` | Soft-close a ticket. |
+| POST | `/tickets/{id}/attachments` | `ticket:write` | Upload file attachment (`multipart/form-data`, field: `file`). |
+| GET | `/tickets/{id}/attachments` | `ticket:read` | List all attachments for a ticket. |
+| GET | `/attachments/{attachmentId}` | `ticket:read` | Download a file attachment. |
+| DELETE | `/attachments/{attachmentId}` | `ticket:write` | Delete an attachment. |
 
 **Status transitions:**
 ```
@@ -192,6 +242,8 @@ TRIAL → ACTIVE → GRACE → SUSPENDED → CANCELLED
 
 **Header for push events:** `X-Api-Key: <configured_api_key>`
 
+> API keys are stored AES-256-GCM encrypted. Pass the plain-text key when registering; the system encrypts it automatically.
+
 ---
 
 ## Billing
@@ -206,6 +258,37 @@ TRIAL → ACTIVE → GRACE → SUSPENDED → CANCELLED
 - `customer.subscription.deleted` → cancels license
 - `invoice.paid` → records payment event
 - `invoice.payment_failed` → enters 7-day grace period
+
+---
+
+## Infrastructure Behaviour
+
+### Rate Limiting
+Public endpoints are rate-limited at **60 requests / minute per IP**:
+- `POST /health/heartbeat/**`
+- `POST /integrations/events`
+- `POST /billing/stripe/webhook`
+
+Exceeding the limit returns HTTP **429** with `{ "success": false, "message": "Rate limit exceeded" }`.
+
+### File Attachments (local storage)
+Uploaded files are stored under the path configured in `STORAGE_PATH` (default `./uploads`).
+Upload using `multipart/form-data` with field name `file`.
+Download returns the file with the original `Content-Type` header.
+
+### Background Jobs
+| Job | Schedule | Description |
+|-----|----------|-------------|
+| SLA breach checker | Every 5 min | Marks tickets whose SLA `due_at` has passed |
+| Webhook retry | Every 5 min | Retries `PENDING` webhook deliveries (max 3 attempts) |
+| Health pull check | Every 5 min | Pulls health status from endpoints with a `pullUrl` |
+| Health daily snapshot | Daily 01:00 UTC | Aggregates uptime%, avg latency, incident count per branch |
+| License expiry check | Daily 02:00 UTC | Moves expired TRIAL/ACTIVE licenses to GRACE period |
+| License grace expiry | Daily 02:05 UTC | Suspends licenses whose grace period has ended |
+
+### Email Notifications
+Configure SMTP via `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` in `.env`.
+If mail is not configured, emails are logged as warnings and skipped — the app continues normally.
 
 ---
 

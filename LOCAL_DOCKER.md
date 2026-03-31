@@ -34,8 +34,16 @@ The defaults work for local development out of the box. The only values you may 
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 
-# Use a stronger secret in any shared environment
+# Use stronger secrets in any shared environment
 JWT_SECRET=change-me-to-a-strong-256-bit-secret-key-in-production
+ENCRYPTION_KEY=0123456789abcdef0123456789abcdef   # must be exactly 32 chars
+
+# Email (optional — password reset, welcome emails)
+# Use Mailtrap (https://mailtrap.io) for local testing
+MAIL_HOST=smtp.mailtrap.io
+MAIL_PORT=587
+MAIL_USERNAME=your_mailtrap_user
+MAIL_PASSWORD=your_mailtrap_pass
 ```
 
 > **Important:** `.env` is git-ignored. Never commit it.
@@ -79,40 +87,26 @@ Open Swagger UI: **http://localhost:8080/swagger-ui/index.html**
 
 ---
 
-## 5. Create your first user and log in
+## 5. Create your first tenant and log in
 
-Since there is no seed data for users, you need to insert one directly:
-
-```bash
-# Connect to Postgres
-docker exec -it controltower-postgres psql -U controltower -d controltower
-```
-
-```sql
--- 1. Insert a tenant
-INSERT INTO tenants (id, name, slug, status)
-VALUES (gen_random_uuid(), 'Demo Tenant', 'demo', 'ACTIVE')
-RETURNING id;
--- Copy the returned UUID — you'll need it below.
-
--- 2. Insert an admin user (password = Admin123!)
--- BCrypt hash for "Admin123!" with strength 12:
-INSERT INTO users (id, tenant_id, email, password_hash, full_name, status, is_super_admin)
-VALUES (
-  gen_random_uuid(),
-  '<tenant_id_from_step_1>',
-  'admin@demo.com',
-  '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/Pf3p8nHlLkeTK.HaO',
-  'Admin User',
-  'ACTIVE',
-  true
-);
-
-\q
-```
+Use the public onboarding endpoint — no SQL required:
 
 ```bash
-# Log in via API
+curl -s -X POST http://localhost:8080/api/v1/tenants/onboard \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenantName": "Demo Tenant",
+    "tenantSlug": "demo",
+    "adminEmail": "admin@demo.com",
+    "adminPassword": "Admin123!",
+    "adminFullName": "Admin User"
+  }' | jq .
+```
+
+This creates the tenant, admin user (with all permissions), and a Trial license in one call.
+
+```bash
+# Log in
 curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@demo.com","password":"Admin123!"}' | jq .
@@ -204,6 +198,9 @@ Migrations live in `src/main/resources/db/migration/` and run automatically on s
 | V10 | Kanban boards + notes |
 | V11 | Integrations |
 | V12 | Billing / Stripe |
+| V13 | Password reset tokens |
+| V14 | Ticket attachments + health snapshots |
+| V15 | 2FA columns on users |
 
 To check migration status:
 
@@ -222,13 +219,9 @@ docker exec -it controltower-postgres psql -U controltower -d controltower \
 **Port already in use**
 → Change the port in `.env` (see section 8).
 
-**`BCryptPasswordEncoder` mismatch / 401 on login**
-→ The hash in the SQL above is for `Admin123!`. If you change it, generate a new hash:
-```bash
-docker exec -it controltower-app java -cp app.jar \
-  org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
-```
-Or use an online BCrypt generator (strength = 12).
+**401 on login after onboarding**
+→ Make sure you used the correct `adminPassword` value in the onboard request.
+→ Passwords are BCrypt-hashed with strength 12. If you need to reset a password, call `POST /auth/forgot-password` (requires email to be configured) or re-run onboarding with a new slug.
 
 **Flyway `checksumMismatch` error**
 → A migration file was modified after it was applied. Either restore the original file or wipe the DB:
