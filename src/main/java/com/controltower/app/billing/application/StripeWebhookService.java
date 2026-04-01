@@ -3,8 +3,8 @@ package com.controltower.app.billing.application;
 import com.controltower.app.billing.domain.*;
 import com.controltower.app.shared.annotation.Audited;
 import com.controltower.app.shared.exception.ControlTowerException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
 import com.stripe.net.Webhook;
@@ -24,7 +24,7 @@ public class StripeWebhookService {
 
     private final StripeWebhookEventRepository webhookEventRepository;
     private final BillingEventProcessor        billingEventProcessor;
-    private final ObjectMapper                 objectMapper;
+    private final JsonMapper                   objectMapper;
 
     @Value("${stripe.webhook-secret:}")
     private String webhookSecret;

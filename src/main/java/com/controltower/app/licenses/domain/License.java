@@ -17,7 +17,7 @@ public class License extends BaseEntity {
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
 
-    @Column(name = "client_id", nullable = false, unique = true)
+    @Column(name = "client_id", unique = true)
     private UUID clientId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

@@ -16,8 +16,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,16 +53,14 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
-        try {
-            authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-            );
-        } catch (BadCredentialsException ex) {
+        // Verify credentials manually — UserDetailsServiceImpl uses UUID as username,
+        // so the authenticationManager flow is used only for filter-based auth (JWT).
+        User user = userRepository.findByEmailAndDeletedAtIsNull(request.getEmail())
+                .orElseThrow(() -> new ControlTowerException("Invalid email or password", HttpStatus.UNAUTHORIZED));
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new ControlTowerException("Invalid email or password", HttpStatus.UNAUTHORIZED);
         }
-
-        User user = userRepository.findByEmailAndDeletedAtIsNull(request.getEmail())
-                .orElseThrow(() -> new ControlTowerException("User not found", HttpStatus.UNAUTHORIZED));
 
         if (user.getStatus() != User.UserStatus.ACTIVE) {
             throw new ControlTowerException("Account is not active", HttpStatus.FORBIDDEN);

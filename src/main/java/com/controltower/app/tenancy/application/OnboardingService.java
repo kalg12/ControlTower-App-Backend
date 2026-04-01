@@ -93,7 +93,7 @@ public class OnboardingService {
 
         License license = new License();
         license.setTenantId(tenant.getId());
-        license.setClientId(tenant.getId()); // use tenant ID as the license client reference
+        // clientId is null for the tenant-level trial license created at onboarding
         license.setPlan(trialPlan);
         license.setStatus(License.LicenseStatus.TRIAL);
         license.setCurrentPeriodEnd(Instant.now().plus(14, ChronoUnit.DAYS));
