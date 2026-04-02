@@ -1,12 +1,7 @@
 package com.controltower.app.kanban.api;
 
-import com.controltower.app.kanban.api.dto.BoardRequest;
-import com.controltower.app.kanban.api.dto.CardRequest;
-import com.controltower.app.kanban.api.dto.MoveCardRequest;
+import com.controltower.app.kanban.api.dto.*;
 import com.controltower.app.kanban.application.BoardService;
-import com.controltower.app.kanban.domain.Board;
-import com.controltower.app.kanban.domain.Card;
-import com.controltower.app.kanban.domain.ChecklistItem;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import jakarta.validation.Valid;
@@ -39,7 +34,7 @@ public class BoardController {
     @Operation(summary = "List boards", description = "Returns a paginated list of Kanban boards accessible to the current tenant. Requires the 'kanban:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('kanban:read')")
-    public ResponseEntity<ApiResponse<PageResponse<Board>>> list(
+    public ResponseEntity<ApiResponse<PageResponse<BoardResponse>>> list(
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
@@ -49,7 +44,7 @@ public class BoardController {
     @Operation(summary = "Create board", description = "Creates a new Kanban board owned by the authenticated user. Requires the 'kanban:write' permission.")
     @PostMapping
     @PreAuthorize("hasAuthority('kanban:write')")
-    public ResponseEntity<ApiResponse<Board>> create(
+    public ResponseEntity<ApiResponse<BoardResponse>> create(
             @Valid @RequestBody BoardRequest request,
             @AuthenticationPrincipal UserDetails principal) {
         UUID userId = UUID.fromString(principal.getUsername());
@@ -60,14 +55,14 @@ public class BoardController {
     @Operation(summary = "Get board by ID", description = "Retrieves a Kanban board along with its columns and cards. Requires the 'kanban:read' permission.")
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('kanban:read')")
-    public ResponseEntity<ApiResponse<Board>> get(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<BoardResponse>> get(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(boardService.getBoard(id)));
     }
 
     @Operation(summary = "Update board", description = "Updates the name and settings of an existing Kanban board. Requires the 'kanban:write' permission.")
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('kanban:write')")
-    public ResponseEntity<ApiResponse<Board>> update(
+    public ResponseEntity<ApiResponse<BoardResponse>> update(
             @PathVariable UUID id,
             @Valid @RequestBody BoardRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(boardService.updateBoard(id, request)));
@@ -86,12 +81,12 @@ public class BoardController {
     @Operation(summary = "Add column to board", description = "Adds a new column to the specified board at the given position. Requires the 'kanban:write' permission.")
     @PostMapping("/{id}/columns")
     @PreAuthorize("hasAuthority('kanban:write')")
-    public ResponseEntity<ApiResponse<Void>> addColumn(
+    public ResponseEntity<ApiResponse<ColumnResponse>> addColumn(
             @PathVariable UUID id,
             @RequestParam String name,
             @RequestParam(defaultValue = "0") int position) {
-        boardService.addColumn(id, name, position);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Column added"));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok(boardService.addColumn(id, name, position)));
     }
 
     @Operation(summary = "Delete column", description = "Removes a column from the board by its ID. Requires the 'kanban:write' permission.")
@@ -107,7 +102,7 @@ public class BoardController {
     @Operation(summary = "Create card", description = "Creates a new card in the specified board column. Requires the 'kanban:write' permission.")
     @PostMapping("/cards")
     @PreAuthorize("hasAuthority('kanban:write')")
-    public ResponseEntity<ApiResponse<Card>> createCard(@Valid @RequestBody CardRequest request) {
+    public ResponseEntity<ApiResponse<CardResponse>> createCard(@Valid @RequestBody CardRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(boardService.createCard(request)));
     }
@@ -115,7 +110,7 @@ public class BoardController {
     @Operation(summary = "Move card", description = "Moves a card to a different column and/or position within the board. Requires the 'kanban:write' permission.")
     @PatchMapping("/cards/{cardId}/move")
     @PreAuthorize("hasAuthority('kanban:write')")
-    public ResponseEntity<ApiResponse<Card>> moveCard(
+    public ResponseEntity<ApiResponse<CardResponse>> moveCard(
             @PathVariable UUID cardId,
             @Valid @RequestBody MoveCardRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(boardService.moveCard(cardId, request)));
@@ -134,7 +129,7 @@ public class BoardController {
     @Operation(summary = "Add checklist item", description = "Appends a new checklist item to the specified card. Requires the 'kanban:write' permission.")
     @PostMapping("/cards/{cardId}/checklist")
     @PreAuthorize("hasAuthority('kanban:write')")
-    public ResponseEntity<ApiResponse<ChecklistItem>> addChecklistItem(
+    public ResponseEntity<ApiResponse<ChecklistItemResponse>> addChecklistItem(
             @PathVariable UUID cardId,
             @RequestParam String text) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -144,7 +139,7 @@ public class BoardController {
     @Operation(summary = "Toggle checklist item", description = "Toggles the completion state of a checklist item between checked and unchecked. Requires the 'kanban:write' permission.")
     @PatchMapping("/checklist/{itemId}/toggle")
     @PreAuthorize("hasAuthority('kanban:write')")
-    public ResponseEntity<ApiResponse<ChecklistItem>> toggle(@PathVariable UUID itemId) {
+    public ResponseEntity<ApiResponse<ChecklistItemResponse>> toggle(@PathVariable UUID itemId) {
         return ResponseEntity.ok(ApiResponse.ok(boardService.toggleChecklistItem(itemId)));
     }
 }

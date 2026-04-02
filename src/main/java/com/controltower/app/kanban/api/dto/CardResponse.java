@@ -1,0 +1,26 @@
+package com.controltower.app.kanban.api.dto;
+
+import lombok.Builder;
+import lombok.Getter;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+
+@Getter
+@Builder
+public class CardResponse {
+    private final UUID id;
+    private final UUID columnId;
+    private final String title;
+    private final String description;
+    private final UUID assigneeId;
+    private final LocalDate dueDate;
+    private final String priority;
+    private final int position;
+    private final String[] labels;
+    private final List<ChecklistItemResponse> checklist;
+    private final Instant createdAt;
+    private final Instant updatedAt;
+}
