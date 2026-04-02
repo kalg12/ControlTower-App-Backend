@@ -236,6 +236,8 @@ public class TicketService {
     }
 
     private TicketResponse toResponse(Ticket t) {
+        List<String> labels = t.getLabels() != null ? java.util.Arrays.asList(t.getLabels()) : java.util.List.of();
+        int commentsCount = t.getComments() != null ? t.getComments().size() : 0;
         return TicketResponse.builder()
                 .id(t.getId())
                 .tenantId(t.getTenantId())
@@ -248,6 +250,8 @@ public class TicketService {
                 .assigneeId(t.getAssigneeId())
                 .source(t.getSource().name())
                 .sourceRefId(t.getSourceRefId())
+                .labels(labels)
+                .commentsCount(commentsCount)
                 .createdAt(t.getCreatedAt())
                 .updatedAt(t.getUpdatedAt())
                 .build();
