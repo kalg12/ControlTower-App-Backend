@@ -62,6 +62,13 @@ public class IntegrationService {
     }
 
     @Transactional
+    public IntegrationEndpoint activate(UUID endpointId) {
+        IntegrationEndpoint endpoint = resolve(endpointId);
+        endpoint.setActive(true);
+        return endpointRepository.save(endpoint);
+    }
+
+    @Transactional
     public void deactivate(UUID endpointId) {
         IntegrationEndpoint endpoint = resolve(endpointId);
         endpoint.setActive(false);

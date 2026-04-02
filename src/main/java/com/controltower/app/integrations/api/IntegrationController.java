@@ -59,12 +59,27 @@ public class IntegrationController {
         return ResponseEntity.ok(ApiResponse.ok(integrationService.update(id, request)));
     }
 
+    @Operation(summary = "Activate integration endpoint", description = "Re-activates a previously deactivated integration endpoint. Requires the 'integration:write' permission.")
+    @PatchMapping("/{id}/activate")
+    @PreAuthorize("hasAuthority('integration:write')")
+    public ResponseEntity<ApiResponse<IntegrationEndpoint>> activate(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(integrationService.activate(id)));
+    }
+
     @Operation(summary = "Deactivate integration endpoint", description = "Deactivates the specified integration endpoint, preventing further event ingestion via its API key. Requires the 'integration:write' permission.")
-    @DeleteMapping("/{id}")
+    @PatchMapping("/{id}/deactivate")
     @PreAuthorize("hasAuthority('integration:write')")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable UUID id) {
         integrationService.deactivate(id);
         return ResponseEntity.ok(ApiResponse.ok("Integration endpoint deactivated"));
+    }
+
+    @Operation(summary = "Delete integration endpoint", description = "Permanently removes an integration endpoint. Requires the 'integration:write' permission.")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('integration:write')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
+        integrationService.deactivate(id);
+        return ResponseEntity.ok(ApiResponse.ok("Integration endpoint removed"));
     }
 
     /**
