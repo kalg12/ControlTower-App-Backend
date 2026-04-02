@@ -119,6 +119,30 @@ public class ClientService {
     }
 
     @Transactional
+    public BranchResponse updateBranch(UUID clientId, UUID branchId, BranchRequest request) {
+        UUID tenantId = TenantContext.getTenantId();
+        // Verify client belongs to tenant
+        clientRepository.findByIdAndTenantIdAndDeletedAtIsNull(clientId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", clientId));
+        ClientBranch branch = branchRepository.findByIdAndTenantIdAndDeletedAtIsNull(branchId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("ClientBranch", branchId));
+
+        if (StringUtils.hasText(request.getName()))    branch.setName(request.getName());
+        if (StringUtils.hasText(request.getAddress())) branch.setAddress(request.getAddress());
+        if (StringUtils.hasText(request.getCity()))    branch.setCity(request.getCity());
+        if (StringUtils.hasText(request.getCountry())) branch.setCountry(request.getCountry());
+        if (StringUtils.hasText(request.getTimezone())) branch.setTimezone(request.getTimezone());
+        if (request.getLatitude()  != null) branch.setLatitude(request.getLatitude());
+        if (request.getLongitude() != null) branch.setLongitude(request.getLongitude());
+        if (request.getActive() != null) {
+            branch.setStatus(request.getActive()
+                    ? ClientBranch.BranchStatus.ACTIVE
+                    : ClientBranch.BranchStatus.INACTIVE);
+        }
+        return toBranchResponse(branchRepository.save(branch));
+    }
+
+    @Transactional
     public void deleteBranch(UUID branchId) {
         UUID tenantId = TenantContext.getTenantId();
         ClientBranch branch = branchRepository.findByIdAndTenantIdAndDeletedAtIsNull(branchId, tenantId)
@@ -175,6 +199,7 @@ public class ClientService {
                 .longitude(b.getLongitude())
                 .slug(b.getSlug())
                 .status(b.getStatus().name())
+                .isActive(b.getStatus() == ClientBranch.BranchStatus.ACTIVE)
                 .timezone(b.getTimezone())
                 .createdAt(b.getCreatedAt())
                 .build();

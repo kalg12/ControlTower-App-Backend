@@ -98,6 +98,16 @@ public class ClientController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Branch created", created));
     }
 
+    @Operation(summary = "Update branch", description = "Updates the specified branch's fields. Supports partial updates; omitted fields are left unchanged. Requires the 'client:write' permission.")
+    @PatchMapping("/{clientId}/branches/{branchId}")
+    @PreAuthorize("hasAuthority('client:write')")
+    public ResponseEntity<ApiResponse<BranchResponse>> updateBranch(
+            @PathVariable UUID clientId,
+            @PathVariable UUID branchId,
+            @Valid @RequestBody BranchRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Branch updated", clientService.updateBranch(clientId, branchId, request)));
+    }
+
     @Operation(summary = "Delete branch", description = "Permanently removes a branch by its UUID. Requires the 'client:write' permission.")
     @DeleteMapping("/branches/{branchId}")
     @PreAuthorize("hasAuthority('client:write')")

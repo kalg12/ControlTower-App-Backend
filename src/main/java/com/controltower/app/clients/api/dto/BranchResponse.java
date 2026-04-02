@@ -22,6 +22,7 @@ public class BranchResponse {
     private final BigDecimal longitude;
     private final String slug;
     private final String status;
+    private final boolean isActive;
     private final String timezone;
     private final Instant createdAt;
 }

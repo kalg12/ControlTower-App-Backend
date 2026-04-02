@@ -22,4 +22,7 @@ public class BranchRequest {
     private BigDecimal longitude;
     private String slug;
     private String timezone;
+
+    /** Used on updates only: true → ACTIVE, false → INACTIVE */
+    private Boolean active;
 }
