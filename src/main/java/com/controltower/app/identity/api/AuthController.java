@@ -69,6 +69,18 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok("Password reset successfully"));
     }
 
+    /** Changes password for the authenticated user. */
+    @Operation(summary = "Change password", description = "Requires current password. Requires a valid bearer token.")
+    @PostMapping("/change-password")
+    @SecurityRequirement(name = "bearerAuth")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @AuthenticationPrincipal UserDetails principal,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        java.util.UUID userId = java.util.UUID.fromString(principal.getUsername());
+        authService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
+        return ResponseEntity.ok(ApiResponse.ok("Password changed successfully"));
+    }
+
     // ── 2FA endpoints ────────────────────────────────────────────────
 
     /** Generates a TOTP secret and QR URL. Requires authentication. */

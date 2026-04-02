@@ -200,6 +200,23 @@ public class AuthService {
     }
 
     /**
+     * Changes password for an authenticated user (validates current password).
+     */
+    @Transactional
+    public void changePassword(UUID userId, String currentPassword, String newPassword) {
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new ControlTowerException("User not found", HttpStatus.NOT_FOUND));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new ControlTowerException("Current password is incorrect", HttpStatus.BAD_REQUEST);
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password changed for user {}", userId);
+    }
+
+    /**
      * Generates a new TOTP secret and QR URL for the current user.
      * Saves the secret but does NOT enable 2FA yet (requires confirmation via enable()).
      */
