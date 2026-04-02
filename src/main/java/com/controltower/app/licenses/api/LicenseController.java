@@ -81,6 +81,13 @@ public class LicenseController {
         return ResponseEntity.ok(ApiResponse.ok(licenseService.reactivate(id, extensionDays)));
     }
 
+    @Operation(summary = "Cancel license", description = "Permanently cancels a license. This action cannot be undone. Requires the 'license:write' permission.")
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAuthority('license:write')")
+    public ResponseEntity<ApiResponse<LicenseResponse>> cancel(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(licenseService.cancel(id)));
+    }
+
     @Operation(summary = "Get license features", description = "Returns the list of feature flags enabled for the given license. Requires the 'license:read' permission.")
     @GetMapping("/{id}/features")
     @PreAuthorize("hasAuthority('license:read')")

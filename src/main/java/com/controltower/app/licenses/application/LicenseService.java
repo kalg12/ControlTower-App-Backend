@@ -100,6 +100,19 @@ public class LicenseService {
         return toResponse(license);
     }
 
+    @Transactional
+    @Audited(action = "LICENSE_CANCELLED", resource = "License")
+    public LicenseResponse cancel(UUID licenseId) {
+        License license = resolve(licenseId);
+        if (license.getStatus() == License.LicenseStatus.CANCELLED) {
+            throw new ControlTowerException("License is already cancelled", HttpStatus.BAD_REQUEST);
+        }
+        license.cancel();
+        licenseRepository.save(license);
+        recordEvent(license, "LICENSE_CANCELLED", null);
+        return toResponse(license);
+    }
+
     @Transactional(readOnly = true)
     public List<String> getEnabledFeatures(UUID licenseId) {
         License license = resolve(licenseId);
