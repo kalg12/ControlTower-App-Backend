@@ -50,9 +50,11 @@ public class OpenApiConfig {
                         .license(new License()
                                 .name("Proprietary")
                                 .url("https://controltower.io")))
+                // Relative URL: Swagger "Try it out" hits the same host that serves the UI (avoids CORS / wrong port).
                 .servers(List.of(
+                        new Server().url("/").description("Same origin (use when opening Swagger on the API host)"),
                         new Server().url("http://localhost:" + serverPort)
-                                    .description("Local development"),
+                                    .description("Direct backend (e.g. tools calling 8080 without UI)"),
                         new Server().url("https://api.controltower.io")
                                     .description("Production")
                 ));

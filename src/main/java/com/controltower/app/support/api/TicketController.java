@@ -7,6 +7,7 @@ import com.controltower.app.support.application.TicketService;
 import com.controltower.app.support.domain.Ticket;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -77,6 +78,11 @@ public class TicketController {
         description = "Streams a CSV file of all tickets matching the given filters. " +
                       "Same filter parameters as GET /tickets."
     )
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+        responseCode = "200",
+        description = "CSV stream (attachment)",
+        content = @Content(mediaType = "text/csv")
+    )
     public void exportCsv(
             @RequestParam(required = false) Ticket.TicketStatus status,
             @RequestParam(required = false) UUID assigneeId,
@@ -108,8 +114,10 @@ public class TicketController {
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAuthority('ticket:write')")
+    @Operation(summary = "Update ticket status", description = "Query parameter `status` (no request body). Applies ticket state-machine rules.")
     public ResponseEntity<ApiResponse<TicketResponse>> updateStatus(
             @PathVariable UUID id,
+            @Parameter(description = "Target status", required = true)
             @RequestParam Ticket.TicketStatus status) {
         return ResponseEntity.ok(ApiResponse.ok(ticketService.updateStatus(id, status)));
     }

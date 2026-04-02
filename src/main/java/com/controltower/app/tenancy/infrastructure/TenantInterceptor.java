@@ -4,9 +4,12 @@ import com.controltower.app.identity.infrastructure.security.JwtTokenProvider;
 import com.controltower.app.tenancy.domain.TenantContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -34,7 +37,9 @@ public class TenantInterceptor implements HandlerInterceptor {
             @NonNull Object handler) {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated()) {
+        if (auth != null
+                && auth.isAuthenticated()
+                && !(auth instanceof AnonymousAuthenticationToken)) {
             String bearerToken = extractToken(request);
             if (StringUtils.hasText(bearerToken)) {
                 try {
@@ -43,6 +48,17 @@ public class TenantInterceptor implements HandlerInterceptor {
                     log.debug("Tenant context set: {}", tenantId);
                 } catch (Exception ex) {
                     log.warn("Could not extract tenant from token: {}", ex.getMessage());
+                    try {
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setCharacterEncoding("UTF-8");
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().write(
+                                "{\"success\":false,\"message\":\"Invalid or missing tenant in access token\"}");
+                    } catch (IOException ioe) {
+                        log.error("Could not write 401 response body", ioe);
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    }
+                    return false;
                 }
             }
         }
