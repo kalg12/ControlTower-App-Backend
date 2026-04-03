@@ -25,8 +25,12 @@ public class SettingsService {
             "weeklyDigest",  false
     );
 
+    // Instantiated directly to avoid Spring context dependency on the
+    // auto-configured ObjectMapper bean (which may not be available
+    // depending on the Jackson auto-configuration order).
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private final UserSettingRepository settingRepository;
-    private final ObjectMapper          objectMapper;
 
     @Transactional(readOnly = true)
     public Map<String, Object> getNotificationPreferences(UUID userId) {
@@ -55,7 +59,7 @@ public class SettingsService {
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseJson(String json) {
         try {
-            return objectMapper.readValue(json, Map.class);
+            return MAPPER.readValue(json, Map.class);
         } catch (JsonProcessingException e) {
             return DEFAULT_NOTIFICATION_PREFS;
         }
@@ -63,7 +67,7 @@ public class SettingsService {
 
     private String toJson(Object value) {
         try {
-            return objectMapper.writeValueAsString(value);
+            return MAPPER.writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize settings", e);
         }
