@@ -37,17 +37,26 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             throw new UsernameNotFoundException("User account is not active: " + userId);
         }
 
+        // Full-access users: super-admins AND any user with the ADMIN role.
+        // In this system the ADMIN role is always created with every permission
+        // (see OnboardingService), but role_permissions rows may be missing when
+        // new features were added after the tenant was first onboarded.
+        // Loading all permissions from the DB directly is the safe fallback.
+        boolean fullAccess = user.isSuperAdmin() ||
+                user.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getCode()));
+
         Set<SimpleGrantedAuthority> authorities;
 
-        if (user.isSuperAdmin()) {
-            // Super-admins get every permission in the system + ROLE_SUPER_ADMIN
+        if (fullAccess) {
+            // Grant every permission in the system + all role codes
             authorities = Stream.concat(
                     permissionRepository.findAll().stream()
                             .map(p -> new SimpleGrantedAuthority(p.getCode())),
-                    Stream.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))
+                    user.getRoles().stream()
+                            .map(r -> new SimpleGrantedAuthority("ROLE_" + r.getCode()))
             ).collect(Collectors.toSet());
         } else {
-            // Build authorities from role codes + permission codes
+            // Regular users: derive authorities only from assigned role permissions
             authorities = Stream.concat(
                     user.getRoles().stream()
                             .map(r -> new SimpleGrantedAuthority("ROLE_" + r.getCode())),
