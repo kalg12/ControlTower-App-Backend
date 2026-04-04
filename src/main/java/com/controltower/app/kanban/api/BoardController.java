@@ -116,6 +116,15 @@ public class BoardController {
         return ResponseEntity.ok(ApiResponse.ok(boardService.moveCard(cardId, request)));
     }
 
+    @Operation(summary = "Update card", description = "Updates title, description, assignee, due date, and priority. Column changes use the move endpoint. Requires the 'kanban:write' permission.")
+    @PatchMapping("/cards/{cardId}")
+    @PreAuthorize("hasAuthority('kanban:write')")
+    public ResponseEntity<ApiResponse<CardResponse>> updateCard(
+            @PathVariable UUID cardId,
+            @Valid @RequestBody CardUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(boardService.updateCard(cardId, request)));
+    }
+
     @Operation(summary = "Delete card", description = "Permanently deletes a card and its checklist items. Requires the 'kanban:write' permission.")
     @DeleteMapping("/cards/{cardId}")
     @PreAuthorize("hasAuthority('kanban:write')")

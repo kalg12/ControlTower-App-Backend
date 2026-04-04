@@ -111,6 +111,17 @@ public class BoardService {
     }
 
     @Transactional
+    public CardResponse updateCard(UUID cardId, CardUpdateRequest request) {
+        Card card = resolveCard(cardId);
+        card.setTitle(request.getTitle());
+        card.setDescription(request.getDescription());
+        card.setAssigneeId(request.getAssigneeId());
+        card.setDueDate(request.getDueDate());
+        card.setPriority(request.getPriority());
+        return toCardResponse(cardRepository.save(card));
+    }
+
+    @Transactional
     public void deleteCard(UUID cardId) {
         Card card = resolveCard(cardId);
         card.softDelete();
