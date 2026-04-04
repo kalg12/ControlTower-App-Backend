@@ -4,6 +4,7 @@ import com.controltower.app.audit.api.dto.AuditLogResponse;
 import com.controltower.app.audit.domain.AuditAction;
 import com.controltower.app.audit.domain.AuditLog;
 import com.controltower.app.audit.domain.AuditLogRepository;
+import com.controltower.app.audit.domain.AuditLogSpecification;
 import com.controltower.app.shared.response.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
