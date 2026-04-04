@@ -59,8 +59,10 @@ services:
       --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -107,6 +109,7 @@ services:
       MAIL_USERNAME:                ${MAIL_USERNAME}
       MAIL_PASSWORD:                ${MAIL_PASSWORD}
       MAIL_FROM:                    ${MAIL_FROM:-noreply@controltower.io}
+      APP_BASE_URL:                 ${APP_BASE_URL}
     volumes:
       - uploads_data:/app/uploads
     depends_on:

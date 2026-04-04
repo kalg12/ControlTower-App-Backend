@@ -2,11 +2,12 @@ package com.controltower.app.settings.application;
 
 import com.controltower.app.settings.domain.UserSetting;
 import com.controltower.app.settings.domain.UserSettingRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Map;
 import java.util.UUID;
@@ -25,10 +26,8 @@ public class SettingsService {
             "weeklyDigest",  false
     );
 
-    // Instantiated directly to avoid Spring context dependency on the
-    // auto-configured ObjectMapper bean (which may not be available
-    // depending on the Jackson auto-configuration order).
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    // Jackson 3 (Spring Boot 4) — instantiated statically; no Spring injection needed.
+    private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
     private final UserSettingRepository settingRepository;
 
@@ -56,11 +55,10 @@ public class SettingsService {
 
     // ── Helpers ───────────────────────────────────────────────────────
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> parseJson(String json) {
         try {
-            return MAPPER.readValue(json, Map.class);
-        } catch (JsonProcessingException e) {
+            return MAPPER.readValue(json, new TypeReference<>() {});
+        } catch (JacksonException e) {
             return DEFAULT_NOTIFICATION_PREFS;
         }
     }
@@ -68,7 +66,7 @@ public class SettingsService {
     private String toJson(Object value) {
         try {
             return MAPPER.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Failed to serialize settings", e);
         }
     }

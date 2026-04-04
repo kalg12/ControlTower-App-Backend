@@ -36,8 +36,10 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -79,6 +81,7 @@ services:
       MAIL_USERNAME:                ${MAIL_USERNAME:-}
       MAIL_PASSWORD:                ${MAIL_PASSWORD:-}
       MAIL_FROM:                    ${MAIL_FROM:-noreply@controltower.io}
+      APP_BASE_URL:                 ${APP_BASE_URL:-http://localhost:8080}
     volumes:
       - uploads_data:/app/uploads
     depends_on:

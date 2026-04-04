@@ -14,7 +14,7 @@ RUN chmod +x ./gradlew
 # Pre-fetch dependencies before copying source (avoids re-download on code changes)
 RUN ./gradlew dependencies --no-daemon || true
 
-# Copy source and build
+# Copy source and build — bootJar produces build/libs/app.jar (plain jar disabled)
 COPY src src
 RUN ./gradlew bootJar --no-daemon -x test
 
@@ -26,7 +26,8 @@ WORKDIR /app
 # Create non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY --from=builder /app/build/libs/*.jar app.jar
+# Copy the single deterministic artifact produced by the builder stage
+COPY --from=builder /app/build/libs/app.jar app.jar
 
 USER appuser
 

@@ -20,6 +20,14 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD}
+      repositories:
+        enabled: false
+
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+    time-zone: UTC
 
 server:
   port: ${SERVER_PORT:8080}
@@ -31,10 +39,14 @@ management:
   endpoint:
     health:
       show-details: never
+  health:
+    mail:
+      enabled: false
 
 logging:
   level:
     com.controltower: INFO
     org.springframework.security: WARN
+    org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer: ERROR
     org.flywaydb: WARN
     org.hibernate.SQL: ERROR

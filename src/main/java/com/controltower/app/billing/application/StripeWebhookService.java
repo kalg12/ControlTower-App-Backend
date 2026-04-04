@@ -26,7 +26,7 @@ public class StripeWebhookService {
     private final BillingEventProcessor        billingEventProcessor;
     private final JsonMapper                   objectMapper;
 
-    @Value("${stripe.webhook-secret:}")
+    @Value("${app.stripe.webhook-secret:}")
     private String webhookSecret;
 
     @Transactional

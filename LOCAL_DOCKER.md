@@ -59,7 +59,7 @@ docker compose up --build
 This will:
 1. Build the app JAR inside a Docker container (takes ~2-3 min on first run)
 2. Start PostgreSQL 17, Redis 7, and the app
-3. Flyway runs all 12 migrations automatically on startup
+3. Flyway runs all available migrations automatically on startup (currently 20)
 4. App becomes available at **http://localhost:8080**
 
 ### First run output you should see
@@ -67,7 +67,7 @@ This will:
 ```
 controltower-postgres  | database system is ready to accept connections
 controltower-redis     | Ready to accept connections
-controltower-app       | Flyway: Successfully applied 12 migrations
+controltower-app       | Flyway: Successfully validated/applied migrations
 controltower-app       | Started ControltowerAppApplication in X.XXX seconds
 ```
 
@@ -201,6 +201,11 @@ Migrations live in `src/main/resources/db/migration/` and run automatically on s
 | V13 | Password reset tokens |
 | V14 | Ticket attachments + health snapshots |
 | V15 | 2FA columns on users |
+| V16 | Health snapshots schema fixes |
+| V17 | Permissions backfill |
+| V18 | Campaigns |
+| V19 | User settings |
+| V20 | Admin permissions backfill |
 
 To check migration status:
 
@@ -215,6 +220,16 @@ docker exec -it controltower-postgres psql -U controltower -d controltower \
 
 **App fails to start — `Unable to acquire JDBC Connection`**
 → Postgres is still initializing. Wait 15–20 seconds and run `docker compose restart app`.
+
+**App fails to start — `No qualifying bean of type ... ObjectMapper`**
+→ Rebuild the app image from current source and recreate containers:
+```bash
+docker compose down
+
+docker compose up --build -d
+
+docker compose logs -f app
+```
 
 **Port already in use**
 → Change the port in `.env` (see section 8).

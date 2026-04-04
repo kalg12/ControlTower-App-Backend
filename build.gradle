@@ -40,6 +40,8 @@ dependencies {
 
 	// ── TOTP / 2FA ──────────────────────────────────────────────────
 	implementation 'com.warrenstrange:googleauth:1.5.0'
+	// googleauth pulls httpclient 4.5.12 transitively; pin to patched version.
+	implementation 'org.apache.httpcomponents:httpclient:4.5.14'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
@@ -93,4 +95,16 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// ── Packaging ────────────────────────────────────────────────────────────────
+// Disable the plain jar task so only the executable bootJar is produced.
+// This prevents COPY *.jar ambiguity in Dockerfile.
+tasks.named('jar') {
+	enabled = false
+}
+
+// Name the executable JAR consistently so Dockerfile doesn't rely on version strings.
+tasks.named('bootJar') {
+	archiveFileName = 'app.jar'
 }

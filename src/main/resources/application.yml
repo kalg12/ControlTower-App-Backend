@@ -26,7 +26,7 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # dialect is auto-detected by Hibernate 6+ — no explicit value needed
         format_sql: true
         default_batch_fetch_size: 50
 
@@ -49,6 +49,10 @@ spring:
           max-active: 8
           max-idle: 4
           min-idle: 1
+      repositories:
+        # Disable Redis repository scanning — app uses StringRedisTemplate directly.
+        # Prevents "Could not safely identify store assignment" INFO noise at startup.
+        enabled: false
 
   # ── Mail ─────────────────────────────────────────────────────────────
   mail:
@@ -92,6 +96,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    mail:
+      enabled: false
   metrics:
     tags:
       application: ${spring.application.name}
@@ -123,6 +130,8 @@ logging:
   level:
     com.controltower: ${LOG_LEVEL:DEBUG}
     org.springframework.security: ${SECURITY_LOG_LEVEL:INFO}
+    # The AuthenticationProvider @Bean is intentional — suppress the expected WARN
+    org.springframework.security.config.annotation.authentication.configuration.InitializeUserDetailsBeanManagerConfigurer: ERROR
     org.flywaydb: INFO
     org.hibernate.SQL: WARN
   pattern:
