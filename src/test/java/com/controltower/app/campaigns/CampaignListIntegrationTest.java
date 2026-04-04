@@ -12,10 +12,13 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -55,6 +58,117 @@ class CampaignListIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.success", is(true)))
                 .andExpect(jsonPath("$.data.content[0].id", is(id)))
                 .andExpect(jsonPath("$.data.content[0].name", is("Retention Blast")));
+    }
+
+    @Test
+    @DisplayName("Create campaign returns 400 when scheduledAt format is invalid")
+    void createWithInvalidScheduledAt_returnsBadRequest() throws Exception {
+        mvc.perform(post("/api/v1/campaigns")
+                .header("Authorization", TestDataFactory.bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "name", "Bad schedule",
+                        "type", "EMAIL",
+                        "subject", "Hello",
+                        "body", "Campaign body",
+                        "scheduledAt", "tomorrow-at-8"
+                ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)));
+    }
+
+    @Test
+    @DisplayName("List campaigns returns 400 for negative page")
+    void listWithNegativePage_returnsBadRequest() throws Exception {
+        mvc.perform(get("/api/v1/campaigns?page=-1&size=20")
+                .header("Authorization", TestDataFactory.bearer(token)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)));
+    }
+
+    @Test
+    @DisplayName("Update campaign returns 200 and persists changes")
+    void updateCampaign_returnsUpdatedData() throws Exception {
+        String id = createCampaign("Original Name");
+
+        mvc.perform(patch("/api/v1/campaigns/{id}", id)
+                .header("Authorization", TestDataFactory.bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "name", "Updated Name",
+                        "subject", "Updated subject"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.id", is(id)))
+                .andExpect(jsonPath("$.data.name", is("Updated Name")))
+                .andExpect(jsonPath("$.data.subject", is("Updated subject")));
+    }
+
+    @Test
+    @DisplayName("Send campaign returns 200, second send returns 400")
+    void sendCampaign_twice_returnsExpectedStatuses() throws Exception {
+        String id = createCampaign("Send once campaign");
+
+        mvc.perform(post("/api/v1/campaigns/{id}/send", id)
+                .header("Authorization", TestDataFactory.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.message", is("Campaign sent")));
+
+        mvc.perform(post("/api/v1/campaigns/{id}/send", id)
+                .header("Authorization", TestDataFactory.bearer(token)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.message", is("Campaign already sent")));
+    }
+
+    @Test
+    @DisplayName("Delete campaign soft-deletes record and hides it from list")
+    void deleteCampaign_hidesFromList() throws Exception {
+        String id = createCampaign("Delete Me");
+
+        mvc.perform(delete("/api/v1/campaigns/{id}", id)
+                .header("Authorization", TestDataFactory.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.message", is("Campaign deleted")));
+
+        mvc.perform(get("/api/v1/campaigns?page=0&size=20&search=delete me")
+                .header("Authorization", TestDataFactory.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.totalElements", is(0)));
+    }
+
+    @Test
+    @DisplayName("Campaign endpoints return 403 without token")
+    void campaignEndpoints_withoutToken_return403() throws Exception {
+        String anyId = UUID.randomUUID().toString();
+
+        mvc.perform(get("/api/v1/campaigns?page=0&size=20"))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/campaigns")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of(
+                        "name", "No auth campaign",
+                        "type", "EMAIL",
+                        "subject", "Hello",
+                        "body", "Campaign body"
+                ))))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(patch("/api/v1/campaigns/{id}", anyId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("name", "Updated"))))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/campaigns/{id}/send", anyId))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(delete("/api/v1/campaigns/{id}", anyId))
+                .andExpect(status().isForbidden());
     }
 
     private String createCampaign(String name) throws Exception {

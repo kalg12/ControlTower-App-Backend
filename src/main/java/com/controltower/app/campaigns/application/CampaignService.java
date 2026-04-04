@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.UUID;
 
 @Service
@@ -42,8 +43,9 @@ public class CampaignService {
         campaign.setSubject(request.getSubject());
         campaign.setBody(request.getBody());
         campaign.setTargetAudience(request.getTargetAudience());
-        if (request.getScheduledAt() != null && !request.getScheduledAt().isBlank()) {
-            campaign.setScheduledAt(Instant.parse(request.getScheduledAt()));
+        Instant scheduledAt = parseScheduledAt(request.getScheduledAt());
+        if (scheduledAt != null) {
+            campaign.setScheduledAt(scheduledAt);
             campaign.setStatus(Campaign.CampaignStatus.SCHEDULED);
         }
         return toResponse(campaignRepository.save(campaign));
@@ -59,8 +61,9 @@ public class CampaignService {
         if (request.getSubject() != null)        campaign.setSubject(request.getSubject());
         if (request.getBody() != null)           campaign.setBody(request.getBody());
         if (request.getTargetAudience() != null) campaign.setTargetAudience(request.getTargetAudience());
-        if (request.getScheduledAt() != null && !request.getScheduledAt().isBlank()) {
-            campaign.setScheduledAt(Instant.parse(request.getScheduledAt()));
+        Instant scheduledAt = parseScheduledAt(request.getScheduledAt());
+        if (scheduledAt != null) {
+            campaign.setScheduledAt(scheduledAt);
             campaign.setStatus(Campaign.CampaignStatus.SCHEDULED);
         }
         return toResponse(campaignRepository.save(campaign));
@@ -107,6 +110,20 @@ public class CampaignService {
         UUID tenantId = TenantContext.getTenantId();
         return campaignRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Campaign", id));
+    }
+
+    private Instant parseScheduledAt(String scheduledAtRaw) {
+        if (scheduledAtRaw == null || scheduledAtRaw.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(scheduledAtRaw.trim());
+        } catch (DateTimeParseException ex) {
+            throw new ControlTowerException(
+                    "Invalid scheduledAt format. Use ISO-8601 instant (e.g. 2026-04-04T10:15:30Z)",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
     }
 
     private CampaignResponse toResponse(Campaign c) {

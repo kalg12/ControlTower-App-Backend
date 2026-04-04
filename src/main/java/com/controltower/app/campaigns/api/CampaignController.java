@@ -4,6 +4,7 @@ import com.controltower.app.campaigns.api.dto.CampaignRequest;
 import com.controltower.app.campaigns.api.dto.CampaignResponse;
 import com.controltower.app.campaigns.api.dto.CampaignUpdateRequest;
 import com.controltower.app.campaigns.application.CampaignService;
+import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,6 +37,12 @@ public class CampaignController {
             @RequestParam(defaultValue = "0")   int page,
             @RequestParam(defaultValue = "20")  int size,
             @RequestParam(required = false)     String search) {
+        if (page < 0) {
+            throw new ControlTowerException("page must be greater than or equal to 0", HttpStatus.BAD_REQUEST);
+        }
+        if (size < 1 || size > 100) {
+            throw new ControlTowerException("size must be between 1 and 100", HttpStatus.BAD_REQUEST);
+        }
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(campaignService.list(search, pageable))));
     }
