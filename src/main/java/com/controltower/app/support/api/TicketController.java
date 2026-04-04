@@ -2,6 +2,7 @@ package com.controltower.app.support.api;
 
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
+import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.support.api.dto.*;
 import com.controltower.app.support.application.TicketService;
 import com.controltower.app.support.domain.Ticket;
@@ -114,12 +115,17 @@ public class TicketController {
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAuthority('ticket:write')")
-    @Operation(summary = "Update ticket status", description = "Query parameter `status` (no request body). Applies ticket state-machine rules.")
+    @Operation(summary = "Update ticket status", description = "Accepts `status` either as query parameter or JSON body. Applies ticket state-machine rules.")
     public ResponseEntity<ApiResponse<TicketResponse>> updateStatus(
             @PathVariable UUID id,
-            @Parameter(description = "Target status", required = true)
-            @RequestParam Ticket.TicketStatus status) {
-        return ResponseEntity.ok(ApiResponse.ok(ticketService.updateStatus(id, status)));
+            @Parameter(description = "Target status", required = false)
+            @RequestParam(required = false) Ticket.TicketStatus status,
+            @RequestBody(required = false) UpdateTicketStatusRequest request) {
+        Ticket.TicketStatus targetStatus = status != null ? status : request != null ? request.getStatus() : null;
+        if (targetStatus == null) {
+            throw new ControlTowerException("status is required", HttpStatus.BAD_REQUEST);
+        }
+        return ResponseEntity.ok(ApiResponse.ok(ticketService.updateStatus(id, targetStatus)));
     }
 
     @PostMapping("/{id}/assign")

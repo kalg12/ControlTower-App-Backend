@@ -9,6 +9,8 @@ import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,9 +40,9 @@ public class TicketService {
             Ticket.Priority priority, Instant createdAfter, Instant createdBefore,
             Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        return ticketRepository.findFiltered(
-                tenantId, status, assigneeId, clientId,
-                priority, createdAfter, createdBefore, pageable)
+        Specification<Ticket> spec = buildFilterSpec(
+                tenantId, status, assigneeId, clientId, priority, createdAfter, createdBefore);
+        return ticketRepository.findAll(spec, pageable)
                 .map(this::toResponse);
     }
 
@@ -83,8 +85,9 @@ public class TicketService {
                           Ticket.TicketStatus status, UUID assigneeId, UUID clientId,
                           Ticket.Priority priority, Instant createdAfter, Instant createdBefore) {
         UUID tenantId = TenantContext.getTenantId();
-        List<Ticket> tickets = ticketRepository.findAllForExport(
+        Specification<Ticket> spec = buildFilterSpec(
                 tenantId, status, assigneeId, clientId, priority, createdAfter, createdBefore);
+        List<Ticket> tickets = ticketRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         writer.println("id,title,status,priority,assigneeId,clientId,branchId,source,createdAt,updatedAt");
         for (Ticket t : tickets) {
@@ -196,6 +199,41 @@ public class TicketService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+
+    private Specification<Ticket> buildFilterSpec(
+            UUID tenantId,
+            Ticket.TicketStatus status,
+            UUID assigneeId,
+            UUID clientId,
+            Ticket.Priority priority,
+            Instant createdAfter,
+            Instant createdBefore) {
+        return (root, query, cb) -> {
+            var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(cb.equal(root.get("tenantId"), tenantId));
+            predicates.add(cb.isNull(root.get("deletedAt")));
+
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (assigneeId != null) {
+                predicates.add(cb.equal(root.get("assigneeId"), assigneeId));
+            }
+            if (clientId != null) {
+                predicates.add(cb.equal(root.get("clientId"), clientId));
+            }
+            if (priority != null) {
+                predicates.add(cb.equal(root.get("priority"), priority));
+            }
+            if (createdAfter != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), createdAfter));
+            }
+            if (createdBefore != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), createdBefore));
+            }
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+    }
 
     private Ticket resolveTicket(UUID ticketId) {
         UUID tenantId = TenantContext.getTenantId();
