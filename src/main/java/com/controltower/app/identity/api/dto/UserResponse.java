@@ -17,6 +17,7 @@ public class UserResponse {
     private final String fullName;
     private final String status;
     private final boolean superAdmin;
+    private final boolean totpEnabled;
     private final Set<String> roles;
     private final Set<String> permissions;
     private final Instant createdAt;
