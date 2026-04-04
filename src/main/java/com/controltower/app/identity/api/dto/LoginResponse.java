@@ -3,6 +3,8 @@ package com.controltower.app.identity.api.dto;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -23,4 +25,14 @@ public class LoginResponse {
 
     /** True when 2FA is enabled and the client must complete MFA verification. */
     private final boolean requiresMfa;
+
+    /** Effective permission codes for menu + UI (mirrors JWT claim). */
+    @Builder.Default
+    private final Set<String> permissions = Collections.emptySet();
+
+    @Builder.Default
+    private final Set<String> roles = Collections.emptySet();
+
+    @Builder.Default
+    private final boolean superAdmin = false;
 }

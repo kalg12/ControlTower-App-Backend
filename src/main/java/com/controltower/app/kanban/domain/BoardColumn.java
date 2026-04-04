@@ -29,8 +29,20 @@ public class BoardColumn {
     @Column(name = "name", nullable = false)
     private String name;
 
+    /**
+     * Optional workflow stage for default columns and cross-board filters.
+     * User-created columns leave this null.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "column_kind")
+    private ColumnKind columnKind;
+
     @Column(name = "position", nullable = false)
     private int position = 0;
+
+    public enum ColumnKind {
+        TODO, IN_PROGRESS, DONE, HISTORY
+    }
 
     @Column(name = "wip_limit")
     private Integer wipLimit;

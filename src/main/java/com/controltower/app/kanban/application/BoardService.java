@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,7 +40,47 @@ public class BoardService {
         board.setDescription(request.getDescription());
         board.setVisibility(request.getVisibility());
         board.setCreatedBy(userId);
-        return toBoardSummary(boardRepository.save(board));
+        board = boardRepository.save(board);
+        seedDefaultColumns(board);
+        return toBoardSummary(boardRepository.findById(board.getId()).orElseThrow());
+    }
+
+    private void seedDefaultColumns(Board board) {
+        record Seed(String name, BoardColumn.ColumnKind kind, int position) {}
+        List<Seed> seeds = List.of(
+                new Seed("To Do", BoardColumn.ColumnKind.TODO, 0),
+                new Seed("In Progress", BoardColumn.ColumnKind.IN_PROGRESS, 1),
+                new Seed("Done", BoardColumn.ColumnKind.DONE, 2),
+                new Seed("History", BoardColumn.ColumnKind.HISTORY, 3)
+        );
+        for (Seed s : seeds) {
+            BoardColumn col = new BoardColumn();
+            col.setBoard(board);
+            col.setName(s.name());
+            col.setColumnKind(s.kind());
+            col.setPosition(s.position());
+            columnRepository.save(col);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkItemResponse> listWorkItems(UUID assigneeId, BoardColumn.ColumnKind columnKind) {
+        UUID tenantId = TenantContext.getTenantId();
+        List<Card> cards = cardRepository.findWorkItems(tenantId, assigneeId, columnKind);
+        List<WorkItemResponse> out = new ArrayList<>(cards.size());
+        for (Card c : cards) {
+            BoardColumn col = c.getColumn();
+            Board b = col.getBoard();
+            out.add(WorkItemResponse.builder()
+                    .card(toCardResponse(c))
+                    .boardId(b.getId())
+                    .boardName(b.getName())
+                    .columnId(col.getId())
+                    .columnName(col.getName())
+                    .columnKind(col.getColumnKind() != null ? col.getColumnKind().name() : null)
+                    .build());
+        }
+        return out;
     }
 
     @Transactional(readOnly = true)
@@ -202,6 +243,7 @@ public class BoardService {
                 .id(c.getId())
                 .boardId(c.getBoard().getId())
                 .name(c.getName())
+                .columnKind(c.getColumnKind() != null ? c.getColumnKind().name() : null)
                 .position(c.getPosition())
                 .wipLimit(c.getWipLimit())
                 .cards(cards)

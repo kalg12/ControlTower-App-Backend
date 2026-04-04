@@ -2,6 +2,7 @@ package com.controltower.app.tenancy.application;
 
 import com.controltower.app.tenancy.api.dto.OnboardingRequest;
 import com.controltower.app.identity.api.dto.UserResponse;
+import com.controltower.app.identity.domain.Permission;
 import com.controltower.app.identity.domain.PermissionRepository;
 import com.controltower.app.identity.domain.Role;
 import com.controltower.app.identity.domain.RoleRepository;
@@ -80,6 +81,20 @@ public class OnboardingService {
         adminRole.setSystem(false);
         adminRole.getPermissions().addAll(permissionRepository.findAll());
         adminRole = roleRepository.save(adminRole);
+
+        // 4b. Read-only Member role (invite collaborators without admin)
+        Role memberRole = new Role();
+        memberRole.setTenant(tenant);
+        memberRole.setName("Member");
+        memberRole.setCode("MEMBER");
+        memberRole.setDescription("Read-only access to modules (view boards, tickets, etc.)");
+        memberRole.setSystem(false);
+        for (Permission p : permissionRepository.findAll()) {
+            if (p.getCode() != null && p.getCode().endsWith(":read")) {
+                memberRole.getPermissions().add(p);
+            }
+        }
+        roleRepository.save(memberRole);
 
         // 5. Assign role to user
         user.getRoles().add(adminRole);

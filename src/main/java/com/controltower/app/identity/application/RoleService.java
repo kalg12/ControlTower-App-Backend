@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -76,6 +78,18 @@ public class RoleService {
         Permission permission = permissionRepository.findById(permissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Permission", permissionId));
         role.getPermissions().remove(permission);
+        return roleRepository.save(role);
+    }
+
+    @Transactional
+    public Role replacePermissions(UUID roleId, Set<UUID> permissionIds) {
+        UUID tenantId = TenantContext.getTenantId();
+        Role role = roleRepository.findByIdAndTenantIdAndDeletedAtIsNull(roleId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Role", roleId));
+        role.getPermissions().clear();
+        if (permissionIds != null && !permissionIds.isEmpty()) {
+            role.getPermissions().addAll(new HashSet<>(permissionRepository.findAllById(permissionIds)));
+        }
         return roleRepository.save(role);
     }
 

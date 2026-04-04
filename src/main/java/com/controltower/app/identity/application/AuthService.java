@@ -7,6 +7,9 @@ import com.controltower.app.identity.api.dto.TotpSetupResponse;
 import com.controltower.app.identity.api.dto.TotpStatusResponse;
 import com.controltower.app.identity.domain.PasswordResetToken;
 import com.controltower.app.identity.domain.PasswordResetTokenRepository;
+import com.controltower.app.identity.domain.Permission;
+import com.controltower.app.identity.domain.PermissionRepository;
+import com.controltower.app.identity.domain.Role;
 import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.identity.infrastructure.security.JwtTokenProvider;
@@ -25,7 +28,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Handles authentication: login, token refresh, and logout.
@@ -47,6 +53,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final TotpService totpService;
+    private final PermissionRepository permissionRepository;
 
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
@@ -78,6 +85,9 @@ public class AuthService {
                     .email(user.getEmail())
                     .totpEnabled(true)
                     .requiresMfa(true)
+                    .permissions(resolvePermissionCodes(user))
+                    .roles(resolveRoleCodes(user))
+                    .superAdmin(user.isSuperAdmin())
                     .build();
         }
 
@@ -102,6 +112,9 @@ public class AuthService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .totpEnabled(user.isTotpEnabled())
+                .permissions(resolvePermissionCodes(user))
+                .roles(resolveRoleCodes(user))
+                .superAdmin(user.isSuperAdmin())
                 .build();
     }
 
@@ -147,6 +160,9 @@ public class AuthService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .totpEnabled(user.isTotpEnabled())
+                .permissions(resolvePermissionCodes(user))
+                .roles(resolveRoleCodes(user))
+                .superAdmin(user.isSuperAdmin())
                 .build();
     }
 
@@ -330,6 +346,24 @@ public class AuthService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .totpEnabled(true)
+                .permissions(resolvePermissionCodes(user))
+                .roles(resolveRoleCodes(user))
+                .superAdmin(user.isSuperAdmin())
                 .build();
+    }
+
+    private Set<String> resolvePermissionCodes(User user) {
+        boolean fullAccess = user.isSuperAdmin()
+                || user.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getCode()));
+        if (fullAccess) {
+            return permissionRepository.findAll().stream()
+                    .map(Permission::getCode)
+                    .collect(Collectors.toSet());
+        }
+        return new HashSet<>(user.getAllPermissions());
+    }
+
+    private static Set<String> resolveRoleCodes(User user) {
+        return user.getRoles().stream().map(Role::getCode).collect(Collectors.toSet());
     }
 }

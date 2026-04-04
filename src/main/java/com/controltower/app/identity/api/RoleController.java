@@ -2,6 +2,7 @@ package com.controltower.app.identity.api;
 
 import com.controltower.app.identity.api.dto.CreateRoleRequest;
 import com.controltower.app.identity.api.dto.PermissionResponse;
+import com.controltower.app.identity.api.dto.ReplaceRolePermissionsRequest;
 import com.controltower.app.identity.api.dto.RoleResponse;
 import com.controltower.app.identity.application.RoleService;
 import com.controltower.app.identity.domain.PermissionRepository;
@@ -102,6 +103,16 @@ public class RoleController {
             @PathVariable UUID roleId) {
         roleService.removeRoleFromUser(id, roleId);
         return ResponseEntity.ok(ApiResponse.ok("Role removed from user"));
+    }
+
+    @Operation(summary = "Replace role permissions", description = "Sets the full permission set for a role (replaces existing). Send an empty array to clear all. Requires the 'user:write' permission.")
+    @PutMapping("/roles/{id}/permissions")
+    @PreAuthorize("hasAuthority('user:write')")
+    public ResponseEntity<ApiResponse<RoleResponse>> replaceRolePermissions(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReplaceRolePermissionsRequest request) {
+        RoleResponse role = RoleResponse.from(roleService.replacePermissions(id, request.getPermissionIds()));
+        return ResponseEntity.ok(ApiResponse.ok("Permissions updated", role));
     }
 
     @Operation(summary = "List permissions", description = "Returns all available permissions in the system. Requires the 'user:read' permission.")
