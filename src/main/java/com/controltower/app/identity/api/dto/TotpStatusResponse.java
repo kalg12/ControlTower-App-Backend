@@ -5,9 +5,8 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class TotpSetupResponse {
+public class TotpStatusResponse {
 
-    private final String secret;
-    private final String qrUrl;
     private final boolean enabled;
+    private final boolean setupStarted;
 }

@@ -94,6 +94,16 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok("TOTP secret generated", response));
     }
 
+    @Operation(summary = "Get 2FA status", description = "Returns whether two-factor authentication is enabled or currently in setup for the authenticated user. Requires a valid bearer token.")
+    @GetMapping("/2fa/status")
+    @SecurityRequirement(name = "bearerAuth")
+    public ResponseEntity<ApiResponse<TotpStatusResponse>> get2faStatus(
+            @AuthenticationPrincipal UserDetails principal) {
+        java.util.UUID userId = java.util.UUID.fromString(principal.getUsername());
+        TotpStatusResponse response = authService.getTotpStatus(userId);
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
     /** Enables 2FA after verifying the first code. Requires authentication. */
     @Operation(summary = "Enable 2FA", description = "Enables two-factor authentication for the authenticated user after verifying the first TOTP code. Requires a valid bearer token.")
     @PostMapping("/2fa/enable")

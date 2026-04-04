@@ -1,6 +1,7 @@
 package com.controltower.app.identity.application;
 
 import com.controltower.app.identity.api.dto.CreateUserRequest;
+import com.controltower.app.identity.api.dto.UpdateUserRequest;
 import com.controltower.app.identity.api.dto.UserResponse;
 import com.controltower.app.identity.domain.*;
 import com.controltower.app.identity.mapper.UserMapper;
@@ -61,6 +62,43 @@ public class UserService {
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
             Set<Role> roles = new HashSet<>(roleRepository.findAllById(request.getRoleIds()));
             user.setRoles(roles);
+        }
+
+        return userMapper.toResponse(userRepository.save(user));
+    }
+
+    @Transactional
+    public UserResponse updateUser(UUID userId, UpdateUserRequest request) {
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName().trim());
+        }
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String email = request.getEmail().trim();
+            UUID tenantId = user.getTenant().getId();
+            if (!email.equalsIgnoreCase(user.getEmail())
+                    && userRepository.existsByEmailAndTenantIdAndDeletedAtIsNull(email, tenantId)) {
+                throw new ControlTowerException(
+                        "Email already in use: " + email, HttpStatus.CONFLICT
+                );
+            }
+            user.setEmail(email);
+        }
+
+        if (request.getStatus() != null) {
+            user.setStatus(request.getStatus());
+        }
+
+        if (request.getRoleIds() != null) {
+            Set<Role> roles = new HashSet<>(roleRepository.findAllById(request.getRoleIds()));
+            user.setRoles(roles);
+        }
+
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
 
         return userMapper.toResponse(userRepository.save(user));

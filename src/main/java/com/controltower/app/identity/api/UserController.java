@@ -1,6 +1,7 @@
 package com.controltower.app.identity.api;
 
 import com.controltower.app.identity.api.dto.CreateUserRequest;
+import com.controltower.app.identity.api.dto.UpdateUserRequest;
 import com.controltower.app.identity.api.dto.UserResponse;
 import com.controltower.app.identity.application.UserService;
 import com.controltower.app.shared.response.ApiResponse;
@@ -59,6 +60,16 @@ public class UserController {
             @Valid @RequestBody CreateUserRequest request) {
         UserResponse created = userService.createUser(tenantId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("User created", created));
+    }
+
+    @Operation(summary = "Update user", description = "Updates profile fields, status, roles, and optionally password. Omitted fields stay unchanged; send an empty roleIds array to remove all roles. Requires the 'user:write' permission.")
+    @PutMapping("/{userId}")
+    @PreAuthorize("hasAuthority('user:write')")
+    public ResponseEntity<ApiResponse<UserResponse>> updateUser(
+            @PathVariable UUID userId,
+            @Valid @RequestBody UpdateUserRequest request) {
+        UserResponse updated = userService.updateUser(userId, request);
+        return ResponseEntity.ok(ApiResponse.ok("User updated", updated));
     }
 
     @Operation(summary = "Delete user", description = "Permanently removes the user with the given UUID. Requires the 'user:write' permission.")

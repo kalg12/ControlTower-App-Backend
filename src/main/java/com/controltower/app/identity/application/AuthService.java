@@ -3,6 +3,8 @@ package com.controltower.app.identity.application;
 import com.controltower.app.identity.api.dto.LoginRequest;
 import com.controltower.app.identity.api.dto.LoginResponse;
 import com.controltower.app.identity.api.dto.RefreshRequest;
+import com.controltower.app.identity.api.dto.TotpSetupResponse;
+import com.controltower.app.identity.api.dto.TotpStatusResponse;
 import com.controltower.app.identity.domain.PasswordResetToken;
 import com.controltower.app.identity.domain.PasswordResetTokenRepository;
 import com.controltower.app.identity.domain.User;
@@ -74,6 +76,7 @@ public class AuthService {
                     .mfaToken(mfaToken)
                     .userId(user.getId())
                     .email(user.getEmail())
+                    .totpEnabled(true)
                     .requiresMfa(true)
                     .build();
         }
@@ -98,6 +101,7 @@ public class AuthService {
                 .tenantId(user.getTenant().getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
+                .totpEnabled(user.isTotpEnabled())
                 .build();
     }
 
@@ -142,6 +146,7 @@ public class AuthService {
                 .tenantId(user.getTenant().getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
+                .totpEnabled(user.isTotpEnabled())
                 .build();
     }
 
@@ -221,16 +226,33 @@ public class AuthService {
      * Saves the secret but does NOT enable 2FA yet (requires confirmation via enable()).
      */
     @Transactional
-    public com.controltower.app.identity.api.dto.TotpSetupResponse setupTotp(UUID userId) {
+    public TotpSetupResponse setupTotp(UUID userId) {
         User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ControlTowerException("User not found", HttpStatus.NOT_FOUND));
-        String secret = totpService.generateSecret();
-        user.setTotpSecret(secret);
-        userRepository.save(user);
+
+        String secret = user.getTotpSecret();
+        if (secret == null || secret.isBlank()) {
+            secret = totpService.generateSecret();
+            user.setTotpSecret(secret);
+            userRepository.save(user);
+        }
+
         String qrUrl = totpService.getQrUrl(user.getEmail(), secret);
-        return com.controltower.app.identity.api.dto.TotpSetupResponse.builder()
+        return TotpSetupResponse.builder()
                 .secret(secret)
                 .qrUrl(qrUrl)
+                .enabled(user.isTotpEnabled())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public TotpStatusResponse getTotpStatus(UUID userId) {
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new ControlTowerException("User not found", HttpStatus.NOT_FOUND));
+
+        return TotpStatusResponse.builder()
+                .enabled(user.isTotpEnabled())
+                .setupStarted(user.getTotpSecret() != null && !user.getTotpSecret().isBlank())
                 .build();
     }
 
@@ -307,6 +329,7 @@ public class AuthService {
                 .tenantId(user.getTenant().getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
+                .totpEnabled(true)
                 .build();
     }
 }

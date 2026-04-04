@@ -22,4 +22,7 @@ public class LoginResponse {
 
     /** True when 2FA is enabled and the client must complete MFA verification. */
     private final boolean requiresMfa;
+
+    /** Whether the account has TOTP 2FA enabled (informational for clients). */
+    private final boolean totpEnabled;
 }
