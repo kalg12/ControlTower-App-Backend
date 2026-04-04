@@ -29,7 +29,8 @@ public class AuditQueryService {
             Instant to,
             Pageable pageable) {
 
-        Page<AuditLog> page = auditLogRepository.findFiltered(tenantId, userId, action, from, to, pageable);
+        Page<AuditLog> page = auditLogRepository.findAll(
+                AuditLogSpecification.filter(tenantId, userId, action, from, to), pageable);
         return PageResponse.from(page.map(this::toResponse));
     }
 

@@ -27,7 +27,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 @Tag(name = "Audit", description = "Immutable audit log (read-only)")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
-@RequestMapping("/api/v1/audit")
+@RequestMapping({"/api/v1/audit", "/api/v1/audit-logs"})
 @RequiredArgsConstructor
 public class AuditController {
 

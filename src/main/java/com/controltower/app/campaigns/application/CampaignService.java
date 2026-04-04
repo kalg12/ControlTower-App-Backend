@@ -11,6 +11,7 @@ import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +28,7 @@ public class CampaignService {
     @Transactional(readOnly = true)
     public Page<CampaignResponse> list(String search, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        return campaignRepository.findByTenant(tenantId, search, pageable)
+        return campaignRepository.findAll(buildListSpec(tenantId, search), pageable)
                 .map(this::toResponse);
     }
 
@@ -84,6 +85,23 @@ public class CampaignService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+
+    private Specification<Campaign> buildListSpec(UUID tenantId, String search) {
+        return (root, query, cb) -> {
+            var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(cb.equal(root.get("tenantId"), tenantId));
+            predicates.add(cb.isNull(root.get("deletedAt")));
+
+            if (search != null && !search.isBlank()) {
+                predicates.add(cb.like(
+                        cb.lower(root.get("name")),
+                        "%" + search.trim().toLowerCase() + "%"
+                ));
+            }
+
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+    }
 
     private Campaign resolve(UUID id) {
         UUID tenantId = TenantContext.getTenantId();
