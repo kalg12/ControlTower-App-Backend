@@ -47,7 +47,7 @@ public class BoardColumn {
     @Column(name = "wip_limit")
     private Integer wipLimit;
 
-    @OneToMany(mappedBy = "column", cascade = CascadeType.ALL, fetch = FetchType.LAZY,
+    @OneToMany(mappedBy = "boardColumn", cascade = CascadeType.ALL, fetch = FetchType.LAZY,
                orphanRemoval = true)
     @OrderBy("position ASC")
     private List<Card> cards = new ArrayList<>();

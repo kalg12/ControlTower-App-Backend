@@ -5,15 +5,20 @@ import com.controltower.app.kanban.domain.*;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BoardService {
@@ -22,6 +27,9 @@ public class BoardService {
     private final BoardColumnRepository  columnRepository;
     private final CardRepository         cardRepository;
     private final ChecklistItemRepository checklistRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     // ── Boards ────────────────────────────────────────────────────────
 
@@ -42,7 +50,14 @@ public class BoardService {
         board.setCreatedBy(userId);
         board = boardRepository.save(board);
         seedDefaultColumns(board);
-        return toBoardSummary(boardRepository.findById(board.getId()).orElseThrow());
+        UUID newBoardId = board.getId();
+        // Force SQL insert of columns, then reload Board from DB so toBoardDetail sees the new columns.
+        // (Same-transaction refresh/in-memory collections are unreliable for mappedBy inverse sides.)
+        entityManager.flush();
+        entityManager.clear();
+        Board loaded = resolveBoard(newBoardId);
+        log.info("Created Kanban board {} with {} default columns", newBoardId, loaded.getBoardColumns().size());
+        return toBoardDetail(loaded);
     }
 
     private void seedDefaultColumns(Board board) {
@@ -69,7 +84,7 @@ public class BoardService {
         List<Card> cards = cardRepository.findWorkItems(tenantId, assigneeId, columnKind);
         List<WorkItemResponse> out = new ArrayList<>(cards.size());
         for (Card c : cards) {
-            BoardColumn col = c.getColumn();
+            BoardColumn col = c.getBoardColumn();
             Board b = col.getBoard();
             out.add(WorkItemResponse.builder()
                     .card(toCardResponse(c))
@@ -131,7 +146,7 @@ public class BoardService {
         BoardColumn column = columnRepository.findById(request.getColumnId())
                 .orElseThrow(() -> new ResourceNotFoundException("BoardColumn", request.getColumnId()));
         Card card = new Card();
-        card.setColumn(column);
+        card.setBoardColumn(column);
         card.setTitle(request.getTitle());
         card.setDescription(request.getDescription());
         card.setAssigneeId(request.getAssigneeId());
@@ -146,7 +161,7 @@ public class BoardService {
         Card card = resolveCard(cardId);
         BoardColumn target = columnRepository.findById(request.getTargetColumnId())
                 .orElseThrow(() -> new ResourceNotFoundException("BoardColumn", request.getTargetColumnId()));
-        card.setColumn(target);
+        card.setBoardColumn(target);
         card.setPosition(request.getPosition());
         return toCardResponse(cardRepository.save(card));
     }
@@ -192,7 +207,8 @@ public class BoardService {
     // ── Helpers ───────────────────────────────────────────────────────
 
     private Board resolveBoard(UUID boardId) {
-        return boardRepository.findByIdAndTenantIdAndDeletedAtIsNull(boardId, TenantContext.getTenantId())
+        return boardRepository
+                .findByIdTenantAndFetchColumns(boardId, TenantContext.getTenantId())
                 .orElseThrow(() -> new ResourceNotFoundException("Board", boardId));
     }
 
@@ -218,7 +234,7 @@ public class BoardService {
     }
 
     private BoardResponse toBoardDetail(Board b) {
-        List<ColumnResponse> cols = b.getColumns().stream()
+        List<ColumnResponse> cols = b.getBoardColumns().stream()
                 .map(this::toColumnResponse)
                 .toList();
         return BoardResponse.builder()
@@ -257,7 +273,7 @@ public class BoardService {
                 .toList();
         return CardResponse.builder()
                 .id(c.getId())
-                .columnId(c.getColumn().getId())
+                .columnId(c.getBoardColumn().getId())
                 .title(c.getTitle())
                 .description(c.getDescription())
                 .assigneeId(c.getAssigneeId())

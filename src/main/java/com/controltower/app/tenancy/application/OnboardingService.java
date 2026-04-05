@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.function.Predicate;
 
 @Slf4j
 @Service
@@ -96,6 +97,19 @@ public class OnboardingService {
         }
         roleRepository.save(memberRole);
 
+        seedPresetRole(tenant, "Contributor", "CONTRIBUTOR",
+                "View all modules; edit tickets, Kanban boards, and clients",
+                c -> c.endsWith(":read")
+                        || "ticket:write".equals(c)
+                        || "kanban:write".equals(c)
+                        || "client:write".equals(c));
+        seedPresetRole(tenant, "Billing", "BILLING",
+                "View all modules; manage billing",
+                c -> c.endsWith(":read") || "billing:write".equals(c));
+        seedPresetRole(tenant, "Marketing", "MARKETING",
+                "View all modules; manage campaigns",
+                c -> c.endsWith(":read") || "campaign:write".equals(c));
+
         // 5. Assign role to user
         user.getRoles().add(adminRole);
         user = userRepository.save(user);
@@ -131,5 +145,25 @@ public class OnboardingService {
                 .user(userResponse)
                 .licenseId(license.getId())
                 .build();
+    }
+
+    private void seedPresetRole(Tenant tenant, String name, String code, String description,
+                              Predicate<String> includePermissionCode) {
+        if (roleRepository.findByCodeAndTenantId(code, tenant.getId()).isPresent()) {
+            return;
+        }
+        Role role = new Role();
+        role.setTenant(tenant);
+        role.setName(name);
+        role.setCode(code);
+        role.setDescription(description);
+        role.setSystem(false);
+        for (Permission p : permissionRepository.findAll()) {
+            String c = p.getCode();
+            if (c != null && includePermissionCode.test(c)) {
+                role.getPermissions().add(p);
+            }
+        }
+        roleRepository.save(role);
     }
 }

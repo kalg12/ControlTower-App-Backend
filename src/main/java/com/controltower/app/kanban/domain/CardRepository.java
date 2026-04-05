@@ -16,7 +16,7 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
 
     @Query("""
         SELECT c FROM Card c
-        JOIN FETCH c.column col
+        JOIN FETCH c.boardColumn col
         JOIN FETCH col.board b
         WHERE b.tenantId = :tenantId
           AND c.deletedAt IS NULL

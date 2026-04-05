@@ -24,9 +24,10 @@ public class Card {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
+    /** Not named "column" — that word is reserved in JPQL/HQL and breaks queries such as {@code JOIN FETCH c.boardColumn}. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "column_id", nullable = false)
-    private BoardColumn column;
+    private BoardColumn boardColumn;
 
     @Column(name = "title", nullable = false)
     private String title;

@@ -31,10 +31,11 @@ public class Board extends BaseEntity {
     @Column(name = "created_by")
     private UUID createdBy;
 
+    /** Not named "columns" — can clash with JPQL/SQL reserved words in fetch queries. */
     @OneToMany(mappedBy = "board", cascade = CascadeType.ALL, fetch = FetchType.LAZY,
                orphanRemoval = true)
     @OrderBy("position ASC")
-    private List<BoardColumn> columns = new ArrayList<>();
+    private List<BoardColumn> boardColumns = new ArrayList<>();
 
     public enum Visibility { PRIVATE, TEAM }
 }

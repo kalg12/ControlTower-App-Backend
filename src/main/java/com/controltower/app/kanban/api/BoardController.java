@@ -2,8 +2,6 @@ package com.controltower.app.kanban.api;
 
 import com.controltower.app.kanban.api.dto.*;
 import com.controltower.app.kanban.application.BoardService;
-import com.controltower.app.kanban.domain.BoardColumn;
-import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import jakarta.validation.Valid;
@@ -17,7 +15,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,24 +30,8 @@ public class BoardController {
     private final BoardService boardService;
 
     // ── Boards ────────────────────────────────────────────────────────
-
-    @Operation(summary = "Cross-board work items", description = "Lists cards from all boards in the tenant, optionally filtered by assignee and default column kind (TODO, IN_PROGRESS, DONE, HISTORY). Requires the 'kanban:read' permission.")
-    @GetMapping("/work-items")
-    @PreAuthorize("hasAuthority('kanban:read')")
-    public ResponseEntity<ApiResponse<List<WorkItemResponse>>> workItems(
-            @RequestParam(required = false) UUID assigneeId,
-            @RequestParam(required = false) String columnKind) {
-        BoardColumn.ColumnKind kind = null;
-        if (columnKind != null && !columnKind.isBlank()) {
-            try {
-                kind = BoardColumn.ColumnKind.valueOf(columnKind.trim().toUpperCase());
-            } catch (IllegalArgumentException ex) {
-                throw new ControlTowerException(
-                        "Invalid columnKind. Use TODO, IN_PROGRESS, DONE, or HISTORY.", HttpStatus.BAD_REQUEST);
-            }
-        }
-        return ResponseEntity.ok(ApiResponse.ok(boardService.listWorkItems(assigneeId, kind)));
-    }
+    // Cross-board work items: see KanbanWorkItemsController (/api/v1/kanban/work-items)
+    // — avoids Spring matching "work-items" as GET /boards/{id} (UUID parse error).
 
     @Operation(summary = "List boards", description = "Returns a paginated list of Kanban boards accessible to the current tenant. Requires the 'kanban:read' permission.")
     @GetMapping

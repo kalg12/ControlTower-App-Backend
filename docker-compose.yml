@@ -1,3 +1,7 @@
+# After pulling backend code changes you must rebuild the app image, otherwise the container
+# still runs an old JAR (no default Kanban columns, old APIs, etc.):
+#   docker compose build --no-cache app && docker compose up -d
+#
 services:
 
   # ── PostgreSQL 17 ────────────────────────────────────────────────────
