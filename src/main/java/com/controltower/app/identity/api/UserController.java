@@ -32,16 +32,15 @@ public class UserController {
 
     private final UserService userService;
 
-    @Operation(summary = "List users", description = "Returns a paginated list of users belonging to the specified tenant. Requires the 'user:read' permission.")
+    @Operation(summary = "List users", description = "Returns a paginated list of users belonging to the current tenant (resolved from the Bearer token). Requires the 'user:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('user:read')")
     public ResponseEntity<ApiResponse<PageResponse<UserResponse>>> listUsers(
-            @RequestParam UUID tenantId,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size) {
 
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        PageResponse<UserResponse> result = PageResponse.from(userService.listUsers(tenantId, pageable));
+        PageResponse<UserResponse> result = PageResponse.from(userService.listUsers(pageable));
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
@@ -52,13 +51,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(userService.getUser(userId)));
     }
 
-    @Operation(summary = "Create user", description = "Creates a new user under the specified tenant with the provided details. Requires the 'user:write' permission.")
+    @Operation(summary = "Create user", description = "Creates a new user under the current tenant (resolved from the Bearer token). Requires the 'user:write' permission.")
     @PostMapping
     @PreAuthorize("hasAuthority('user:write')")
     public ResponseEntity<ApiResponse<UserResponse>> createUser(
-            @RequestParam UUID tenantId,
             @Valid @RequestBody CreateUserRequest request) {
-        UserResponse created = userService.createUser(tenantId, request);
+        UserResponse created = userService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("User created", created));
     }
 

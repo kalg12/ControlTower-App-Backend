@@ -7,6 +7,7 @@ import com.controltower.app.identity.domain.*;
 import com.controltower.app.identity.mapper.UserMapper;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,7 +31,8 @@ public class UserService {
     private final UserMapper userMapper;
 
     @Transactional(readOnly = true)
-    public Page<UserResponse> listUsers(UUID tenantId, Pageable pageable) {
+    public Page<UserResponse> listUsers(Pageable pageable) {
+        UUID tenantId = TenantContext.getTenantId();
         return userRepository.findByTenantIdAndDeletedAtIsNull(tenantId, pageable)
                 .map(userMapper::toResponse);
     }
@@ -43,7 +45,8 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse createUser(UUID tenantId, CreateUserRequest request) {
+    public UserResponse createUser(CreateUserRequest request) {
+        UUID tenantId = TenantContext.getTenantId();
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant", tenantId));
 

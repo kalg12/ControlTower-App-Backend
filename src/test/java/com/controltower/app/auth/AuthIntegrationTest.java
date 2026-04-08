@@ -10,6 +10,9 @@ import org.springframework.test.annotation.DirtiesContext;
 
 import java.util.Map;
 
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.TestMethodOrder;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.hamcrest.Matchers.*;
@@ -24,13 +27,17 @@ import static org.hamcrest.Matchers.*;
  *   - Password reset flow (token generation + redemption)
  */
 @DirtiesContext
+@TestMethodOrder(MethodOrderer.DisplayName.class)
 class AuthIntegrationTest extends BaseIntegrationTest {
 
     @Autowired ObjectMapper mapper;
 
-    private static final String SLUG     = "auth-test";
-    private static final String EMAIL    = "admin@auth-test.com";
-    private static final String PASSWORD = "Admin123!";
+    // Slug used by onboard_success — intentionally different from SLUG
+    // to avoid conflicts when other tests call ensureOnboarded() first.
+    private static final String NEW_SLUG  = "auth-test-new";
+    private static final String SLUG      = "auth-test";
+    private static final String EMAIL     = "admin@auth-test.com";
+    private static final String PASSWORD  = "Admin123!";
 
     // ── Onboarding ────────────────────────────────────────────────────────
 
@@ -40,20 +47,20 @@ class AuthIntegrationTest extends BaseIntegrationTest {
         mvc.perform(post("/api/v1/tenants/onboard")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                    "tenantName",    "Auth Test Tenant",
-                    "tenantSlug",    SLUG,
-                    "adminEmail",    EMAIL,
+                    "tenantName",    "Auth New Tenant",
+                    "tenantSlug",    NEW_SLUG,
+                    "adminEmail",    "admin@auth-test-new.com",
                     "adminPassword", PASSWORD,
-                    "adminFullName", "Auth Admin"
+                    "adminFullName", "Auth Admin New"
                 ))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.tenantSlug").value(SLUG));
+                .andExpect(jsonPath("$.data.tenant.slug").value(NEW_SLUG));
     }
 
     @Test
-    @DisplayName("POST /tenants/onboard → 400 when slug already taken")
-    void onboard_duplicateSlug_returns400() throws Exception {
+    @DisplayName("POST /tenants/onboard → 409 when slug already taken")
+    void onboard_duplicateSlug_returns409() throws Exception {
         // First onboarding
         mvc.perform(post("/api/v1/tenants/onboard")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -66,7 +73,7 @@ class AuthIntegrationTest extends BaseIntegrationTest {
                 ))))
                 .andExpect(status().isCreated());
 
-        // Second onboarding with same slug must fail
+        // Second onboarding with same slug must fail with 409 CONFLICT
         mvc.perform(post("/api/v1/tenants/onboard")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
@@ -76,7 +83,7 @@ class AuthIntegrationTest extends BaseIntegrationTest {
                     "adminPassword", PASSWORD,
                     "adminFullName", "Dup Admin 2"
                 ))))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isConflict());
     }
 
     // ── Login ─────────────────────────────────────────────────────────────
