@@ -143,6 +143,13 @@ public class TicketController {
         return ResponseEntity.ok(ApiResponse.ok(ticketService.escalate(id)));
     }
 
+    @GetMapping("/{id}/comments")
+    @PreAuthorize("hasAuthority('ticket:read')")
+    @Operation(summary = "List public comments", description = "Returns all non-internal comments for a ticket, ordered by creation time.")
+    public ResponseEntity<ApiResponse<List<TicketCommentResponse>>> getComments(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(ticketService.getPublicComments(id)));
+    }
+
     @PostMapping("/{id}/comments")
     @PreAuthorize("hasAuthority('ticket:write')")
     public ResponseEntity<ApiResponse<TicketResponse>> addComment(

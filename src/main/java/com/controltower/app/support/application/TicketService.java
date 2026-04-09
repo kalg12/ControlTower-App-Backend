@@ -3,6 +3,8 @@ package com.controltower.app.support.application;
 import com.controltower.app.shared.annotation.Audited;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
+import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
 import com.controltower.app.support.api.dto.*;
 import com.controltower.app.support.domain.*;
 import com.controltower.app.tenancy.domain.TenantContext;
@@ -137,6 +139,78 @@ public class TicketService {
         ticketRepository.save(ticket);
         attachSla(ticket);
         return toResponse(ticketRepository.save(ticket));
+    }
+
+    /** Returns all public (non-internal) comments for a ticket. */
+    @Transactional(readOnly = true)
+    public List<TicketCommentResponse> getPublicComments(UUID ticketId) {
+        Ticket ticket = resolveTicket(ticketId);
+        return ticket.getComments().stream()
+                .filter(c -> !c.isInternal())
+                .sorted(java.util.Comparator.comparing(TicketComment::getCreatedAt))
+                .map(c -> new TicketCommentResponse(
+                        c.getId(),
+                        c.getAuthorId(),
+                        c.getContent(),
+                        c.isInternal(),
+                        c.getAuthorId() != null ? "OPERATOR" : "POS_USER",
+                        c.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    /** Returns a status summary for the CT ticket linked to a given POS ticket ID. */
+    @Transactional(readOnly = true)
+    public PosTicketStatusResponse getStatusForPosTicket(String posTicketId, UUID tenantId) {
+        Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdAndDeletedAtIsNull(posTicketId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket", posTicketId));
+        List<TicketComment> publicComments = ticket.getComments().stream()
+                .filter(c -> !c.isInternal())
+                .toList();
+        Instant firstCommentAt = publicComments.stream()
+                .map(TicketComment::getCreatedAt)
+                .min(Instant::compareTo)
+                .orElse(null);
+        return new PosTicketStatusResponse(
+                ticket.getId(),
+                ticket.getStatus().name(),
+                ticket.getPriority().name(),
+                ticket.getAssigneeId(),
+                firstCommentAt,
+                publicComments.size()
+        );
+    }
+
+    /** Returns public comments on the CT ticket linked to a given POS ticket ID, optionally filtered by `since`. */
+    @Transactional(readOnly = true)
+    public List<PosTicketCommentDto> getPublicCommentsSince(String posTicketId, UUID tenantId, Instant since) {
+        Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdAndDeletedAtIsNull(posTicketId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket", posTicketId));
+        return ticket.getComments().stream()
+                .filter(c -> !c.isInternal())
+                .filter(c -> since == null || c.getCreatedAt().isAfter(since))
+                .sorted(java.util.Comparator.comparing(TicketComment::getCreatedAt))
+                .map(c -> new PosTicketCommentDto(
+                        c.getId(),
+                        c.getContent(),
+                        c.getAuthorId() != null ? "OPERATOR" : "POS_USER",
+                        c.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    /** Adds a public comment on the CT ticket linked to a POS ticket (authorId=null marks POS origin). */
+    @Transactional
+    public void addExternalComment(String posTicketId, UUID tenantId, String content) {
+        Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdAndDeletedAtIsNull(posTicketId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket", posTicketId));
+        TicketComment comment = new TicketComment();
+        comment.setTicket(ticket);
+        comment.setAuthorId(null);  // null = POS/external origin
+        comment.setContent(content);
+        comment.setInternal(false);
+        ticket.getComments().add(comment);
+        ticketRepository.save(ticket);
     }
 
     /** Called internally (no TenantContext) when creating from a health incident. */

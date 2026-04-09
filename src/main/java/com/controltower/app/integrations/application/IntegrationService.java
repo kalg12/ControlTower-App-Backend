@@ -1,10 +1,13 @@
 package com.controltower.app.integrations.application;
 
 import com.controltower.app.integrations.api.dto.IntegrationEndpointRequest;
+import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
+import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
 import com.controltower.app.integrations.domain.*;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.shared.infrastructure.AesEncryptor;
 import com.controltower.app.support.application.TicketService;
+import com.controltower.app.support.domain.PosTicketChatEvent;
 import com.controltower.app.support.domain.Ticket;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -111,9 +115,38 @@ public class IntegrationService {
 
         if (POS_TICKET_EVENT.equals(eventType)) {
             processPosTicket(endpoint, payload);
+        } else if ("POS_CHAT_MESSAGE".equals(eventType)) {
+            processPosChat(endpoint, payload);
         }
 
         return event;
+    }
+
+    /** Returns the status summary of the CT ticket linked to a POS ticket ID. */
+    public PosTicketStatusResponse getPosTicketStatus(UUID endpointId, String apiKey, String posTicketId) {
+        IntegrationEndpoint endpoint = resolveAndValidateApiKey(endpointId, apiKey);
+        return ticketService.getStatusForPosTicket(posTicketId, endpoint.getTenantId());
+    }
+
+    /** Returns public comments on the CT ticket linked to a POS ticket ID, optionally since a timestamp. */
+    public List<PosTicketCommentDto> getPosTicketComments(UUID endpointId, String apiKey, String posTicketId, Instant since) {
+        IntegrationEndpoint endpoint = resolveAndValidateApiKey(endpointId, apiKey);
+        return ticketService.getPublicCommentsSince(posTicketId, endpoint.getTenantId(), since);
+    }
+
+    private IntegrationEndpoint resolveAndValidateApiKey(UUID endpointId, String apiKey) {
+        IntegrationEndpoint endpoint = endpointRepository.findById(endpointId)
+                .orElseThrow(() -> new ResourceNotFoundException("IntegrationEndpoint", endpointId));
+        if (!endpoint.isActive()) {
+            throw new ResourceNotFoundException("IntegrationEndpoint", endpointId);
+        }
+        if (endpoint.getApiKey() != null) {
+            String decryptedKey = aesEncryptor.decrypt(endpoint.getApiKey());
+            if (!decryptedKey.equals(apiKey)) {
+                throw new SecurityException("Invalid API key");
+            }
+        }
+        return endpoint;
     }
 
     private void processPosTicket(IntegrationEndpoint endpoint, Map<String, Object> payload) {
@@ -145,6 +178,33 @@ public class IntegrationService {
             );
         } catch (Exception e) {
             log.error("Failed to create ticket from POS event: {}", e.getMessage(), e);
+        }
+    }
+
+    private void processPosChat(IntegrationEndpoint endpoint, Map<String, Object> payload) {
+        try {
+            String posTicketId = (String) payload.get("posTicketId");
+            String content     = (String) payload.getOrDefault("content", "");
+            String senderName  = (String) payload.getOrDefault("senderName", "POS User");
+            String branchName  = (String) payload.getOrDefault("branchName", "");
+
+            String fullContent = "[" + senderName + "]: " + content;
+            ticketService.addExternalComment(posTicketId, endpoint.getTenantId(), fullContent);
+
+            // Find the ticket ID for the event (best-effort — ignore if not found)
+            try {
+                PosTicketStatusResponse status = ticketService.getStatusForPosTicket(posTicketId, endpoint.getTenantId());
+                publisher.publishEvent(new PosTicketChatEvent(
+                        endpoint.getTenantId(),
+                        status.getCtTicketId(),
+                        posTicketId,
+                        senderName,
+                        content,
+                        branchName
+                ));
+            } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.error("Failed to process POS chat message: {}", e.getMessage(), e);
         }
     }
 

@@ -1,23 +1,28 @@
 package com.controltower.app.integrations.api;
 
 import com.controltower.app.integrations.api.dto.IntegrationEndpointRequest;
+import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
+import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
 import com.controltower.app.integrations.api.dto.PushEventRequest;
 import com.controltower.app.integrations.application.IntegrationService;
 import com.controltower.app.integrations.domain.IntegrationEndpoint;
-import com.controltower.app.integrations.domain.IntegrationEvent;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -98,5 +103,33 @@ public class IntegrationController {
                 request.getPayload()
         );
         return ResponseEntity.ok(ApiResponse.ok("Event received"));
+    }
+
+    /**
+     * Returns the CT status of a POS ticket. Public endpoint — authenticated via X-Api-Key header.
+     */
+    @Operation(summary = "Get POS ticket status", description = "Returns the current CT status for a ticket submitted from POS. Authenticated via X-Api-Key.")
+    @GetMapping("/{endpointId}/pos-tickets/{posTicketId}/status")
+    public ResponseEntity<ApiResponse<PosTicketStatusResponse>> getPosTicketStatus(
+            @PathVariable UUID endpointId,
+            @PathVariable String posTicketId,
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKey) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                integrationService.getPosTicketStatus(endpointId, apiKey, posTicketId)));
+    }
+
+    /**
+     * Returns public comments on a POS ticket (for chat sync). Public endpoint — authenticated via X-Api-Key header.
+     */
+    @Operation(summary = "Get POS ticket comments", description = "Returns public comments on the CT ticket linked to a POS ticket ID. Used by POS Backend to sync chat replies. Authenticated via X-Api-Key.")
+    @GetMapping("/{endpointId}/pos-tickets/{posTicketId}/comments")
+    public ResponseEntity<ApiResponse<List<PosTicketCommentDto>>> getPosTicketComments(
+            @PathVariable UUID endpointId,
+            @PathVariable String posTicketId,
+            @Parameter(description = "Return only comments created after this timestamp (ISO-8601)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant since,
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKey) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                integrationService.getPosTicketComments(endpointId, apiKey, posTicketId, since)));
     }
 }

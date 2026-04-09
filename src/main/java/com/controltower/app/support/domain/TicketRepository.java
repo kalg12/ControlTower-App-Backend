@@ -64,6 +64,8 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
         Pageable pageable
     );
 
+    Optional<Ticket> findBySourceRefIdAndTenantIdAndDeletedAtIsNull(String sourceRefId, UUID tenantId);
+
     /** Used for CSV export — no pagination. */
     @Query("""
         SELECT t FROM Ticket t

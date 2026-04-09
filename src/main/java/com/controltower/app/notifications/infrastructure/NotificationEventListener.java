@@ -4,6 +4,7 @@ import com.controltower.app.health.domain.HealthIncidentOpenedEvent;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.infrastructure.EmailService;
+import com.controltower.app.support.domain.PosTicketChatEvent;
 import com.controltower.app.support.domain.PosTicketReceivedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +51,26 @@ public class NotificationEventListener {
                     "branchId",   event.getBranchId().toString()
                 ),
                 List.of()  // broadcast to all tenant users — actual recipients resolved via query in production
+        );
+    }
+
+    @Async
+    @EventListener
+    public void onPosTicketChat(PosTicketChatEvent event) {
+        log.info("Sending chat notification for POS ticket {}", event.getPosTicketId());
+        notificationService.send(
+                event.getTenantId(),
+                "POS_CHAT",
+                "Nuevo mensaje del POS",
+                event.getSenderName() + " desde " + event.getBranchName() + ": " + event.getContent(),
+                Notification.Severity.INFO,
+                Map.of(
+                    "ticketId",    event.getTicketId().toString(),
+                    "posTicketId", event.getPosTicketId() != null ? event.getPosTicketId() : "",
+                    "senderName",  event.getSenderName(),
+                    "branchName",  event.getBranchName()
+                ),
+                List.of()
         );
     }
 
