@@ -150,12 +150,11 @@ public class IntegrationService {
     }
 
     private void processPosTicket(IntegrationEndpoint endpoint, Map<String, Object> payload) {
+        String posTicketId = (String) payload.get("posTicketId");
         try {
-            String posTicketId  = (String) payload.get("posTicketId");
-            String title        = (String) payload.getOrDefault("title", "Support ticket from POS");
-            String description  = (String) payload.getOrDefault("description", "");
-            String priorityStr  = (String) payload.getOrDefault("priority", "MEDIUM");
-            String branchIdStr  = (String) payload.get("branchId");
+            String title       = (String) payload.getOrDefault("title", "Support ticket from POS");
+            String description = (String) payload.getOrDefault("description", "");
+            String priorityStr = (String) payload.getOrDefault("priority", "MEDIUM");
 
             Ticket.Priority priority;
             try {
@@ -177,7 +176,12 @@ public class IntegrationService {
                     payload
             );
         } catch (Exception e) {
-            log.error("Failed to create ticket from POS event: {}", e.getMessage(), e);
+            log.error("processPosTicket FAILED for posTicketId={}: [{}] {}",
+                    posTicketId, e.getClass().getSimpleName(), e.getMessage(), e);
+            throw new com.controltower.app.shared.exception.ControlTowerException(
+                    "POS ticket creation failed: " + e.getMessage(),
+                    org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR
+            );
         }
     }
 
