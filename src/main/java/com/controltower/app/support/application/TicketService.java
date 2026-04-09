@@ -39,12 +39,12 @@ public class TicketService {
 
     @Transactional(readOnly = true)
     public Page<TicketResponse> listTickets(
-            Ticket.TicketStatus status, UUID assigneeId, UUID clientId,
+            Ticket.TicketStatus status, Ticket.TicketSource source, UUID assigneeId, UUID clientId,
             Ticket.Priority priority, Instant createdAfter, Instant createdBefore,
             Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
         Specification<Ticket> spec = buildFilterSpec(
-                tenantId, status, assigneeId, clientId, priority, createdAfter, createdBefore);
+                tenantId, status, source, assigneeId, clientId, priority, createdAfter, createdBefore);
         return ticketRepository.findAll(spec, pageable)
                 .map(this::toResponse);
     }
@@ -89,7 +89,7 @@ public class TicketService {
                           Ticket.Priority priority, Instant createdAfter, Instant createdBefore) {
         UUID tenantId = TenantContext.getTenantId();
         Specification<Ticket> spec = buildFilterSpec(
-                tenantId, status, assigneeId, clientId, priority, createdAfter, createdBefore);
+                tenantId, status, null, assigneeId, clientId, priority, createdAfter, createdBefore);
         List<Ticket> tickets = ticketRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         writer.println("id,title,status,priority,assigneeId,clientId,branchId,source,createdAt,updatedAt");
@@ -232,6 +232,7 @@ public class TicketService {
     private Specification<Ticket> buildFilterSpec(
             UUID tenantId,
             Ticket.TicketStatus status,
+            Ticket.TicketSource source,
             UUID assigneeId,
             UUID clientId,
             Ticket.Priority priority,
@@ -244,6 +245,9 @@ public class TicketService {
 
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (source != null) {
+                predicates.add(cb.equal(root.get("source"), source));
             }
             if (assigneeId != null) {
                 predicates.add(cb.equal(root.get("assigneeId"), assigneeId));

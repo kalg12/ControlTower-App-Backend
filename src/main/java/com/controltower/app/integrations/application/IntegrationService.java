@@ -131,15 +131,16 @@ public class IntegrationService {
                 priority = Ticket.Priority.MEDIUM;
             }
 
-            UUID branchId = branchIdStr != null ? UUID.fromString(branchIdStr) : null;
-
+            // Do NOT map POS branchId to CT's branch_id FK column —
+            // POS branch UUIDs don't exist in client_branches and would cause a FK violation.
+            // The full branch info (name, id) is already preserved in posContext (payload).
             ticketService.createFromPosEvent(
                     endpoint.getTenantId(),
                     posTicketId,
                     title,
                     description,
                     priority,
-                    branchId,
+                    null,   // branchId — intentionally null for POS tickets
                     payload
             );
         } catch (Exception e) {

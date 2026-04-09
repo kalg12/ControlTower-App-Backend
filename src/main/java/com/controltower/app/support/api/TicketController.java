@@ -47,6 +47,7 @@ public class TicketController {
     )
     public ResponseEntity<ApiResponse<PageResponse<TicketResponse>>> list(
             @RequestParam(required = false) Ticket.TicketStatus status,
+            @RequestParam(required = false) Ticket.TicketSource source,
             @RequestParam(required = false) UUID assigneeId,
             @RequestParam(required = false) UUID clientId,
             @RequestParam(required = false) Ticket.Priority priority,
@@ -69,7 +70,7 @@ public class TicketController {
         }
 
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(
-                ticketService.listTickets(status, assigneeId, clientId, priority, createdAfter, createdBefore, pageable))));
+                ticketService.listTickets(status, source, assigneeId, clientId, priority, createdAfter, createdBefore, pageable))));
     }
 
     @GetMapping("/export")
