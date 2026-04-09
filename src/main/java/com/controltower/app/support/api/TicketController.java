@@ -73,6 +73,13 @@ public class TicketController {
                 ticketService.listTickets(status, source, assigneeId, clientId, priority, createdAfter, createdBefore, pageable))));
     }
 
+    @GetMapping("/stats")
+    @PreAuthorize("hasAuthority('ticket:read')")
+    @Operation(summary = "POS ticket stats", description = "Returns aggregated counts per status for tickets from the POS source.")
+    public ResponseEntity<ApiResponse<TicketStatsResponse>> getStats() {
+        return ResponseEntity.ok(ApiResponse.ok(ticketService.getPosTicketStats()));
+    }
+
     @GetMapping("/export")
     @PreAuthorize("hasAuthority('ticket:read')")
     @Operation(

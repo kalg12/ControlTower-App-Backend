@@ -159,6 +159,20 @@ public class TicketService {
                 .toList();
     }
 
+    /** Returns aggregated stats for tickets from a given source (e.g. POS). */
+    @Transactional(readOnly = true)
+    public TicketStatsResponse getPosTicketStats() {
+        UUID tenantId = TenantContext.getTenantId();
+        long total = ticketRepository.countByTenantIdAndSourceAndDeletedAtIsNull(
+                tenantId, Ticket.TicketSource.POS);
+        List<Object[]> rows = ticketRepository.countByStatusForSource(tenantId, Ticket.TicketSource.POS);
+        java.util.LinkedHashMap<String, Long> byStatus = new java.util.LinkedHashMap<>();
+        for (Object[] row : rows) {
+            byStatus.put(row[0].toString(), (Long) row[1]);
+        }
+        return new TicketStatsResponse(total, byStatus);
+    }
+
     /** Returns a status summary for the CT ticket linked to a given POS ticket ID. */
     @Transactional(readOnly = true)
     public PosTicketStatusResponse getStatusForPosTicket(String posTicketId, UUID tenantId) {

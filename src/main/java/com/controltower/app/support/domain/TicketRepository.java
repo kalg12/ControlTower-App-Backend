@@ -66,6 +66,20 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
 
     Optional<Ticket> findBySourceRefIdAndTenantIdAndDeletedAtIsNull(String sourceRefId, UUID tenantId);
 
+    long countByTenantIdAndSourceAndDeletedAtIsNull(UUID tenantId, Ticket.TicketSource source);
+
+    @Query("""
+        SELECT t.status, COUNT(t) FROM Ticket t
+        WHERE t.tenantId = :tenantId
+          AND t.deletedAt IS NULL
+          AND t.source = :source
+        GROUP BY t.status
+        """)
+    List<Object[]> countByStatusForSource(
+        @Param("tenantId") UUID tenantId,
+        @Param("source") Ticket.TicketSource source
+    );
+
     /** Used for CSV export — no pagination. */
     @Query("""
         SELECT t FROM Ticket t
