@@ -51,10 +51,12 @@ public class SecurityConfig {
         "/api/v1/auth/forgot-password",
         "/api/v1/auth/reset-password",
         "/api/v1/auth/2fa/verify",
-        "/api/v1/health/heartbeat/**",    // public heartbeat from client systems
-        "/api/v1/integrations/events",    // public push events from client systems
-        "/api/v1/billing/stripe/webhook", // Stripe webhook (signature verified internally)
-        "/api/v1/tenants/onboard",        // public tenant onboarding
+        "/api/v1/health/heartbeat/**",                          // public heartbeat from client systems
+        "/api/v1/integrations/events",                          // public push events from client systems
+        "/api/v1/integrations/*/pos-tickets/*/status",          // POS ticket status poll (X-Api-Key auth)
+        "/api/v1/integrations/*/pos-tickets/*/comments",        // POS chat sync (X-Api-Key auth)
+        "/api/v1/billing/stripe/webhook",                       // Stripe webhook (signature verified internally)
+        "/api/v1/tenants/onboard",                              // public tenant onboarding
         "/actuator/health",
         "/actuator/info",
         // Swagger UI

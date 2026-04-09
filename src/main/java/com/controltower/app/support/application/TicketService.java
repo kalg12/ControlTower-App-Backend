@@ -200,7 +200,7 @@ public class TicketService {
     }
 
     /** Adds a public comment on the CT ticket linked to a POS ticket (authorId=null marks POS origin). */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void addExternalComment(String posTicketId, UUID tenantId, String content) {
         Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdAndDeletedAtIsNull(posTicketId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket", posTicketId));
@@ -231,7 +231,7 @@ public class TicketService {
     }
 
     /** Called internally (no TenantContext) when a POS system submits a support ticket. */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public TicketResponse createFromPosEvent(
             UUID tenantId, String posTicketId, String title, String description,
             Ticket.Priority priority, UUID branchId, Map<String, Object> posContext) {
