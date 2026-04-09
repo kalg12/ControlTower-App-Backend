@@ -5,9 +5,12 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.Array;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -50,6 +53,11 @@ public class Ticket extends BaseEntity {
     @Column(name = "source_ref_id")
     private String sourceRefId;
 
+    /** POS-specific context (branch, submitter, category, etc.). Populated when source=POS. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "pos_context", columnDefinition = "JSONB")
+    private Map<String, Object> posContext;
+
     @Array(length = 20)
     @Column(name = "labels", columnDefinition = "TEXT[]")
     private String[] labels = new String[0];
@@ -90,5 +98,5 @@ public class Ticket extends BaseEntity {
 
     public enum Priority   { LOW, MEDIUM, HIGH, CRITICAL }
     public enum TicketStatus { OPEN, IN_PROGRESS, WAITING, RESOLVED, CLOSED }
-    public enum TicketSource { MANUAL, HEALTH_ALERT, WEBHOOK, EMAIL }
+    public enum TicketSource { MANUAL, HEALTH_ALERT, WEBHOOK, EMAIL, POS }
 }

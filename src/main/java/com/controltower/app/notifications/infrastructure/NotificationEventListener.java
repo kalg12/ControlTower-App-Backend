@@ -4,6 +4,7 @@ import com.controltower.app.health.domain.HealthIncidentOpenedEvent;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.infrastructure.EmailService;
+import com.controltower.app.support.domain.PosTicketReceivedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -49,6 +50,29 @@ public class NotificationEventListener {
                     "branchId",   event.getBranchId().toString()
                 ),
                 List.of()  // broadcast to all tenant users — actual recipients resolved via query in production
+        );
+    }
+
+    @Async
+    @EventListener
+    public void onPosTicketReceived(PosTicketReceivedEvent event) {
+        log.info("Sending notification for POS ticket {}", event.getPosTicketId());
+
+        notificationService.send(
+                event.getTenantId(),
+                "POS_TICKET",
+                "Nuevo ticket de soporte del POS",
+                event.getSubmittedBy() + " desde " + event.getBranchName() + ": " + event.getTitle(),
+                Notification.Severity.WARNING,
+                Map.of(
+                    "ticketId",    event.getTicketId().toString(),
+                    "posTicketId", event.getPosTicketId() != null ? event.getPosTicketId() : "",
+                    "branchId",    event.getBranchId() != null ? event.getBranchId().toString() : "",
+                    "branchName",  event.getBranchName(),
+                    "submittedBy", event.getSubmittedBy(),
+                    "source",      "POS"
+                ),
+                List.of()
         );
     }
 }

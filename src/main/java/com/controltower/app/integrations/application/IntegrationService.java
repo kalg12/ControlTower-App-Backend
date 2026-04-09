@@ -4,8 +4,11 @@ import com.controltower.app.integrations.api.dto.IntegrationEndpointRequest;
 import com.controltower.app.integrations.domain.*;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.shared.infrastructure.AesEncryptor;
+import com.controltower.app.support.application.TicketService;
+import com.controltower.app.support.domain.Ticket;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,14 +19,18 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class IntegrationService {
+
+    private static final String POS_TICKET_EVENT = "POS_SUPPORT_TICKET";
 
     private final IntegrationEndpointRepository endpointRepository;
     private final IntegrationEventRepository    eventRepository;
     private final ApplicationEventPublisher     publisher;
     private final AesEncryptor                  aesEncryptor;
+    private final TicketService                 ticketService;
 
     @Transactional(readOnly = true)
     public Page<IntegrationEndpoint> listEndpoints(Pageable pageable) {
@@ -102,7 +109,42 @@ public class IntegrationService {
         event.setProcessedAt(Instant.now());
         eventRepository.save(event);
 
+        if (POS_TICKET_EVENT.equals(eventType)) {
+            processPosTicket(endpoint, payload);
+        }
+
         return event;
+    }
+
+    private void processPosTicket(IntegrationEndpoint endpoint, Map<String, Object> payload) {
+        try {
+            String posTicketId  = (String) payload.get("posTicketId");
+            String title        = (String) payload.getOrDefault("title", "Support ticket from POS");
+            String description  = (String) payload.getOrDefault("description", "");
+            String priorityStr  = (String) payload.getOrDefault("priority", "MEDIUM");
+            String branchIdStr  = (String) payload.get("branchId");
+
+            Ticket.Priority priority;
+            try {
+                priority = Ticket.Priority.valueOf(priorityStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                priority = Ticket.Priority.MEDIUM;
+            }
+
+            UUID branchId = branchIdStr != null ? UUID.fromString(branchIdStr) : null;
+
+            ticketService.createFromPosEvent(
+                    endpoint.getTenantId(),
+                    posTicketId,
+                    title,
+                    description,
+                    priority,
+                    branchId,
+                    payload
+            );
+        } catch (Exception e) {
+            log.error("Failed to create ticket from POS event: {}", e.getMessage(), e);
+        }
     }
 
     private IntegrationEndpoint resolve(UUID endpointId) {

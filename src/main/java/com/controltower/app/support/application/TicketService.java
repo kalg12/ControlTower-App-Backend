@@ -7,6 +7,7 @@ import com.controltower.app.support.api.dto.*;
 import com.controltower.app.support.domain.*;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -19,14 +20,16 @@ import java.io.PrintWriter;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class TicketService {
 
-    private final TicketRepository    ticketRepository;
-    private final TicketSlaRepository slaRepository;
+    private final TicketRepository       ticketRepository;
+    private final TicketSlaRepository    slaRepository;
+    private final ApplicationEventPublisher publisher;
 
     // SLA windows by priority (hours)
     private static final int SLA_LOW      = 48;
@@ -151,6 +154,32 @@ public class TicketService {
         ticketRepository.save(ticket);
         attachSla(ticket);
         return toResponse(ticketRepository.save(ticket));
+    }
+
+    /** Called internally (no TenantContext) when a POS system submits a support ticket. */
+    @Transactional
+    public TicketResponse createFromPosEvent(
+            UUID tenantId, String posTicketId, String title, String description,
+            Ticket.Priority priority, UUID branchId, Map<String, Object> posContext) {
+
+        Ticket ticket = new Ticket();
+        ticket.setTenantId(tenantId);
+        ticket.setBranchId(branchId);
+        ticket.setTitle(title);
+        ticket.setDescription(description);
+        ticket.setPriority(priority);
+        ticket.setSource(Ticket.TicketSource.POS);
+        ticket.setSourceRefId(posTicketId);
+        ticket.setPosContext(posContext);
+        ticketRepository.save(ticket);
+        attachSla(ticket);
+        ticketRepository.save(ticket);
+
+        String branchName  = posContext != null ? (String) posContext.getOrDefault("branchName",  "") : "";
+        String submittedBy = posContext != null ? (String) posContext.getOrDefault("submittedBy", "") : "";
+        publisher.publishEvent(new PosTicketReceivedEvent(ticket, branchName, submittedBy));
+
+        return toResponse(ticket);
     }
 
     @Transactional
@@ -288,6 +317,7 @@ public class TicketService {
                 .assigneeId(t.getAssigneeId())
                 .source(t.getSource().name())
                 .sourceRefId(t.getSourceRefId())
+                .posContext(t.getPosContext())
                 .labels(labels)
                 .commentsCount(commentsCount)
                 .createdAt(t.getCreatedAt())

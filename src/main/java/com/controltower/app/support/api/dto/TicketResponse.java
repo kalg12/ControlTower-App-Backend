@@ -5,6 +5,7 @@ import lombok.Getter;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Getter
@@ -20,9 +21,10 @@ public class TicketResponse {
     private final String       priority;
     private final String       status;
     private final UUID         assigneeId;
-    private final String       source;
-    private final String       sourceRefId;
-    private final List<String> labels;
+    private final String              source;
+    private final String              sourceRefId;
+    private final Map<String, Object> posContext;
+    private final List<String>        labels;
     private final int          commentsCount;
     private final Instant      createdAt;
     private final Instant      updatedAt;
