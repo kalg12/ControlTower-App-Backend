@@ -181,7 +181,10 @@ public class TicketService {
         List<TicketComment> publicComments = ticket.getComments().stream()
                 .filter(c -> !c.isInternal())
                 .toList();
+        // firstCommentAt = first comment written by a CT operator (authorId != null).
+        // POS_USER messages (authorId = null) do not count as an operator response.
         Instant firstCommentAt = publicComments.stream()
+                .filter(c -> c.getAuthorId() != null)
                 .map(TicketComment::getCreatedAt)
                 .min(Instant::compareTo)
                 .orElse(null);
