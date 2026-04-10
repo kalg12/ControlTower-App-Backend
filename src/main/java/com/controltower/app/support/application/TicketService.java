@@ -7,6 +7,7 @@ import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
 import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
 import com.controltower.app.support.api.dto.*;
 import com.controltower.app.support.domain.*;
+import com.controltower.app.support.infrastructure.PosWebhookService;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,6 +33,7 @@ public class TicketService {
     private final TicketRepository       ticketRepository;
     private final TicketSlaRepository    slaRepository;
     private final ApplicationEventPublisher publisher;
+    private final PosWebhookService      posWebhookService;
 
     // SLA windows by priority (hours)
     private static final int SLA_LOW      = 48;
@@ -279,7 +281,12 @@ public class TicketService {
         Ticket ticket = resolveTicket(ticketId);
         validateTransition(ticket.getStatus(), newStatus);
         ticket.setStatus(newStatus);
-        return toResponse(ticketRepository.save(ticket));
+        TicketResponse response = toResponse(ticketRepository.save(ticket));
+        // Notify POS Backend so its ctStatus updates immediately (no wait for cron)
+        if (ticket.getSource() == Ticket.TicketSource.POS && ticket.getSourceRefId() != null) {
+            posWebhookService.notifyStatusChange(ticket.getSourceRefId(), newStatus.name());
+        }
+        return response;
     }
 
     @Transactional
@@ -307,7 +314,14 @@ public class TicketService {
         comment.setContent(request.getContent());
         comment.setInternal(request.isInternal());
         ticket.getComments().add(comment);
-        return toResponse(ticketRepository.save(ticket));
+        TicketResponse response = toResponse(ticketRepository.save(ticket));
+        // Notify POS Backend when an operator posts a public comment on a POS ticket
+        if (ticket.getSource() == Ticket.TicketSource.POS &&
+                ticket.getSourceRefId() != null &&
+                !request.isInternal()) {
+            posWebhookService.notifyNewComment(ticket.getSourceRefId(), request.getContent(), authorId.toString());
+        }
+        return response;
     }
 
     @Transactional

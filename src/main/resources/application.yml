@@ -79,6 +79,14 @@ spring:
     default-property-inclusion: non_null
     time-zone: UTC
 
+# ── POS Webhook ───────────────────────────────────────────────────────
+# Set POS_WEBHOOK_URL to the POS Backend base URL (e.g. http://pos-backend:3000)
+# Set POS_WEBHOOK_SECRET to a shared secret (also set in POS Backend .env)
+pos:
+  webhook:
+    url: ${POS_WEBHOOK_URL:}
+    secret: ${POS_WEBHOOK_SECRET:}
+
 # ── Server ────────────────────────────────────────────────────────────
 server:
   port: ${SERVER_PORT:8080}
