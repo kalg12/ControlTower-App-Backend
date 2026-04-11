@@ -13,16 +13,15 @@ import java.util.Map;
  * Sends fire-and-forget webhook notifications to the POS Backend when
  * relevant events occur on POS-origin tickets (status change, new operator comment).
  *
- * Configure via env vars:
- *   POS_WEBHOOK_URL    — base URL of POS Backend (e.g. http://pos-backend:3000)
+ * The callback URL is stored per-ticket in posContext["callbackUrl"], so each POS
+ * instance receives notifications on its own URL — enabling multi-tenant POS deployments.
+ *
+ * Configure via env var:
  *   POS_WEBHOOK_SECRET — shared secret sent in X-Webhook-Secret header
  */
 @Slf4j
 @Service
 public class PosWebhookService {
-
-    @Value("${pos.webhook.url:}")
-    private String posWebhookUrl;
 
     @Value("${pos.webhook.secret:}")
     private String posWebhookSecret;
@@ -31,9 +30,9 @@ public class PosWebhookService {
 
     /** Called after a POS ticket status changes. */
     @Async
-    public void notifyStatusChange(String posTicketId, String newCtStatus) {
-        if (posWebhookUrl == null || posWebhookUrl.isBlank()) return;
-        send(Map.of(
+    public void notifyStatusChange(String posTicketId, String callbackUrl, String newCtStatus) {
+        if (callbackUrl == null || callbackUrl.isBlank()) return;
+        send(callbackUrl, Map.of(
                 "type", "STATUS_CHANGE",
                 "posTicketId", posTicketId,
                 "ctStatus", newCtStatus
@@ -42,9 +41,9 @@ public class PosWebhookService {
 
     /** Called after an operator adds a public comment on a POS ticket. */
     @Async
-    public void notifyNewComment(String posTicketId, String content, String senderName) {
-        if (posWebhookUrl == null || posWebhookUrl.isBlank()) return;
-        send(Map.of(
+    public void notifyNewComment(String posTicketId, String callbackUrl, String content, String senderName) {
+        if (callbackUrl == null || callbackUrl.isBlank()) return;
+        send(callbackUrl, Map.of(
                 "type", "NEW_COMMENT",
                 "posTicketId", posTicketId,
                 "content", content,
@@ -52,19 +51,19 @@ public class PosWebhookService {
         ));
     }
 
-    private void send(Map<String, String> payload) {
+    private void send(String callbackUrl, Map<String, String> payload) {
         try {
             restClient.post()
-                    .uri(posWebhookUrl + "/support/webhooks/ct")
+                    .uri(callbackUrl)
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("X-Webhook-Secret", posWebhookSecret != null ? posWebhookSecret : "")
                     .body(payload)
                     .retrieve()
                     .toBodilessEntity();
-            log.debug("POS webhook sent: type={} posTicketId={}", payload.get("type"), payload.get("posTicketId"));
+            log.debug("POS webhook sent to {}: type={} posTicketId={}", callbackUrl, payload.get("type"), payload.get("posTicketId"));
         } catch (Exception e) {
-            log.warn("POS webhook failed (type={}, posTicketId={}): {}",
-                    payload.get("type"), payload.get("posTicketId"), e.getMessage());
+            log.warn("POS webhook failed (url={}, type={}, posTicketId={}): {}",
+                    callbackUrl, payload.get("type"), payload.get("posTicketId"), e.getMessage());
         }
     }
 }

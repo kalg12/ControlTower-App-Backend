@@ -284,7 +284,9 @@ public class TicketService {
         TicketResponse response = toResponse(ticketRepository.save(ticket));
         // Notify POS Backend so its ctStatus updates immediately (no wait for cron)
         if (ticket.getSource() == Ticket.TicketSource.POS && ticket.getSourceRefId() != null) {
-            posWebhookService.notifyStatusChange(ticket.getSourceRefId(), newStatus.name());
+            String callbackUrl = ticket.getPosContext() != null
+                    ? (String) ticket.getPosContext().get("callbackUrl") : null;
+            posWebhookService.notifyStatusChange(ticket.getSourceRefId(), callbackUrl, newStatus.name());
         }
         return response;
     }
@@ -319,7 +321,9 @@ public class TicketService {
         if (ticket.getSource() == Ticket.TicketSource.POS &&
                 ticket.getSourceRefId() != null &&
                 !request.isInternal()) {
-            posWebhookService.notifyNewComment(ticket.getSourceRefId(), request.getContent(), authorId.toString());
+            String callbackUrl = ticket.getPosContext() != null
+                    ? (String) ticket.getPosContext().get("callbackUrl") : null;
+            posWebhookService.notifyNewComment(ticket.getSourceRefId(), callbackUrl, request.getContent(), authorId.toString());
         }
         return response;
     }
