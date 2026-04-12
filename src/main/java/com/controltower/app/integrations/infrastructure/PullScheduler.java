@@ -1,7 +1,7 @@
 package com.controltower.app.integrations.infrastructure;
 
-import com.controltower.app.health.api.dto.HeartbeatRequest;
 import com.controltower.app.health.application.HeartbeatService;
+import com.controltower.app.health.domain.HealthCheck;
 import com.controltower.app.integrations.domain.IntegrationEndpoint;
 import com.controltower.app.integrations.domain.IntegrationEndpointRepository;
 import lombok.RequiredArgsConstructor;
@@ -64,26 +64,32 @@ public class PullScheduler {
             }
 
             ResponseEntity<Map> response = requestSpec.retrieve().toEntity(Map.class);
-
             int latencyMs = (int) (System.currentTimeMillis() - start);
 
-            HeartbeatRequest req = new HeartbeatRequest();
-            req.setLatencyMs(latencyMs);
-            req.setVersion(endpoint.getContractVersion());
+            // Map POS status field: "ok"→UP, "degraded"→DEGRADED, anything else→UP
+            HealthCheck.HealthStatus status = HealthCheck.HealthStatus.UP;
+            String version = endpoint.getContractVersion();
 
-            // Extract version from response if available
             if (response.getBody() != null) {
-                Object version = response.getBody().get("version");
-                if (version instanceof String v && !v.isBlank()) {
-                    req.setVersion(v);
+                Object posStatus = response.getBody().get("status");
+                if ("degraded".equals(posStatus)) {
+                    status = HealthCheck.HealthStatus.DEGRADED;
+                } else if ("down".equals(posStatus)) {
+                    status = HealthCheck.HealthStatus.DOWN;
+                }
+                Object v = response.getBody().get("version");
+                if (v instanceof String s && !s.isBlank()) {
+                    version = s;
                 }
             }
 
-            heartbeatService.processHeartbeatByBranchId(endpoint.getClientBranchId(), req);
-            log.debug("Pull-check OK for endpoint {} — latency {}ms", endpoint.getId(), latencyMs);
+            heartbeatService.processPullResult(endpoint.getClientBranchId(), status, latencyMs, version);
+            log.debug("Pull-check {} for endpoint {} — latency {}ms", status, endpoint.getId(), latencyMs);
 
         } catch (Exception e) {
-            log.warn("Pull check failed for endpoint {} ({}): {}", endpoint.getId(), endpoint.getPullUrl(), e.getMessage());
+            // HTTP failure (connection refused, timeout, 4xx, 5xx) → record DOWN immediately
+            log.warn("Pull check FAILED for endpoint {} ({}): {}", endpoint.getId(), endpoint.getPullUrl(), e.getMessage());
+            heartbeatService.processFailedPull(endpoint.getClientBranchId(), e.getMessage());
         }
     }
 }

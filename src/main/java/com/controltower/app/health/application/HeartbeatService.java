@@ -66,4 +66,58 @@ public class HeartbeatService {
         healthCheckRepository.save(check);
         incidentService.evaluateAfterCheck(branch, check);
     }
+
+    /**
+     * Called by PullScheduler on a successful HTTP pull.
+     * Saves a check with the real status reported by the POS
+     * (ok→UP, degraded→DEGRADED, down→DOWN) instead of always UP.
+     */
+    @Transactional
+    public void processPullResult(UUID branchId, HealthCheck.HealthStatus status,
+                                   Integer latencyMs, String version) {
+        ClientBranch branch = branchRepository.findById(branchId)
+                .filter(b -> b.getDeletedAt() == null)
+                .orElseThrow(() -> new ResourceNotFoundException("ClientBranch", branchId));
+
+        HealthCheck check = new HealthCheck();
+        check.setTenantId(branch.getTenant().getId());
+        check.setBranchId(branch.getId());
+        check.setStatus(status);
+        check.setLatencyMs(latencyMs);
+        check.setVersion(version);
+        check.setSource(HealthCheck.CheckSource.PULL);
+        healthCheckRepository.save(check);
+        incidentService.evaluateAfterCheck(branch, check);
+    }
+
+    /**
+     * Called by PullScheduler when the HTTP call to the POS fails entirely
+     * (connection refused, timeout, 5xx response).
+     * Records a DOWN check so the frontend reflects the real state immediately.
+     */
+    @Transactional
+    public void processFailedPull(UUID branchId, String errorMessage) {
+        ClientBranch branch = branchRepository.findById(branchId)
+                .filter(b -> b.getDeletedAt() == null)
+                .orElse(null);
+        if (branch == null) {
+            log.warn("processFailedPull: branch {} not found or deleted — skipping", branchId);
+            return;
+        }
+
+        HealthCheck check = new HealthCheck();
+        check.setTenantId(branch.getTenant().getId());
+        check.setBranchId(branch.getId());
+        check.setStatus(HealthCheck.HealthStatus.DOWN);
+        check.setSource(HealthCheck.CheckSource.PULL);
+        // Truncate to avoid storing huge stack traces
+        if (errorMessage != null && errorMessage.length() > 500) {
+            errorMessage = errorMessage.substring(0, 500);
+        }
+        check.setErrorMessage(errorMessage);
+        healthCheckRepository.save(check);
+
+        log.warn("DOWN check recorded for branch {} — pull failed: {}", branchId, errorMessage);
+        incidentService.evaluateAfterCheck(branch, check);
+    }
 }
