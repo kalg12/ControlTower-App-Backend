@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Periodically pulls health status from registered endpoints that expose a pullUrl.
@@ -40,8 +41,8 @@ public class PullScheduler {
 
     private final RestClient restClient = RestClient.create();
 
-    /** Every 5 minutes: pull-check all active endpoints that have a pullUrl. */
-    @Scheduled(fixedDelay = 300_000)
+    /** Every 5 minutes: pull-check all active endpoints that have a pullUrl. Runs immediately on startup. */
+    @Scheduled(initialDelay = 0, fixedDelay = 300_000)
     public void pullAll() {
         List<IntegrationEndpoint> endpoints =
                 endpointRepository.findByActiveAndDeletedAtIsNullAndPullUrlIsNotNull(true);
@@ -50,6 +51,13 @@ public class PullScheduler {
 
         log.debug("Pull-checking {} integration endpoint(s)", endpoints.size());
         endpoints.forEach(this::pullOne);
+    }
+
+    /** Triggers an immediate pull-check for a single endpoint by ID. No-op if not found/inactive/no URL. */
+    public void pullEndpoint(UUID endpointId) {
+        endpointRepository.findById(endpointId)
+                .filter(ep -> ep.getDeletedAt() == null && ep.isActive() && ep.getPullUrl() != null)
+                .ifPresent(this::pullOne);
     }
 
     @SuppressWarnings("unchecked")

@@ -6,6 +6,7 @@ import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
 import com.controltower.app.integrations.api.dto.PushEventRequest;
 import com.controltower.app.integrations.application.IntegrationService;
 import com.controltower.app.integrations.domain.IntegrationEndpoint;
+import com.controltower.app.integrations.infrastructure.PullScheduler;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import jakarta.validation.Valid;
@@ -34,6 +35,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 public class IntegrationController {
 
     private final IntegrationService integrationService;
+    private final PullScheduler      pullScheduler;
 
     @Operation(summary = "List integration endpoints", description = "Returns a paginated list of all registered integration endpoints for the current tenant. Optionally filter by type (POS, CUSTOM). Requires the 'integration:read' permission.")
     @GetMapping
@@ -86,6 +88,14 @@ public class IntegrationController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
         integrationService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok("Integration endpoint removed"));
+    }
+
+    @Operation(summary = "Trigger immediate health check", description = "Forces an immediate pull-check for the specified integration endpoint without waiting for the next scheduled cycle. Requires 'integration:write'.")
+    @PostMapping("/{id}/check-now")
+    @PreAuthorize("hasAuthority('integration:write')")
+    public ResponseEntity<ApiResponse<Void>> checkNow(@PathVariable UUID id) {
+        pullScheduler.pullEndpoint(id);
+        return ResponseEntity.ok(ApiResponse.ok("Pull check triggered"));
     }
 
     /**
