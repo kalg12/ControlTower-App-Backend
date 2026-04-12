@@ -11,6 +11,8 @@ import java.util.UUID;
 public class BranchHealthSummary {
 
     private final UUID branchId;
+    private final String branchName;
+    private final String clientName;
     private final String status;
     private final Integer latencyMs;
     private final String version;

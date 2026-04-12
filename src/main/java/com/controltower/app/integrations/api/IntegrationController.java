@@ -35,15 +35,16 @@ public class IntegrationController {
 
     private final IntegrationService integrationService;
 
-    @Operation(summary = "List integration endpoints", description = "Returns a paginated list of all registered integration endpoints for the current tenant. Requires the 'integration:read' permission.")
+    @Operation(summary = "List integration endpoints", description = "Returns a paginated list of all registered integration endpoints for the current tenant. Optionally filter by type (POS, CUSTOM). Requires the 'integration:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('integration:read')")
     public ResponseEntity<ApiResponse<PageResponse<IntegrationEndpoint>>> list(
             @RequestParam(defaultValue = "0")  int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false)    String type) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return ResponseEntity.ok(
-                ApiResponse.ok(PageResponse.from(integrationService.listEndpoints(pageable))));
+                ApiResponse.ok(PageResponse.from(integrationService.listEndpoints(pageable, type))));
     }
 
     @Operation(summary = "Register integration endpoint", description = "Registers a new external integration endpoint and generates an API key. Requires the 'integration:write' permission.")

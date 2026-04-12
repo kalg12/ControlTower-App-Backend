@@ -21,4 +21,8 @@ public interface IntegrationEndpointRepository extends JpaRepository<Integration
 
     /** All active endpoints — used by the pull scheduler. */
     List<IntegrationEndpoint> findByActiveAndDeletedAtIsNullAndPullUrlIsNotNull(boolean active);
+
+    /** Filtered by endpoint type — used by health monitoring UI. */
+    Page<IntegrationEndpoint> findByTenantIdAndTypeAndDeletedAtIsNull(
+            UUID tenantId, IntegrationEndpoint.EndpointType type, Pageable pageable);
 }

@@ -12,6 +12,7 @@ public class HealthIncidentResponse {
 
     private final UUID id;
     private final UUID branchId;
+    private final String branchName;
     private final String severity;
     private final String description;
     private final Instant openedAt;

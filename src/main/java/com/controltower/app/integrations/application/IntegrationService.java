@@ -37,9 +37,15 @@ public class IntegrationService {
     private final TicketService                 ticketService;
 
     @Transactional(readOnly = true)
-    public Page<IntegrationEndpoint> listEndpoints(Pageable pageable) {
-        return endpointRepository.findByTenantIdAndDeletedAtIsNull(
-                TenantContext.getTenantId(), pageable);
+    public Page<IntegrationEndpoint> listEndpoints(Pageable pageable, String type) {
+        UUID tenantId = TenantContext.getTenantId();
+        if (type != null && !type.isBlank()) {
+            IntegrationEndpoint.EndpointType endpointType =
+                    IntegrationEndpoint.EndpointType.valueOf(type.toUpperCase());
+            return endpointRepository.findByTenantIdAndTypeAndDeletedAtIsNull(
+                    tenantId, endpointType, pageable);
+        }
+        return endpointRepository.findByTenantIdAndDeletedAtIsNull(tenantId, pageable);
     }
 
     @Transactional
