@@ -80,11 +80,11 @@ public class IntegrationController {
         return ResponseEntity.ok(ApiResponse.ok("Integration endpoint deactivated"));
     }
 
-    @Operation(summary = "Delete integration endpoint", description = "Permanently removes an integration endpoint. Requires the 'integration:write' permission.")
+    @Operation(summary = "Delete integration endpoint", description = "Soft-deletes an integration endpoint — it will no longer appear in listings or be polled. Requires the 'integration:write' permission.")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('integration:write')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
-        integrationService.deactivate(id);
+        integrationService.delete(id);
         return ResponseEntity.ok(ApiResponse.ok("Integration endpoint removed"));
     }
 

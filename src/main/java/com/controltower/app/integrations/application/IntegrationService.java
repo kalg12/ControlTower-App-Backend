@@ -92,6 +92,13 @@ public class IntegrationService {
         endpointRepository.save(endpoint);
     }
 
+    @Transactional
+    public void delete(UUID endpointId) {
+        IntegrationEndpoint endpoint = resolve(endpointId);
+        endpoint.softDelete();
+        endpointRepository.save(endpoint);
+    }
+
     /**
      * Ingests a push event from an external system.
      * Public endpoint — authenticated via API key in header (validated here).
