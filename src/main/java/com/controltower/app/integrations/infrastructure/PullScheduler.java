@@ -41,8 +41,8 @@ public class PullScheduler {
 
     private final RestClient restClient = RestClient.create();
 
-    /** Every 5 minutes: pull-check all active endpoints that have a pullUrl. Runs immediately on startup. */
-    @Scheduled(initialDelay = 0, fixedDelay = 300_000)
+    /** Every 60 seconds: pull-check all active endpoints that have a pullUrl. Runs immediately on startup. */
+    @Scheduled(initialDelay = 0, fixedDelay = 60_000)
     public void pullAll() {
         List<IntegrationEndpoint> endpoints =
                 endpointRepository.findByActiveAndDeletedAtIsNullAndPullUrlIsNotNull(true);
