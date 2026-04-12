@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,6 +57,22 @@ public class HealthQueryService {
     @Transactional(readOnly = true)
     public PageResponse<HealthIncidentResponse> getIncidents(UUID tenantId, Pageable pageable) {
         Page<HealthIncident> page = incidentRepository.findByTenantIdOrderByOpenedAtDesc(tenantId, pageable);
+        return mapIncidentPage(page);
+    }
+
+    /**
+     * Filterable incident log.
+     * @param branchId null = all branches
+     * @param openOnly true = open only, false = all (open + resolved)
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<HealthIncidentResponse> getIncidentLog(
+            UUID tenantId, UUID branchId, boolean openOnly, Pageable pageable) {
+        Page<HealthIncident> page = incidentRepository.findLog(tenantId, branchId, openOnly, pageable);
+        return mapIncidentPage(page);
+    }
+
+    private PageResponse<HealthIncidentResponse> mapIncidentPage(Page<HealthIncident> page) {
         if (page.isEmpty()) return PageResponse.from(page.map(i -> toIncidentResponse(i, null)));
 
         Set<UUID> branchIds = page.stream()
@@ -102,6 +119,9 @@ public class HealthQueryService {
     }
 
     private HealthIncidentResponse toIncidentResponse(HealthIncident i, ClientBranch branch) {
+        Instant end = i.getResolvedAt() != null ? i.getResolvedAt() : Instant.now();
+        long durationSeconds = end.getEpochSecond() - i.getOpenedAt().getEpochSecond();
+
         return HealthIncidentResponse.builder()
                 .id(i.getId())
                 .branchId(i.getBranchId())
@@ -112,6 +132,7 @@ public class HealthQueryService {
                 .resolvedAt(i.getResolvedAt())
                 .open(i.isOpen())
                 .autoCreated(i.isAutoCreated())
+                .durationSeconds(durationSeconds)
                 .build();
     }
 }

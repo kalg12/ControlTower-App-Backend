@@ -6,6 +6,8 @@ import lombok.Getter;
 import java.time.Instant;
 import java.util.UUID;
 
+// durationSeconds: seconds between openedAt and resolvedAt (or now if still open)
+
 @Getter
 @Builder
 public class HealthIncidentResponse {
@@ -19,4 +21,5 @@ public class HealthIncidentResponse {
     private final Instant resolvedAt;
     private final boolean open;
     private final boolean autoCreated;
+    private final long durationSeconds;
 }

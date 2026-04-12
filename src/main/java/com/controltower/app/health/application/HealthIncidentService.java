@@ -35,29 +35,38 @@ public class HealthIncidentService {
         );
 
         boolean shouldOpenIncident = false;
-        HealthIncident.Severity maxSeverity = HealthIncident.Severity.LOW;
+        HealthIncident.Severity maxSeverity = HealthIncident.Severity.MEDIUM;
         String description = "";
 
-        for (HealthRule rule : rules) {
-            if (rule.getRuleType() == HealthRule.RuleType.CONSECUTIVE_DOWN_CHECKS) {
-                int threshold = rule.getThresholdValue() != null ? rule.getThresholdValue() : 2;
-                List<HealthCheck> recent = checkRepository.findTop10ByBranchIdOrderByCheckedAtDesc(branch.getId());
-                long consecutiveDown = 0;
-                for (HealthCheck c : recent) {
-                    if (c.getStatus() == HealthCheck.HealthStatus.DOWN ||
-                        c.getStatus() == HealthCheck.HealthStatus.UNKNOWN) {
-                        consecutiveDown++;
-                    } else {
-                        break;
+        if (rules.isEmpty()) {
+            // No rules configured — apply built-in default:
+            // open a MEDIUM incident on the very first DOWN check.
+            if (latestCheck.getStatus() == HealthCheck.HealthStatus.DOWN) {
+                shouldOpenIncident = true;
+                description = buildDescription(latestCheck);
+            }
+        } else {
+            for (HealthRule rule : rules) {
+                if (rule.getRuleType() == HealthRule.RuleType.CONSECUTIVE_DOWN_CHECKS) {
+                    int threshold = rule.getThresholdValue() != null ? rule.getThresholdValue() : 2;
+                    List<HealthCheck> recent = checkRepository.findTop10ByBranchIdOrderByCheckedAtDesc(branch.getId());
+                    long consecutiveDown = 0;
+                    for (HealthCheck c : recent) {
+                        if (c.getStatus() == HealthCheck.HealthStatus.DOWN ||
+                            c.getStatus() == HealthCheck.HealthStatus.UNKNOWN) {
+                            consecutiveDown++;
+                        } else {
+                            break;
+                        }
                     }
-                }
-                if (consecutiveDown >= threshold) {
-                    shouldOpenIncident = true;
-                    description = String.format(
-                        "Branch down: %d consecutive unhealthy checks detected", consecutiveDown
-                    );
-                    if (rule.getSeverity().ordinal() > maxSeverity.ordinal()) {
-                        maxSeverity = rule.getSeverity();
+                    if (consecutiveDown >= threshold) {
+                        shouldOpenIncident = true;
+                        description = String.format(
+                            "Branch down: %d consecutive unhealthy checks detected", consecutiveDown
+                        );
+                        if (rule.getSeverity().ordinal() > maxSeverity.ordinal()) {
+                            maxSeverity = rule.getSeverity();
+                        }
                     }
                 }
             }
@@ -87,6 +96,14 @@ public class HealthIncidentService {
             incidentRepository.save(incident);
             log.info("Health incident {} auto-resolved (branch {} is UP again)", incident.getId(), branch.getId());
         }
+    }
+
+    private String buildDescription(HealthCheck check) {
+        StringBuilder sb = new StringBuilder("Branch unreachable — pull check failed.");
+        if (check.getErrorMessage() != null && !check.getErrorMessage().isBlank()) {
+            sb.append(" Error: ").append(check.getErrorMessage());
+        }
+        return sb.toString();
     }
 
     @Transactional

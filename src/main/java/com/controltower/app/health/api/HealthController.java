@@ -91,6 +91,20 @@ public class HealthController {
         return ResponseEntity.ok(ApiResponse.ok(queryService.getIncidents(tenantId, pageable)));
     }
 
+    @Operation(summary = "Incident log", description = "Filterable incident history: all branches or a specific one, open only or all (open + resolved). Requires 'health:read'.")
+    @GetMapping("/incidents/log")
+    @PreAuthorize("hasAuthority('health:read')")
+    public ResponseEntity<ApiResponse<PageResponse<HealthIncidentResponse>>> getIncidentLog(
+            @RequestParam(defaultValue = "0")   int     page,
+            @RequestParam(defaultValue = "50")  int     size,
+            @RequestParam(required = false)     UUID    branchId,
+            @RequestParam(defaultValue = "false") boolean openOnly) {
+        UUID tenantId = TenantContext.getTenantId();
+        PageRequest pageable = PageRequest.of(page, size, Sort.by("openedAt").descending());
+        return ResponseEntity.ok(ApiResponse.ok(
+                queryService.getIncidentLog(tenantId, branchId, openOnly, pageable)));
+    }
+
     @Operation(summary = "Resolve incident", description = "Marks an open health incident as resolved. Requires the 'health:write' permission.")
     @PostMapping("/incidents/{incidentId}/resolve")
     @PreAuthorize("hasAuthority('health:write')")
