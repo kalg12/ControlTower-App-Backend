@@ -13,10 +13,13 @@ public class AuditLogResponse {
     private final UUID id;
     private final UUID tenantId;
     private final UUID userId;
+    private final String userName;
+    private final String userEmail;
     private final String action;
     private final String resourceType;
     private final String resourceId;
     private final String result;
+    private final String details;
     private final String ipAddress;
     private final String correlationId;
     private final Instant createdAt;
