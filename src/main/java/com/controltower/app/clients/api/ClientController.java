@@ -115,4 +115,44 @@ public class ClientController {
         clientService.deleteBranch(branchId);
         return ResponseEntity.ok(ApiResponse.ok("Branch deleted"));
     }
+
+    // ── Contacts ──────────────────────────────────────────────────────
+
+    @Operation(summary = "List contacts", description = "Returns all contacts for a client, primary first. Requires 'client:read'.")
+    @GetMapping("/{clientId}/contacts")
+    @PreAuthorize("hasAuthority('client:read')")
+    public ResponseEntity<ApiResponse<List<ContactResponse>>> listContacts(@PathVariable UUID clientId) {
+        return ResponseEntity.ok(ApiResponse.ok(clientService.listContacts(clientId)));
+    }
+
+    @Operation(summary = "Add contact", description = "Adds a new contact to the client. Requires 'client:write'.")
+    @PostMapping("/{clientId}/contacts")
+    @PreAuthorize("hasAuthority('client:write')")
+    public ResponseEntity<ApiResponse<ContactResponse>> addContact(
+            @PathVariable UUID clientId,
+            @Valid @RequestBody ContactRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok("Contact added", clientService.addContact(clientId, request)));
+    }
+
+    @Operation(summary = "Update contact", description = "Updates an existing contact. Requires 'client:write'.")
+    @PutMapping("/{clientId}/contacts/{contactId}")
+    @PreAuthorize("hasAuthority('client:write')")
+    public ResponseEntity<ApiResponse<ContactResponse>> updateContact(
+            @PathVariable UUID clientId,
+            @PathVariable UUID contactId,
+            @Valid @RequestBody ContactRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Contact updated",
+                clientService.updateContact(clientId, contactId, request)));
+    }
+
+    @Operation(summary = "Delete contact", description = "Removes a contact from the client. Requires 'client:write'.")
+    @DeleteMapping("/{clientId}/contacts/{contactId}")
+    @PreAuthorize("hasAuthority('client:write')")
+    public ResponseEntity<ApiResponse<Void>> deleteContact(
+            @PathVariable UUID clientId,
+            @PathVariable UUID contactId) {
+        clientService.deleteContact(clientId, contactId);
+        return ResponseEntity.ok(ApiResponse.ok("Contact removed"));
+    }
 }

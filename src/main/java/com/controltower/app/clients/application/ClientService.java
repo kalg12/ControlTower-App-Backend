@@ -15,14 +15,16 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ClientService {
 
-    private final ClientRepository clientRepository;
-    private final ClientBranchRepository branchRepository;
-    private final TenantRepository tenantRepository;
+    private final ClientRepository         clientRepository;
+    private final ClientBranchRepository   branchRepository;
+    private final ClientContactRepository  contactRepository;
+    private final TenantRepository         tenantRepository;
 
     // ── Clients ───────────────────────────────────────────────────────
 
@@ -56,6 +58,11 @@ public class ClientService {
         client.setTaxId(request.getTaxId());
         client.setCountry(StringUtils.hasText(request.getCountry()) ? request.getCountry() : "México");
         client.setNotes(request.getNotes());
+        client.setWebsite(request.getWebsite());
+        client.setIndustry(request.getIndustry());
+        if (StringUtils.hasText(request.getSegment())) {
+            client.setSegment(Client.ClientSegment.valueOf(request.getSegment().toUpperCase()));
+        }
 
         return toClientResponse(clientRepository.save(client));
     }
@@ -70,7 +77,12 @@ public class ClientService {
         if (StringUtils.hasText(request.getLegalName())) client.setLegalName(request.getLegalName());
         if (StringUtils.hasText(request.getTaxId()))     client.setTaxId(request.getTaxId());
         if (StringUtils.hasText(request.getCountry()))   client.setCountry(request.getCountry());
-        if (StringUtils.hasText(request.getNotes()))     client.setNotes(request.getNotes());
+        if (request.getNotes()   != null)                client.setNotes(request.getNotes());
+        if (request.getWebsite() != null)                client.setWebsite(request.getWebsite());
+        if (request.getIndustry() != null)               client.setIndustry(request.getIndustry());
+        if (StringUtils.hasText(request.getSegment())) {
+            client.setSegment(Client.ClientSegment.valueOf(request.getSegment().toUpperCase()));
+        }
 
         return toClientResponse(clientRepository.save(client));
     }
@@ -151,6 +163,79 @@ public class ClientService {
         branchRepository.save(branch);
     }
 
+    // ── Contacts ──────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<ContactResponse> listContacts(UUID clientId) {
+        UUID tenantId = TenantContext.getTenantId();
+        clientRepository.findByIdAndTenantIdAndDeletedAtIsNull(clientId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", clientId));
+        return contactRepository.findByClientIdOrderByPrimaryDescCreatedAtAsc(clientId)
+                .stream().map(this::toContactResponse).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public ContactResponse addContact(UUID clientId, ContactRequest request) {
+        UUID tenantId = TenantContext.getTenantId();
+        Client client = clientRepository.findByIdAndTenantIdAndDeletedAtIsNull(clientId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", clientId));
+
+        // If new contact is primary, demote any existing primary
+        if (request.isPrimary()) {
+            contactRepository.findByClientIdOrderByPrimaryDescCreatedAtAsc(clientId)
+                    .stream().filter(ClientContact::isPrimary)
+                    .forEach(c -> { c.setPrimary(false); contactRepository.save(c); });
+        }
+
+        ClientContact contact = new ClientContact();
+        contact.setClient(client);
+        contact.setTenant(client.getTenant());
+        contact.setFullName(request.getFullName());
+        contact.setEmail(request.getEmail());
+        contact.setPhone(request.getPhone());
+        contact.setNotes(request.getNotes());
+        contact.setPrimary(request.isPrimary());
+        if (StringUtils.hasText(request.getRole())) {
+            contact.setRole(ClientContact.ContactRole.valueOf(request.getRole().toUpperCase()));
+        }
+        return toContactResponse(contactRepository.save(contact));
+    }
+
+    @Transactional
+    public ContactResponse updateContact(UUID clientId, UUID contactId, ContactRequest request) {
+        UUID tenantId = TenantContext.getTenantId();
+        clientRepository.findByIdAndTenantIdAndDeletedAtIsNull(clientId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", clientId));
+        ClientContact contact = contactRepository.findByIdAndClientId(contactId, clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("ClientContact", contactId));
+
+        if (request.isPrimary() && !contact.isPrimary()) {
+            contactRepository.findByClientIdOrderByPrimaryDescCreatedAtAsc(clientId)
+                    .stream().filter(ClientContact::isPrimary)
+                    .forEach(c -> { c.setPrimary(false); contactRepository.save(c); });
+        }
+
+        contact.setFullName(request.getFullName());
+        if (request.getEmail()  != null) contact.setEmail(request.getEmail());
+        if (request.getPhone()  != null) contact.setPhone(request.getPhone());
+        if (request.getNotes()  != null) contact.setNotes(request.getNotes());
+        contact.setPrimary(request.isPrimary());
+        if (StringUtils.hasText(request.getRole())) {
+            contact.setRole(ClientContact.ContactRole.valueOf(request.getRole().toUpperCase()));
+        }
+        return toContactResponse(contactRepository.save(contact));
+    }
+
+    @Transactional
+    public void deleteContact(UUID clientId, UUID contactId) {
+        UUID tenantId = TenantContext.getTenantId();
+        clientRepository.findByIdAndTenantIdAndDeletedAtIsNull(clientId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client", clientId));
+        ClientContact contact = contactRepository.findByIdAndClientId(contactId, clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("ClientContact", contactId));
+        contactRepository.delete(contact);
+    }
+
     // ── Slug generation ───────────────────────────────────────────────
 
     /**
@@ -173,6 +258,7 @@ public class ClientService {
     // ── Mapping ───────────────────────────────────────────────────────
 
     private ClientResponse toClientResponse(Client c) {
+        long contactCount = contactRepository.findByClientIdOrderByPrimaryDescCreatedAtAsc(c.getId()).size();
         return ClientResponse.builder()
                 .id(c.getId())
                 .tenantId(c.getTenant().getId())
@@ -181,6 +267,24 @@ public class ClientService {
                 .taxId(c.getTaxId())
                 .country(c.getCountry())
                 .status(c.getStatus().name())
+                .notes(c.getNotes())
+                .website(c.getWebsite())
+                .industry(c.getIndustry())
+                .segment(c.getSegment() != null ? c.getSegment().name() : null)
+                .contactCount(contactCount)
+                .createdAt(c.getCreatedAt())
+                .build();
+    }
+
+    private ContactResponse toContactResponse(ClientContact c) {
+        return ContactResponse.builder()
+                .id(c.getId())
+                .clientId(c.getClient().getId())
+                .fullName(c.getFullName())
+                .email(c.getEmail())
+                .phone(c.getPhone())
+                .role(c.getRole().name())
+                .primary(c.isPrimary())
                 .notes(c.getNotes())
                 .createdAt(c.getCreatedAt())
                 .build();

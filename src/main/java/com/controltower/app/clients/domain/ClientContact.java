@@ -49,6 +49,10 @@ public class ClientContact {
     @Column(name = "is_primary", nullable = false)
     private boolean primary = false;
 
+    /** Optional notes about this contact (e.g. "Handles billing disputes"). */
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -17,4 +17,7 @@ public class ClientRequest {
     private String taxId;
     private String country;
     private String notes;
+    private String website;
+    private String industry;
+    private String segment;
 }

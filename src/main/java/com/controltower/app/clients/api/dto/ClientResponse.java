@@ -18,5 +18,9 @@ public class ClientResponse {
     private final String country;
     private final String status;
     private final String notes;
+    private final String website;
+    private final String industry;
+    private final String segment;
+    private final long contactCount;
     private final Instant createdAt;
 }

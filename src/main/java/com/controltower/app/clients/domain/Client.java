@@ -45,6 +45,19 @@ public class Client extends BaseEntity {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    /** Company website URL (e.g. https://example.com). */
+    @Column(name = "website")
+    private String website;
+
+    /** Business vertical (e.g. Restaurant, Retail, Hospitality). */
+    @Column(name = "industry")
+    private String industry;
+
+    /** Market segment for sales/marketing strategy. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "segment")
+    private ClientSegment segment;
+
     @OneToMany(mappedBy = "client", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ClientBranch> branches = new ArrayList<>();
 
@@ -53,5 +66,9 @@ public class Client extends BaseEntity {
 
     public enum ClientStatus {
         ACTIVE, INACTIVE, SUSPENDED
+    }
+
+    public enum ClientSegment {
+        SMB, MID_MARKET, ENTERPRISE
     }
 }
