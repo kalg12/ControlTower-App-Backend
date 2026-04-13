@@ -75,6 +75,17 @@ public class HeartbeatService {
     @Transactional
     public void processPullResult(UUID branchId, HealthCheck.HealthStatus status,
                                    Integer latencyMs, String version) {
+        processPullResult(branchId, status, latencyMs, version, null);
+    }
+
+    /**
+     * Called by PullScheduler on a successful HTTP pull with optional detail info.
+     * Saves a check with the real status reported by the POS
+     * (ok→UP, degraded→DEGRADED, down→DOWN) instead of always UP.
+     */
+    @Transactional
+    public void processPullResult(UUID branchId, HealthCheck.HealthStatus status,
+                                   Integer latencyMs, String version, String detail) {
         ClientBranch branch = branchRepository.findById(branchId)
                 .filter(b -> b.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("ClientBranch", branchId));
@@ -86,6 +97,9 @@ public class HeartbeatService {
         check.setLatencyMs(latencyMs);
         check.setVersion(version);
         check.setSource(HealthCheck.CheckSource.PULL);
+        if (detail != null && !detail.isBlank()) {
+            check.setErrorMessage(detail);
+        }
         healthCheckRepository.save(check);
         incidentService.evaluateAfterCheck(branch, check);
     }
