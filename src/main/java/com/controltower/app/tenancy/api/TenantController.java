@@ -67,6 +67,14 @@ public class TenantController {
         return ResponseEntity.ok(ApiResponse.ok("Tenant updated", tenantService.updateTenant(tenantId, request)));
     }
 
+    @Operation(summary = "Delete tenant", description = "Soft-deletes the tenant, marking it as CANCELLED and excluding it from all future queries. Requires the 'tenant:write' permission.")
+    @DeleteMapping("/{tenantId}")
+    @PreAuthorize("hasAuthority('tenant:write')")
+    public ResponseEntity<ApiResponse<Void>> deleteTenant(@PathVariable UUID tenantId) {
+        tenantService.deleteTenant(tenantId);
+        return ResponseEntity.ok(ApiResponse.ok("Tenant deleted"));
+    }
+
     @Operation(summary = "Suspend tenant", description = "Suspends the tenant, blocking all its users from accessing the system. Requires the 'tenant:write' permission.")
     @PostMapping("/{tenantId}/suspend")
     @PreAuthorize("hasAuthority('tenant:write')")

@@ -73,6 +73,15 @@ public class TenantService {
         tenantRepository.save(tenant);
     }
 
+    @Transactional
+    public void deleteTenant(UUID tenantId) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant", tenantId));
+        tenant.setStatus(Tenant.TenantStatus.CANCELLED);
+        tenant.softDelete();
+        tenantRepository.save(tenant);
+    }
+
     // ── Tenant config ─────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
