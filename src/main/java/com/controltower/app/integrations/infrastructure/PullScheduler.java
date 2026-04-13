@@ -7,10 +7,12 @@ import com.controltower.app.integrations.domain.IntegrationEndpointRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,7 +41,23 @@ public class PullScheduler {
     private final IntegrationEndpointRepository endpointRepository;
     private final HeartbeatService              heartbeatService;
 
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient = buildRestClient();
+
+    /**
+     * Creates a RestClient backed by SimpleClientHttpRequestFactory (HttpURLConnection).
+     * This opens a fresh TCP connection for every request — no connection pooling.
+     *
+     * RestClient.create() uses JdkClientHttpRequestFactory (JDK 11 HttpClient) which
+     * pools connections internally. Node.js closes keep-alive connections after ~5 s,
+     * so the pooled connection is always stale when the scheduler fires 60 s later,
+     * producing "I/O error … null" and a false DOWN check.
+     */
+    private static RestClient buildRestClient() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(10));
+        return RestClient.builder().requestFactory(factory).build();
+    }
 
     /** Every 60 seconds: pull-check all active endpoints that have a pullUrl. Runs immediately on startup. */
     @Scheduled(initialDelay = 0, fixedDelay = 60_000)
