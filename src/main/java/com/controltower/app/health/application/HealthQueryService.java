@@ -102,6 +102,7 @@ public class HealthQueryService {
                 .version(h.getVersion())
                 .lastCheckedAt(h.getCheckedAt())
                 .openIncidents(openIncidents)
+                .errorMessage(h.getErrorMessage())
                 .build();
     }
 
