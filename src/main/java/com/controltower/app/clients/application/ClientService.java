@@ -259,6 +259,8 @@ public class ClientService {
 
     private ClientResponse toClientResponse(Client c) {
         long contactCount = contactRepository.findByClientIdOrderByPrimaryDescCreatedAtAsc(c.getId()).size();
+        long branchCount = c.getBranches() != null ? c.getBranches().size() : 0;
+
         return ClientResponse.builder()
                 .id(c.getId())
                 .tenantId(c.getTenant().getId())
@@ -271,7 +273,11 @@ public class ClientService {
                 .website(c.getWebsite())
                 .industry(c.getIndustry())
                 .segment(c.getSegment() != null ? c.getSegment().name() : null)
+                .accountOwnerId(c.getAccountOwnerId())
+                .healthScore(c.getHealthScore())
+                .totalRevenue(c.getTotalRevenue())
                 .contactCount(contactCount)
+                .branchCount(branchCount)
                 .createdAt(c.getCreatedAt())
                 .build();
     }

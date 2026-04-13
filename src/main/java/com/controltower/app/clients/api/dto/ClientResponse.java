@@ -21,6 +21,14 @@ public class ClientResponse {
     private final String website;
     private final String industry;
     private final String segment;
+    private final UUID accountOwnerId;
+    private final String accountOwnerName;
+    private final Integer healthScore;
+    private final Double totalRevenue;
     private final long contactCount;
+    private final long branchCount;
+    private final long openTicketsCount;
+    private final long openOpportunitiesCount;
     private final Instant createdAt;
+    private final Instant lastInteractionAt;
 }
