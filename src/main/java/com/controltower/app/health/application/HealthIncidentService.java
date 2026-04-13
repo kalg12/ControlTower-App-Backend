@@ -89,12 +89,15 @@ public class HealthIncidentService {
             eventPublisher.publishEvent(new HealthIncidentOpenedEvent(incident));
 
         } else if (!shouldOpenIncident && openIncident.isPresent()
-                   && latestCheck.getStatus() == HealthCheck.HealthStatus.UP) {
-            // Auto-resolve if back UP
+                   && latestCheck.getStatus() != HealthCheck.HealthStatus.DOWN) {
+            // Auto-resolve if the branch is reachable again (UP or DEGRADED).
+            // DEGRADED means the service is responding — the outage is over.
+            // If it stays degraded long-term that's a separate concern, not a DOWN incident.
             HealthIncident incident = openIncident.get();
             incident.resolve();
             incidentRepository.save(incident);
-            log.info("Health incident {} auto-resolved (branch {} is UP again)", incident.getId(), branch.getId());
+            log.info("Health incident {} auto-resolved (branch {} recovered to {})",
+                    incident.getId(), branch.getId(), latestCheck.getStatus());
         }
     }
 

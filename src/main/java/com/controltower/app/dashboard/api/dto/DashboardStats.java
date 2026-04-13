@@ -3,6 +3,8 @@ package com.controltower.app.dashboard.api.dto;
 import lombok.Builder;
 import lombok.Value;
 
+import java.util.List;
+
 /**
  * Summary statistics for the dashboard home screen.
  */
@@ -19,6 +21,7 @@ public class DashboardStats {
     long branchesDown;
     long branchesDegraded;
     long openIncidents;
+    List<BranchStatusDetail> alertBranches;   // branches that are DOWN or DEGRADED (with names)
 
     // Support
     long openTickets;

@@ -1,7 +1,9 @@
 package com.controltower.app.dashboard.application;
 
+import com.controltower.app.clients.domain.ClientBranch;
 import com.controltower.app.clients.domain.ClientBranchRepository;
 import com.controltower.app.clients.domain.ClientRepository;
+import com.controltower.app.dashboard.api.dto.BranchStatusDetail;
 import com.controltower.app.dashboard.api.dto.DashboardStats;
 import com.controltower.app.health.domain.HealthCheck;
 import com.controltower.app.health.domain.HealthCheckRepository;
@@ -19,7 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -49,6 +54,31 @@ public class DashboardService {
         long branchesDegraded = latestChecks.stream().filter(h -> h.getStatus() == HealthCheck.HealthStatus.DEGRADED).count();
         long openIncidents    = incidentRepository.countByTenantIdAndResolvedAtIsNull(tenantId);
 
+        // Build alert branch list (DOWN + DEGRADED with names)
+        List<HealthCheck> alertChecks = latestChecks.stream()
+                .filter(h -> h.getStatus() != HealthCheck.HealthStatus.UP)
+                .toList();
+
+        List<BranchStatusDetail> alertBranches = List.of();
+        if (!alertChecks.isEmpty()) {
+            Set<UUID> alertBranchIds = alertChecks.stream()
+                    .map(HealthCheck::getBranchId).collect(Collectors.toSet());
+            Map<UUID, ClientBranch> branchMap = branchRepository.findAllByIdsWithClient(alertBranchIds)
+                    .stream()
+                    .collect(Collectors.toMap(ClientBranch::getId, b -> b));
+            alertBranches = alertChecks.stream()
+                    .map(h -> {
+                        ClientBranch b = branchMap.get(h.getBranchId());
+                        return BranchStatusDetail.builder()
+                                .branchId(h.getBranchId())
+                                .branchName(b != null ? b.getName() : null)
+                                .clientName(b != null ? b.getClient().getName() : null)
+                                .status(h.getStatus().name())
+                                .build();
+                    })
+                    .toList();
+        }
+
         // Tickets
         long openTickets       = ticketRepository.countByTenantIdAndStatusAndDeletedAtIsNull(tenantId, Ticket.TicketStatus.OPEN);
         long ticketsInProgress = ticketRepository.countByTenantIdAndStatusAndDeletedAtIsNull(tenantId, Ticket.TicketStatus.IN_PROGRESS);
@@ -73,6 +103,7 @@ public class DashboardService {
                 .branchesDown(branchesDown)
                 .branchesDegraded(branchesDegraded)
                 .openIncidents(openIncidents)
+                .alertBranches(alertBranches)
                 .openTickets(openTickets)
                 .ticketsInProgress(ticketsInProgress)
                 .slaBreachedTickets(slaBreached)
