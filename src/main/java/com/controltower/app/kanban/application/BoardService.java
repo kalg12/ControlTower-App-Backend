@@ -2,12 +2,16 @@ package com.controltower.app.kanban.application;
 
 import com.controltower.app.kanban.api.dto.*;
 import com.controltower.app.kanban.domain.*;
+import com.controltower.app.shared.events.UserActionEvent;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +20,7 @@ import jakarta.persistence.PersistenceContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -23,10 +28,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BoardService {
 
-    private final BoardRepository        boardRepository;
-    private final BoardColumnRepository  columnRepository;
-    private final CardRepository         cardRepository;
-    private final ChecklistItemRepository checklistRepository;
+    private final BoardRepository          boardRepository;
+    private final BoardColumnRepository    columnRepository;
+    private final CardRepository           cardRepository;
+    private final ChecklistItemRepository  checklistRepository;
+    private final ApplicationEventPublisher publisher;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -51,22 +57,30 @@ public class BoardService {
         board = boardRepository.save(board);
         seedDefaultColumns(board);
         UUID newBoardId = board.getId();
-        // Force SQL insert of columns, then reload Board from DB so toBoardDetail sees the new columns.
-        // (Same-transaction refresh/in-memory collections are unreliable for mappedBy inverse sides.)
         entityManager.flush();
         entityManager.clear();
         Board loaded = resolveBoard(newBoardId);
         log.info("Created Kanban board {} with {} default columns", newBoardId, loaded.getBoardColumns().size());
+
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(TenantContext.getTenantId())
+                .userId(userId)
+                .actionName("BOARD_CREATED")
+                .entityType("KanbanBoard")
+                .entityId(newBoardId)
+                .description("Created board '" + request.getName() + "'")
+                .build());
+
         return toBoardDetail(loaded);
     }
 
     private void seedDefaultColumns(Board board) {
         record Seed(String name, BoardColumn.ColumnKind kind, int position) {}
         List<Seed> seeds = List.of(
-                new Seed("To Do", BoardColumn.ColumnKind.TODO, 0),
+                new Seed("To Do",       BoardColumn.ColumnKind.TODO,        0),
                 new Seed("In Progress", BoardColumn.ColumnKind.IN_PROGRESS, 1),
-                new Seed("Done", BoardColumn.ColumnKind.DONE, 2),
-                new Seed("History", BoardColumn.ColumnKind.HISTORY, 3)
+                new Seed("Done",        BoardColumn.ColumnKind.DONE,        2),
+                new Seed("History",     BoardColumn.ColumnKind.HISTORY,     3)
         );
         for (Seed s : seeds) {
             BoardColumn col = new BoardColumn();
@@ -116,8 +130,18 @@ public class BoardService {
     @Transactional
     public void deleteBoard(UUID boardId) {
         Board board = resolveBoard(boardId);
+        String boardName = board.getName();
         board.softDelete();
         boardRepository.save(board);
+
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(TenantContext.getTenantId())
+                .userId(resolveUserId())
+                .actionName("BOARD_DELETED")
+                .entityType("KanbanBoard")
+                .entityId(boardId)
+                .description("Deleted board '" + boardName + "'")
+                .build());
     }
 
     // ── Columns ───────────────────────────────────────────────────────
@@ -153,17 +177,45 @@ public class BoardService {
         card.setDueDate(request.getDueDate());
         card.setPriority(request.getPriority());
         card.setPosition(request.getPosition());
-        return toCardResponse(cardRepository.save(card));
+        card = cardRepository.save(card);
+
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(TenantContext.getTenantId())
+                .userId(resolveUserId())
+                .actionName("CARD_CREATED")
+                .entityType("KanbanCard")
+                .entityId(card.getId())
+                .description("Created card '" + card.getTitle() + "' in '" + column.getName() + "'")
+                .metadata(Map.of("boardId", column.getBoard().getId().toString(),
+                                 "columnId", column.getId().toString()))
+                .build());
+
+        return toCardResponse(card);
     }
 
     @Transactional
     public CardResponse moveCard(UUID cardId, MoveCardRequest request) {
         Card card = resolveCard(cardId);
+        String cardTitle = card.getTitle();
+        String fromColumn = card.getBoardColumn().getName();
+
         BoardColumn target = columnRepository.findById(request.getTargetColumnId())
                 .orElseThrow(() -> new ResourceNotFoundException("BoardColumn", request.getTargetColumnId()));
         card.setBoardColumn(target);
         card.setPosition(request.getPosition());
-        return toCardResponse(cardRepository.save(card));
+        card = cardRepository.save(card);
+
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(TenantContext.getTenantId())
+                .userId(resolveUserId())
+                .actionName("CARD_MOVED")
+                .entityType("KanbanCard")
+                .entityId(cardId)
+                .description("Moved card '" + cardTitle + "' from '" + fromColumn + "' to '" + target.getName() + "'")
+                .metadata(Map.of("fromColumn", fromColumn, "toColumn", target.getName()))
+                .build());
+
+        return toCardResponse(card);
     }
 
     @Transactional
@@ -180,8 +232,18 @@ public class BoardService {
     @Transactional
     public void deleteCard(UUID cardId) {
         Card card = resolveCard(cardId);
+        String cardTitle = card.getTitle();
         card.softDelete();
         cardRepository.save(card);
+
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(TenantContext.getTenantId())
+                .userId(resolveUserId())
+                .actionName("CARD_DELETED")
+                .entityType("KanbanCard")
+                .entityId(cardId)
+                .description("Deleted card '" + cardTitle + "'")
+                .build());
     }
 
     // ── Checklist ─────────────────────────────────────────────────────
@@ -201,7 +263,20 @@ public class BoardService {
         ChecklistItem item = checklistRepository.findById(itemId)
                 .orElseThrow(() -> new ResourceNotFoundException("ChecklistItem", itemId));
         item.setCompleted(!item.isCompleted());
-        return toChecklistItemResponse(checklistRepository.save(item));
+        ChecklistItem saved = checklistRepository.save(item);
+
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(TenantContext.getTenantId())
+                .userId(resolveUserId())
+                .actionName("CHECKLIST_TOGGLED")
+                .entityType("ChecklistItem")
+                .entityId(itemId)
+                .description((saved.isCompleted() ? "Completed" : "Uncompleted") + " checklist item '" + saved.getText() + "'")
+                .metadata(Map.of("cardId", saved.getCard().getId().toString(),
+                                 "completed", saved.isCompleted()))
+                .build());
+
+        return toChecklistItemResponse(saved);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
@@ -215,6 +290,16 @@ public class BoardService {
     private Card resolveCard(UUID cardId) {
         return cardRepository.findByIdAndDeletedAtIsNull(cardId)
                 .orElseThrow(() -> new ResourceNotFoundException("Card", cardId));
+    }
+
+    /** Resolves the current authenticated user's UUID from the SecurityContext. */
+    private UUID resolveUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            try { return UUID.fromString(auth.getName()); }
+            catch (IllegalArgumentException ignored) {}
+        }
+        return null;
     }
 
     // ── Mapping ───────────────────────────────────────────────────────

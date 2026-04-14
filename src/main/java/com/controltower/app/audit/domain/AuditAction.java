@@ -67,6 +67,24 @@ public enum AuditAction {
     // Config
     CONFIG_CHANGED,
 
+    // Kanban
+    BOARD_CREATED,
+    BOARD_DELETED,
+    CARD_CREATED,
+    CARD_MOVED,
+    CARD_DELETED,
+    CHECKLIST_TOGGLED,
+
+    // Campaigns
+    CAMPAIGN_CREATED,
+    CAMPAIGN_SENT,
+    CAMPAIGN_DELETED,
+
+    // CRM
+    INTERACTION_LOGGED,
+    OPPORTUNITY_CREATED,
+    OPPORTUNITY_UPDATED,
+
     // Generic
     CREATE,
     UPDATE,
