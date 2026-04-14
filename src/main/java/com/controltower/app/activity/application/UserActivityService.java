@@ -15,11 +15,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 
@@ -98,7 +100,8 @@ public class UserActivityService {
             Instant to,
             Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        Page<UserActivity> page = activityRepository.findByFilters(tenantId, userId, eventType, from, to, pageable);
+        Page<UserActivity> page = activityRepository.findAll(
+                buildSpec(tenantId, userId, eventType, from, to), pageable);
         return PageResponse.from(page.map(this::toResponse));
     }
 
@@ -107,9 +110,27 @@ public class UserActivityService {
         UUID tenantId = TenantContext.getTenantId();
         User user = userRepository.findByIdAndDeletedAtIsNull(UUID.fromString(auth.getName()))
                 .orElseThrow(() -> new ResourceNotFoundException("User", auth.getName()));
-        Page<UserActivity> page = activityRepository.findByFilters(
-                tenantId, user.getId(), null, null, null, pageable);
+        Page<UserActivity> page = activityRepository.findAll(
+                buildSpec(tenantId, user.getId(), null, null, null), pageable);
         return PageResponse.from(page.map(this::toResponse));
+    }
+
+    private Specification<UserActivity> buildSpec(
+            UUID tenantId,
+            UUID userId,
+            UserActivity.EventType eventType,
+            Instant from,
+            Instant to) {
+        return (root, query, cb) -> {
+            var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(cb.equal(root.get("tenant").get("id"), tenantId));
+            predicates.add(cb.isNull(root.get("deletedAt")));
+            if (userId    != null) predicates.add(cb.equal(root.get("userId"),    userId));
+            if (eventType != null) predicates.add(cb.equal(root.get("eventType"), eventType));
+            if (from      != null) predicates.add(cb.greaterThanOrEqualTo(root.get("visitedAt"), from));
+            if (to        != null) predicates.add(cb.lessThanOrEqualTo(root.get("visitedAt"), to));
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
     }
 
     @Transactional(readOnly = true)

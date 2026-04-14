@@ -1,8 +1,8 @@
 package com.controltower.app.activity.domain;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -10,29 +10,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-public interface UserActivityRepository extends JpaRepository<UserActivity, UUID> {
-
-    /**
-     * General-purpose filtered query used by the admin activity feed.
-     * All filter params are nullable — null means "no filter on that dimension".
-     */
-    @Query("""
-        SELECT a FROM UserActivity a
-        WHERE  a.tenant.id  = :tenantId
-        AND    a.deletedAt  IS NULL
-        AND    (:userId    IS NULL OR a.userId    = :userId)
-        AND    (:eventType IS NULL OR a.eventType = :eventType)
-        AND    (:from      IS NULL OR a.visitedAt >= :from)
-        AND    (:to        IS NULL OR a.visitedAt <= :to)
-        ORDER BY a.visitedAt DESC
-        """)
-    Page<UserActivity> findByFilters(
-            @Param("tenantId")   UUID tenantId,
-            @Param("userId")     UUID userId,
-            @Param("eventType")  UserActivity.EventType eventType,
-            @Param("from")       Instant from,
-            @Param("to")         Instant to,
-            Pageable pageable);
+public interface UserActivityRepository
+        extends JpaRepository<UserActivity, UUID>,
+                JpaSpecificationExecutor<UserActivity> {
 
     @Query("""
         SELECT a FROM UserActivity a
