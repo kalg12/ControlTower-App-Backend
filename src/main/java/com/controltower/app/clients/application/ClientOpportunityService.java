@@ -61,7 +61,6 @@ public class ClientOpportunityService {
         ClientOpportunity opp = new ClientOpportunity();
         opp.setTenant(client.getTenant());
         opp.setClient(client);
-        opp.setBranchId(request.getBranchId());
         opp.setTitle(request.getTitle());
         opp.setDescription(request.getDescription());
         opp.setValue(request.getValue());
