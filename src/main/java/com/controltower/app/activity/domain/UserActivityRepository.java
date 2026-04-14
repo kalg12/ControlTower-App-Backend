@@ -12,23 +12,50 @@ import java.util.UUID;
 
 public interface UserActivityRepository extends JpaRepository<UserActivity, UUID> {
 
-    @Query("SELECT a FROM UserActivity a WHERE a.tenant.id = :tenantId AND a.deletedAt IS NULL " +
-           "AND (:userId IS NULL OR a.userId = :userId) " +
-           "AND (:from IS NULL OR a.visitedAt >= :from) " +
-           "AND (:to IS NULL OR a.visitedAt <= :to) " +
-           "ORDER BY a.visitedAt DESC")
+    /**
+     * General-purpose filtered query used by the admin activity feed.
+     * All filter params are nullable — null means "no filter on that dimension".
+     */
+    @Query("""
+        SELECT a FROM UserActivity a
+        WHERE  a.tenant.id  = :tenantId
+        AND    a.deletedAt  IS NULL
+        AND    (:userId    IS NULL OR a.userId    = :userId)
+        AND    (:eventType IS NULL OR a.eventType = :eventType)
+        AND    (:from      IS NULL OR a.visitedAt >= :from)
+        AND    (:to        IS NULL OR a.visitedAt <= :to)
+        ORDER BY a.visitedAt DESC
+        """)
     Page<UserActivity> findByFilters(
-            @Param("tenantId") UUID tenantId,
-            @Param("userId") UUID userId,
-            @Param("from") Instant from,
-            @Param("to") Instant to,
+            @Param("tenantId")   UUID tenantId,
+            @Param("userId")     UUID userId,
+            @Param("eventType")  UserActivity.EventType eventType,
+            @Param("from")       Instant from,
+            @Param("to")         Instant to,
             Pageable pageable);
 
-    @Query("SELECT a FROM UserActivity a WHERE a.tenant.id = :tenantId AND a.userId = :userId AND a.deletedAt IS NULL ORDER BY a.visitedAt DESC LIMIT 50")
-    List<UserActivity> findRecentByUser(@Param("tenantId") UUID tenantId, @Param("userId") UUID userId);
+    @Query("""
+        SELECT a FROM UserActivity a
+        WHERE  a.tenant.id = :tenantId
+        AND    a.userId    = :userId
+        AND    a.deletedAt IS NULL
+        ORDER BY a.visitedAt DESC
+        LIMIT 50
+        """)
+    List<UserActivity> findRecentByUser(
+            @Param("tenantId") UUID tenantId,
+            @Param("userId")   UUID userId);
 
-    @Query("SELECT a FROM UserActivity a WHERE a.tenant.id = :tenantId AND a.deletedAt IS NULL AND a.visitedAt >= :since ORDER BY a.visitedAt DESC")
-    List<UserActivity> findActiveSince(@Param("tenantId") UUID tenantId, @Param("since") Instant since);
+    @Query("""
+        SELECT a FROM UserActivity a
+        WHERE  a.tenant.id  = :tenantId
+        AND    a.deletedAt  IS NULL
+        AND    a.visitedAt >= :since
+        ORDER BY a.visitedAt DESC
+        """)
+    List<UserActivity> findActiveSince(
+            @Param("tenantId") UUID tenantId,
+            @Param("since")    Instant since);
 
     long countByTenantIdAndDeletedAtIsNull(UUID tenantId);
 
