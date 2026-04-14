@@ -33,11 +33,12 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<PageResponse<NotificationResponse>>> list(
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false)    Boolean unread,
             @AuthenticationPrincipal UserDetails principal) {
         UUID userId  = UUID.fromString(principal.getUsername());
         PageRequest pageable = PageRequest.of(page, size, Sort.by("notification.createdAt").descending());
         return ResponseEntity.ok(
-                ApiResponse.ok(PageResponse.from(notificationService.listForUser(userId, pageable))));
+                ApiResponse.ok(PageResponse.from(notificationService.listForUser(userId, unread, pageable))));
     }
 
     @Operation(summary = "Mark notification as read", description = "Marks a single notification as read for the authenticated user. Requires the 'notification:read' permission.")
@@ -67,5 +68,14 @@ public class NotificationController {
             @AuthenticationPrincipal UserDetails principal) {
         notificationService.delete(id, UUID.fromString(principal.getUsername()));
         return ResponseEntity.ok(ApiResponse.ok("Notification deleted"));
+    }
+
+    @Operation(summary = "Delete all notifications", description = "Removes all notifications for the authenticated user in one operation. Requires the 'notification:read' permission.")
+    @DeleteMapping
+    @PreAuthorize("hasAuthority('notification:read')")
+    public ResponseEntity<ApiResponse<Void>> deleteAll(
+            @AuthenticationPrincipal UserDetails principal) {
+        notificationService.deleteAll(UUID.fromString(principal.getUsername()));
+        return ResponseEntity.ok(ApiResponse.ok("All notifications deleted"));
     }
 }

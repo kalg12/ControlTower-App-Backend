@@ -52,7 +52,10 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<NotificationResponse> listForUser(UUID userId, Pageable pageable) {
+    public Page<NotificationResponse> listForUser(UUID userId, Boolean onlyUnread, Pageable pageable) {
+        if (Boolean.TRUE.equals(onlyUnread)) {
+            return stateRepository.findUnreadPageByUserId(userId, pageable).map(this::toResponse);
+        }
         return stateRepository.findByUserId(userId, pageable).map(this::toResponse);
     }
 
@@ -76,6 +79,11 @@ public class NotificationService {
         NotificationUserState state = resolveState(notificationId, userId);
         state.softDelete();
         stateRepository.save(state);
+    }
+
+    @Transactional
+    public void deleteAll(UUID userId) {
+        stateRepository.softDeleteAllByUserId(userId, java.time.Instant.now());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
