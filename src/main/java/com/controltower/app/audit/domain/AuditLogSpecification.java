@@ -21,6 +21,7 @@ public final class AuditLogSpecification {
             UUID tenantId,
             UUID userId,
             AuditAction action,
+            String resourceType,
             Instant from,
             Instant to) {
 
@@ -35,6 +36,10 @@ public final class AuditLogSpecification {
             }
             if (action != null) {
                 predicates.add(cb.equal(root.get("action"), action));
+            }
+            if (resourceType != null && !resourceType.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("resourceType")),
+                        "%" + resourceType.toLowerCase() + "%"));
             }
             if (from != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), from));

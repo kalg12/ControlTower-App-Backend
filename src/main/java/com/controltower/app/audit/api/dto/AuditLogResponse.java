@@ -19,8 +19,10 @@ public class AuditLogResponse {
     private final String resourceType;
     private final String resourceId;
     private final String result;
-    private final String details;
+    private final String oldValue;
+    private final String newValue;
     private final String ipAddress;
+    private final String userAgent;
     private final String correlationId;
     private final Instant createdAt;
 }

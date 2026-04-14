@@ -31,12 +31,13 @@ public class AuditQueryService {
             UUID tenantId,
             UUID userId,
             AuditAction action,
+            String resourceType,
             Instant from,
             Instant to,
             Pageable pageable) {
 
         Page<AuditLog> page = auditLogRepository.findAll(
-                AuditLogSpecification.filter(tenantId, userId, action, from, to), pageable);
+                AuditLogSpecification.filter(tenantId, userId, action, resourceType, from, to), pageable);
 
         // Batch-resolve all user IDs to avoid N+1 queries
         Map<UUID, User> userCache = new HashMap<>();
@@ -56,27 +57,18 @@ public class AuditQueryService {
                 .id(log.getId())
                 .tenantId(log.getTenantId())
                 .userId(log.getUserId())
-                .userName(user != null ? user.getFullName() : "System")
+                .userName(user != null ? user.getFullName() : null)
                 .userEmail(user != null ? user.getEmail() : null)
                 .action(log.getAction().name())
                 .resourceType(log.getResourceType())
                 .resourceId(log.getResourceId())
                 .result(log.getResult().name())
-                .details(log.getOldValue() != null || log.getNewValue() != null
-                        ? deriveDetails(log) : null)
+                .oldValue(log.getOldValue())
+                .newValue(log.getNewValue())
                 .ipAddress(log.getIpAddress())
+                .userAgent(log.getUserAgent())
                 .correlationId(log.getCorrelationId())
                 .createdAt(log.getCreatedAt())
                 .build();
-    }
-
-    private String deriveDetails(AuditLog log) {
-        // If newValue exists and looks like an error (FAILURE), show it as detail
-        if (log.getResult() == com.controltower.app.audit.domain.AuditResult.FAILURE
-                && log.getNewValue() != null) {
-            String v = log.getNewValue();
-            return v.length() > 500 ? v.substring(0, 500) + "…" : v;
-        }
-        return null;
     }
 }

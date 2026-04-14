@@ -39,6 +39,7 @@ public class AuditController {
     public ResponseEntity<ApiResponse<PageResponse<AuditLogResponse>>> queryAuditLogs(
             @RequestParam(required = false) UUID userId,
             @RequestParam(required = false) AuditAction action,
+            @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             @RequestParam(defaultValue = "0")  int page,
@@ -47,7 +48,7 @@ public class AuditController {
         UUID tenantId = TenantContext.getTenantId();
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         PageResponse<AuditLogResponse> result =
-                auditQueryService.query(tenantId, userId, action, from, to, pageable);
+                auditQueryService.query(tenantId, userId, action, resourceType, from, to, pageable);
 
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
