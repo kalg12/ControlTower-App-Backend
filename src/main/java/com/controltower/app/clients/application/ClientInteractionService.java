@@ -4,9 +4,11 @@ import com.controltower.app.clients.api.dto.ClientInteractionRequest;
 import com.controltower.app.clients.api.dto.ClientInteractionResponse;
 import com.controltower.app.clients.domain.*;
 import com.controltower.app.identity.domain.Tenant;
+import com.controltower.app.shared.events.UserActionEvent;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,7 @@ public class ClientInteractionService {
     private final ClientInteractionRepository interactionRepository;
     private final ClientRepository            clientRepository;
     private final ClientBranchRepository      branchRepository;
+    private final ApplicationEventPublisher   publisher;
 
     @Transactional(readOnly = true)
     public Page<ClientInteractionResponse> listByClient(UUID clientId, Pageable pageable) {
@@ -65,7 +68,16 @@ public class ClientInteractionService {
         interaction.setOutcome(request.getOutcome());
         interaction.setDurationMinutes(request.getDurationMinutes());
 
-        return toResponse(interactionRepository.save(interaction));
+        ClientInteraction saved = interactionRepository.save(interaction);
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(tenantId)
+                .userId(userId)
+                .actionName("INTERACTION_LOGGED")
+                .entityType("ClientInteraction")
+                .entityId(saved.getId())
+                .description("Logged " + saved.getInteractionType().name() + " with " + client.getName())
+                .build());
+        return toResponse(saved);
     }
 
     @Transactional

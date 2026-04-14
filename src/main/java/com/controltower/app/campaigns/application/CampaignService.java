@@ -5,14 +5,18 @@ import com.controltower.app.campaigns.api.dto.CampaignResponse;
 import com.controltower.app.campaigns.api.dto.CampaignUpdateRequest;
 import com.controltower.app.campaigns.domain.Campaign;
 import com.controltower.app.campaigns.domain.CampaignRepository;
+import com.controltower.app.shared.events.UserActionEvent;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +29,7 @@ import java.util.UUID;
 public class CampaignService {
 
     private final CampaignRepository campaignRepository;
+    private final ApplicationEventPublisher publisher;
 
     @Transactional(readOnly = true)
     public Page<CampaignResponse> list(String search, Pageable pageable) {
@@ -48,7 +53,16 @@ public class CampaignService {
             campaign.setScheduledAt(scheduledAt);
             campaign.setStatus(Campaign.CampaignStatus.SCHEDULED);
         }
-        return toResponse(campaignRepository.save(campaign));
+        Campaign saved = campaignRepository.save(campaign);
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(tenantId)
+                .userId(resolveUserId())
+                .actionName("CAMPAIGN_CREATED")
+                .entityType("Campaign")
+                .entityId(saved.getId())
+                .description("Created campaign '" + saved.getName() + "'")
+                .build());
+        return toResponse(saved);
     }
 
     @Transactional
@@ -78,16 +92,42 @@ public class CampaignService {
         campaign.setStatus(Campaign.CampaignStatus.SENT);
         campaign.setSentAt(Instant.now());
         campaignRepository.save(campaign);
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(TenantContext.getTenantId())
+                .userId(resolveUserId())
+                .actionName("CAMPAIGN_SENT")
+                .entityType("Campaign")
+                .entityId(id)
+                .description("Sent campaign '" + campaign.getName() + "'")
+                .build());
     }
 
     @Transactional
     public void delete(UUID id) {
         Campaign campaign = resolve(id);
+        String campaignName = campaign.getName();
         campaign.softDelete();
         campaignRepository.save(campaign);
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(TenantContext.getTenantId())
+                .userId(resolveUserId())
+                .actionName("CAMPAIGN_DELETED")
+                .entityType("Campaign")
+                .entityId(id)
+                .description("Deleted campaign '" + campaignName + "'")
+                .build());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
+
+    private UUID resolveUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            try { return UUID.fromString(auth.getName()); }
+            catch (IllegalArgumentException ignored) {}
+        }
+        return null;
+    }
 
     private Specification<Campaign> buildListSpec(UUID tenantId, String search) {
         return (root, query, cb) -> {
