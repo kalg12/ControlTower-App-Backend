@@ -7,8 +7,8 @@ import com.controltower.app.clients.application.ClientService;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import com.controltower.app.tenancy.domain.TenantContext;
-import com.controltower.app.users.domain.User;
-import com.controltower.app.users.domain.UserRepository;
+import com.controltower.app.identity.domain.User;
+import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +42,7 @@ public class ClientCrmController {
     private final UserRepository           userRepository;
 
     private User getCurrentUser(Authentication auth) {
-        return userRepository.findByEmail(auth.getName())
+        return userRepository.findByIdAndDeletedAtIsNull(UUID.fromString(auth.getName()))
                 .orElseThrow(() -> new ResourceNotFoundException("User", auth.getName()));
     }
 
