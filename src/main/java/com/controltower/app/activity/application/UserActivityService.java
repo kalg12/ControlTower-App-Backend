@@ -36,7 +36,7 @@ public class UserActivityService {
     @Transactional
     public void recordActivity(Authentication auth, HttpServletRequest request, UserActivityRequest dto) {
         UUID tenantId = TenantContext.getTenantId();
-        User user = userRepository.findByEmail(auth.getName())
+        User user = userRepository.findByIdAndDeletedAtIsNull(UUID.fromString(auth.getName()))
                 .orElseThrow(() -> new ResourceNotFoundException("User", auth.getName()));
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant", tenantId));
@@ -105,7 +105,7 @@ public class UserActivityService {
     @Transactional(readOnly = true)
     public PageResponse<UserActivityResponse> queryMyActivity(Authentication auth, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        User user = userRepository.findByEmail(auth.getName())
+        User user = userRepository.findByIdAndDeletedAtIsNull(UUID.fromString(auth.getName()))
                 .orElseThrow(() -> new ResourceNotFoundException("User", auth.getName()));
         Page<UserActivity> page = activityRepository.findByFilters(
                 tenantId, user.getId(), null, null, null, pageable);
