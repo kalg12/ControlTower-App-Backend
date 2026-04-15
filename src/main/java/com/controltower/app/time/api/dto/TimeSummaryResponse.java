@@ -1,8 +1,11 @@
 package com.controltower.app.time.api.dto;
 
 import com.controltower.app.time.domain.TimeEntry;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
+
+@Schema(description = "Time summary for a ticket or card: estimated vs logged minutes")
 
 import java.util.List;
 import java.util.UUID;
