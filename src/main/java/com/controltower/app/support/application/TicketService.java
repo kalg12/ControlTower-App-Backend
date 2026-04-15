@@ -9,6 +9,7 @@ import com.controltower.app.support.api.dto.*;
 import com.controltower.app.support.domain.*;
 import com.controltower.app.support.infrastructure.PosWebhookService;
 import com.controltower.app.tenancy.domain.TenantContext;
+import com.controltower.app.time.application.SlaConfigService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -34,12 +35,7 @@ public class TicketService {
     private final TicketSlaRepository    slaRepository;
     private final ApplicationEventPublisher publisher;
     private final PosWebhookService      posWebhookService;
-
-    // SLA windows by priority (hours)
-    private static final int SLA_LOW      = 48;
-    private static final int SLA_MEDIUM   = 24;
-    private static final int SLA_HIGH     = 8;
-    private static final int SLA_CRITICAL = 2;
+    private final SlaConfigService       slaConfigService;
 
     @Transactional(readOnly = true)
     public Page<TicketResponse> listTickets(
@@ -137,6 +133,7 @@ public class TicketService {
         ticket.setTitle(request.getTitle());
         ticket.setDescription(request.getDescription());
         if (request.getPriority() != null) ticket.setPriority(request.getPriority());
+        ticket.setEstimatedMinutes(request.getEstimatedMinutes());
 
         ticketRepository.save(ticket);
         attachSla(ticket);
@@ -388,12 +385,7 @@ public class TicketService {
     }
 
     private void attachSla(Ticket ticket) {
-        int hours = switch (ticket.getPriority()) {
-            case LOW      -> SLA_LOW;
-            case MEDIUM   -> SLA_MEDIUM;
-            case HIGH     -> SLA_HIGH;
-            case CRITICAL -> SLA_CRITICAL;
-        };
+        int hours = slaConfigService.getWindowHours(ticket.getPriority(), ticket.getTenantId());
         TicketSla sla = new TicketSla();
         sla.setTicket(ticket);
         sla.setDueAt(Instant.now().plus(Duration.ofHours(hours)));
@@ -418,6 +410,7 @@ public class TicketService {
     private TicketResponse toResponse(Ticket t) {
         List<String> labels = t.getLabels() != null ? java.util.Arrays.asList(t.getLabels()) : java.util.List.of();
         int commentsCount = t.getComments() != null ? t.getComments().size() : 0;
+        TicketSla sla = t.getSla();
         return TicketResponse.builder()
                 .id(t.getId())
                 .tenantId(t.getTenantId())
@@ -433,6 +426,9 @@ public class TicketService {
                 .posContext(t.getPosContext())
                 .labels(labels)
                 .commentsCount(commentsCount)
+                .estimatedMinutes(t.getEstimatedMinutes())
+                .slaDueAt(sla != null ? sla.getDueAt() : null)
+                .slaBreached(sla != null ? sla.isBreached() : null)
                 .createdAt(t.getCreatedAt())
                 .updatedAt(t.getUpdatedAt())
                 .build();

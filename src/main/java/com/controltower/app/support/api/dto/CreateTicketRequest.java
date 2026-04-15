@@ -22,4 +22,6 @@ public class CreateTicketRequest {
     private String description;
 
     private Ticket.Priority priority;
+
+    private Integer estimatedMinutes;
 }

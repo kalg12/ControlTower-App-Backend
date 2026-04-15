@@ -26,6 +26,11 @@ public class TicketResponse {
     private final Map<String, Object> posContext;
     private final List<String>        labels;
     private final int          commentsCount;
+    private final Integer      estimatedMinutes;
+    /** SLA deadline (null when no SLA attached). */
+    private final Instant      slaDueAt;
+    /** Whether the SLA has been breached. */
+    private final Boolean      slaBreached;
     private final Instant      createdAt;
     private final Instant      updatedAt;
 }

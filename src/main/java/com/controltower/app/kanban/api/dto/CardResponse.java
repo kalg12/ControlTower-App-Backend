@@ -21,6 +21,7 @@ public class CardResponse {
     private final int position;
     private final String[] labels;
     private final List<ChecklistItemResponse> checklist;
+    private final Integer estimatedMinutes;
     private final Instant createdAt;
     private final Instant updatedAt;
 }

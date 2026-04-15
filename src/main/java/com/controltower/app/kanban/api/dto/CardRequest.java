@@ -24,4 +24,5 @@ public class CardRequest {
     private LocalDate dueDate;
     private Card.Priority priority = Card.Priority.MEDIUM;
     private int position = 0;
+    private Integer estimatedMinutes;
 }

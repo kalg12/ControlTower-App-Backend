@@ -24,4 +24,6 @@ public class CardUpdateRequest {
 
     @NotNull(message = "Priority is required")
     private Card.Priority priority;
+
+    private Integer estimatedMinutes;
 }

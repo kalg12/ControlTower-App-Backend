@@ -41,6 +41,9 @@ public class Card {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
+    @Column(name = "estimated_minutes")
+    private Integer estimatedMinutes;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "priority", nullable = false)
     private Priority priority = Priority.MEDIUM;

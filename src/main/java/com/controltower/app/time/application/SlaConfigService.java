@@ -40,7 +40,13 @@ public class SlaConfigService {
     /** Returns the SLA window in hours for the given priority in the current tenant. */
     @Transactional(readOnly = true)
     public int getWindowHours(Priority priority) {
-        UUID tenantId = TenantContext.getTenantId();
+        return getWindowHours(priority, TenantContext.getTenantId());
+    }
+
+    /** Returns the SLA window in hours for the given priority and an explicit tenantId.
+     *  Used in internal flows (e.g., createFromIncident) where TenantContext is not set. */
+    @Transactional(readOnly = true)
+    public int getWindowHours(Priority priority, UUID tenantId) {
         return configRepository
                 .findByTenantIdAndKey(tenantId, keyFor(priority))
                 .map(c -> parseInt(c.getValue(), DEFAULTS.get(priority)))

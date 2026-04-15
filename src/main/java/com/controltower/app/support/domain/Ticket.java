@@ -58,6 +58,9 @@ public class Ticket extends BaseEntity {
     @Column(name = "pos_context", columnDefinition = "JSONB")
     private Map<String, Object> posContext;
 
+    @Column(name = "estimated_minutes")
+    private Integer estimatedMinutes;
+
     @Array(length = 20)
     @Column(name = "labels", columnDefinition = "TEXT[]")
     private String[] labels = new String[0];

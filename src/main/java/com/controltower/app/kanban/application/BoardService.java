@@ -177,6 +177,7 @@ public class BoardService {
         card.setDueDate(request.getDueDate());
         card.setPriority(request.getPriority());
         card.setPosition(request.getPosition());
+        card.setEstimatedMinutes(request.getEstimatedMinutes());
         card = cardRepository.save(card);
 
         publisher.publishEvent(UserActionEvent.builder()
@@ -226,6 +227,7 @@ public class BoardService {
         card.setAssigneeId(request.getAssigneeId());
         card.setDueDate(request.getDueDate());
         card.setPriority(request.getPriority());
+        card.setEstimatedMinutes(request.getEstimatedMinutes());
         return toCardResponse(cardRepository.save(card));
     }
 
@@ -367,6 +369,7 @@ public class BoardService {
                 .position(c.getPosition())
                 .labels(c.getLabels())
                 .checklist(checklist)
+                .estimatedMinutes(c.getEstimatedMinutes())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .build();
