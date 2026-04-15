@@ -20,6 +20,8 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
 
     long countByTenantIdAndStatusAndDeletedAtIsNull(UUID tenantId, Ticket.TicketStatus status);
 
+    long countByTenantIdAndDeletedAtIsNull(UUID tenantId);
+
     Optional<Ticket> findByIdAndTenantIdAndDeletedAtIsNull(UUID id, UUID tenantId);
 
     List<Ticket> findByIdInAndTenantIdAndDeletedAtIsNull(List<UUID> ids, UUID tenantId);
