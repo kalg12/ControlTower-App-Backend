@@ -15,6 +15,15 @@ public interface TicketSlaRepository extends JpaRepository<TicketSla, UUID> {
     @Query("SELECT s FROM TicketSla s WHERE s.breached = false AND s.dueAt <= :now")
     List<TicketSla> findBreachedUnmarked(Instant now);
 
+    /** Returns all active SLAs for non-resolved, non-closed tickets (used by SLA warning scheduler). */
+    @Query("""
+        SELECT s FROM TicketSla s
+        WHERE s.breached = false
+          AND s.ticket.deletedAt IS NULL
+          AND s.ticket.status NOT IN ('RESOLVED', 'CLOSED')
+        """)
+    List<TicketSla> findAllActive();
+
     /** Count breached SLAs linked to open tickets of a given tenant. */
     @Query("""
         SELECT COUNT(s) FROM TicketSla s
