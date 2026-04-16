@@ -59,6 +59,8 @@ public class TicketController {
             @RequestParam(defaultValue = "false") boolean slaAtRisk,
             @Parameter(description = "Used with slaAtRisk=true: hours until SLA expiry (default 4)")
             @RequestParam(defaultValue = "4") int slaWindowHours,
+            @Parameter(description = "Full-text search on title and description")
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size) {
 
@@ -70,7 +72,7 @@ public class TicketController {
         }
 
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(
-                ticketService.listTickets(status, source, assigneeId, clientId, priority, createdAfter, createdBefore, pageable))));
+                ticketService.listTickets(status, source, assigneeId, clientId, priority, createdAfter, createdBefore, q, pageable))));
     }
 
     @GetMapping("/stats")
@@ -202,6 +204,16 @@ public class TicketController {
     @PreAuthorize("hasAuthority('ticket:write')")
     public ResponseEntity<ApiResponse<TicketResponse>> autoAssign(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok("Ticket auto-assigned", ticketService.autoAssign(id)));
+    }
+
+    @PostMapping("/{id}/merge")
+    @PreAuthorize("hasAuthority('ticket:write')")
+    @Operation(summary = "Merge ticket into another",
+               description = "Moves all comments, notes, and time entries from this ticket into the target, then soft-deletes this ticket.")
+    public ResponseEntity<ApiResponse<TicketResponse>> merge(
+            @PathVariable UUID id,
+            @RequestParam UUID targetId) {
+        return ResponseEntity.ok(ApiResponse.ok("Ticket merged", ticketService.mergeTicket(id, targetId)));
     }
 
     @DeleteMapping("/{id}")

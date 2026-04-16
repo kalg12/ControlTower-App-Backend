@@ -57,6 +57,7 @@ public class SecurityConfig {
         "/api/v1/integrations/*/pos-tickets/*/comments",        // POS chat sync (X-Api-Key auth)
         "/api/v1/billing/stripe/webhook",                       // Stripe webhook (signature verified internally)
         "/api/v1/tenants/onboard",                              // public tenant onboarding
+        "/api/v1/survey/**",                                    // CSAT survey (token-based, no auth)
         "/actuator/health",
         "/actuator/info",
         // Swagger UI

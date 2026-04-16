@@ -61,6 +61,10 @@ public class Ticket extends BaseEntity {
     @Column(name = "estimated_minutes")
     private Integer estimatedMinutes;
 
+    /** Set when the ticket is auto-escalated due to inactivity. Null = not escalated. */
+    @Column(name = "escalated_at")
+    private java.time.Instant escalatedAt;
+
     @Array(length = 20)
     @Column(name = "labels", columnDefinition = "TEXT[]")
     private String[] labels = new String[0];

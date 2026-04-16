@@ -97,6 +97,21 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
         """)
     List<Object[]> countOpenTicketsPerAssignee(@Param("tenantId") UUID tenantId);
 
+    /** Open/in-progress tickets not updated since :threshold — used by escalation scheduler. */
+    @Query("""
+        SELECT t FROM Ticket t
+        WHERE t.tenantId = :tenantId
+          AND t.deletedAt IS NULL
+          AND t.escalatedAt IS NULL
+          AND t.status NOT IN ('RESOLVED', 'CLOSED')
+          AND t.priority = :priority
+          AND t.updatedAt <= :threshold
+        """)
+    List<Ticket> findStaleTickets(
+        @Param("tenantId")  UUID tenantId,
+        @Param("priority")  Ticket.Priority priority,
+        @Param("threshold") java.time.Instant threshold);
+
     /** Used for CSV export — no pagination. */
     @Query("""
         SELECT t FROM Ticket t

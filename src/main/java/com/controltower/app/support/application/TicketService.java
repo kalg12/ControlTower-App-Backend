@@ -6,11 +6,13 @@ import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
 import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
+import com.controltower.app.notes.domain.NoteRepository;
 import com.controltower.app.support.api.dto.*;
 import com.controltower.app.support.domain.*;
 import com.controltower.app.support.infrastructure.PosWebhookService;
 import com.controltower.app.tenancy.domain.TenantContext;
 import com.controltower.app.time.application.SlaConfigService;
+import com.controltower.app.time.domain.TimeEntryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -38,15 +40,17 @@ public class TicketService {
     private final PosWebhookService      posWebhookService;
     private final SlaConfigService       slaConfigService;
     private final UserRepository         userRepository;
+    private final NoteRepository         noteRepository;
+    private final TimeEntryRepository    timeEntryRepository;
 
     @Transactional(readOnly = true)
     public Page<TicketResponse> listTickets(
             Ticket.TicketStatus status, Ticket.TicketSource source, UUID assigneeId, UUID clientId,
             Ticket.Priority priority, Instant createdAfter, Instant createdBefore,
-            Pageable pageable) {
+            String q, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
         Specification<Ticket> spec = buildFilterSpec(
-                tenantId, status, source, assigneeId, clientId, priority, createdAfter, createdBefore);
+                tenantId, status, source, assigneeId, clientId, priority, createdAfter, createdBefore, q);
         return ticketRepository.findAll(spec, pageable)
                 .map(this::toResponse);
     }
@@ -91,7 +95,7 @@ public class TicketService {
                           Ticket.Priority priority, Instant createdAfter, Instant createdBefore) {
         UUID tenantId = TenantContext.getTenantId();
         Specification<Ticket> spec = buildFilterSpec(
-                tenantId, status, null, assigneeId, clientId, priority, createdAfter, createdBefore);
+                tenantId, status, null, assigneeId, clientId, priority, createdAfter, createdBefore, null);
         List<Ticket> tickets = ticketRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         writer.println("id,title,status,priority,assigneeId,clientId,branchId,source,createdAt,updatedAt");
@@ -364,6 +368,45 @@ public class TicketService {
         ticketRepository.save(ticket);
     }
 
+    /**
+     * Merges {@code sourceId} into {@code targetId}.
+     * Moves all comments, notes, and time entries from source → target, then soft-deletes source.
+     */
+    @Transactional
+    public TicketResponse mergeTicket(UUID sourceId, UUID targetId) {
+        UUID tenantId = TenantContext.getTenantId();
+        if (sourceId.equals(targetId)) {
+            throw new ControlTowerException("Cannot merge a ticket into itself", HttpStatus.BAD_REQUEST);
+        }
+        Ticket source = resolveTicket(sourceId);
+        Ticket target = resolveTicket(targetId);
+
+        // Move comments
+        source.getComments().forEach(c -> c.setTicket(target));
+
+        // Move notes (linkedId reassignment)
+        org.springframework.data.domain.PageRequest allNotes =
+            org.springframework.data.domain.PageRequest.of(0, 1000);
+        noteRepository.findByTenantIdAndLinkedToAndLinkedIdAndDeletedAtIsNull(
+                tenantId, "TICKET", sourceId, allNotes)
+            .forEach(n -> {
+                n.setLinkedId(targetId);
+                noteRepository.save(n);
+            });
+
+        // Move time entries
+        timeEntryRepository.findByEntityTypeAndEntityId(
+                com.controltower.app.time.domain.TimeEntry.EntityType.TICKET, sourceId)
+            .forEach(e -> {
+                e.setEntityId(targetId);
+                timeEntryRepository.save(e);
+            });
+
+        source.softDelete();
+        ticketRepository.save(source);
+        return toResponse(ticketRepository.save(target));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────
 
     private Specification<Ticket> buildFilterSpec(
@@ -374,7 +417,8 @@ public class TicketService {
             UUID clientId,
             Ticket.Priority priority,
             Instant createdAfter,
-            Instant createdBefore) {
+            Instant createdBefore,
+            String q) {
         return (root, query, cb) -> {
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(cb.equal(root.get("tenantId"), tenantId));
@@ -400,6 +444,13 @@ public class TicketService {
             }
             if (createdBefore != null) {
                 predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), createdBefore));
+            }
+            if (q != null && !q.isBlank()) {
+                String pattern = "%" + q.toLowerCase() + "%";
+                predicates.add(cb.or(
+                    cb.like(cb.lower(root.get("title")),       pattern),
+                    cb.like(cb.lower(root.get("description")), pattern)
+                ));
             }
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
