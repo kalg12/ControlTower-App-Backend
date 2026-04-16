@@ -3,6 +3,7 @@ package com.controltower.app.support.application;
 import com.controltower.app.shared.annotation.Audited;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
 import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
 import com.controltower.app.support.api.dto.*;
@@ -36,6 +37,7 @@ public class TicketService {
     private final ApplicationEventPublisher publisher;
     private final PosWebhookService      posWebhookService;
     private final SlaConfigService       slaConfigService;
+    private final UserRepository         userRepository;
 
     @Transactional(readOnly = true)
     public Page<TicketResponse> listTickets(
@@ -291,6 +293,35 @@ public class TicketService {
     @Transactional
     @Audited(action = "TICKET_ASSIGNED", resource = "Ticket")
     public TicketResponse assign(UUID ticketId, UUID assigneeId) {
+        Ticket ticket = resolveTicket(ticketId);
+        ticket.assign(assigneeId);
+        return toResponse(ticketRepository.save(ticket));
+    }
+
+    /**
+     * Auto-assigns the ticket to the active user in the current tenant
+     * who currently has the fewest open (non-resolved/closed) tickets.
+     * Falls back to the first available user if nobody has any tickets yet.
+     */
+    @Transactional
+    @Audited(action = "TICKET_AUTO_ASSIGNED", resource = "Ticket")
+    public TicketResponse autoAssign(UUID ticketId) {
+        UUID tenantId = TenantContext.getTenantId();
+
+        // Build workload map: userId → openTicketCount
+        Map<UUID, Long> workload = new java.util.HashMap<>();
+        ticketRepository.countOpenTicketsPerAssignee(tenantId)
+                .forEach(row -> workload.put((UUID) row[0], (Long) row[1]));
+
+        // Find the tenant user with the smallest open-ticket count
+        UUID assigneeId = userRepository
+                .findByTenantIdAndDeletedAtIsNull(tenantId, org.springframework.data.domain.PageRequest.of(0, 200))
+                .stream()
+                .filter(u -> "ACTIVE".equals(u.getStatus()))
+                .min(java.util.Comparator.comparingLong(u -> workload.getOrDefault(u.getId(), 0L)))
+                .map(u -> u.getId())
+                .orElseThrow(() -> new ControlTowerException("No active users found in tenant", org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY));
+
         Ticket ticket = resolveTicket(ticketId);
         ticket.assign(assigneeId);
         return toResponse(ticketRepository.save(ticket));

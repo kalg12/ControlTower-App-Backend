@@ -82,6 +82,21 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
         @Param("source") Ticket.TicketSource source
     );
 
+    /**
+     * Returns pairs of [assigneeId, openCount] for all users who have at least one
+     * active (non-resolved, non-closed, non-deleted) ticket in the given tenant.
+     * Used to determine workload when auto-assigning tickets.
+     */
+    @Query("""
+        SELECT t.assigneeId, COUNT(t) FROM Ticket t
+        WHERE t.tenantId = :tenantId
+          AND t.deletedAt IS NULL
+          AND t.assigneeId IS NOT NULL
+          AND t.status NOT IN ('RESOLVED', 'CLOSED')
+        GROUP BY t.assigneeId
+        """)
+    List<Object[]> countOpenTicketsPerAssignee(@Param("tenantId") UUID tenantId);
+
     /** Used for CSV export — no pagination. */
     @Query("""
         SELECT t FROM Ticket t

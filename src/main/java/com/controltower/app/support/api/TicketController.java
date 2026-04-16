@@ -194,6 +194,16 @@ public class TicketController {
                 ticketService.bulkAssign(request.getTicketIds(), request.getAssigneeId())));
     }
 
+    @Operation(
+        summary = "Auto-assign ticket",
+        description = "Assigns the ticket to the active tenant user who currently has the fewest open tickets."
+    )
+    @PostMapping("/{id}/auto-assign")
+    @PreAuthorize("hasAuthority('ticket:write')")
+    public ResponseEntity<ApiResponse<TicketResponse>> autoAssign(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok("Ticket auto-assigned", ticketService.autoAssign(id)));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ticket:write')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {

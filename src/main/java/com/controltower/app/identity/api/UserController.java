@@ -3,9 +3,13 @@ package com.controltower.app.identity.api;
 import com.controltower.app.identity.api.dto.CreateUserRequest;
 import com.controltower.app.identity.api.dto.UpdateUserRequest;
 import com.controltower.app.identity.api.dto.UserResponse;
+import com.controltower.app.identity.api.dto.UserWorkloadResponse;
 import com.controltower.app.identity.application.UserService;
+import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
+import com.controltower.app.support.domain.TicketRepository;
+import com.controltower.app.tenancy.domain.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -15,7 +19,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -30,7 +37,9 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final UserService userService;
+    private final UserService      userService;
+    private final UserRepository   userRepository;
+    private final TicketRepository ticketRepository;
 
     @Operation(summary = "List users", description = "Returns a paginated list of users belonging to the current tenant (resolved from the Bearer token). Requires the 'user:read' permission.")
     @GetMapping
@@ -76,5 +85,38 @@ public class UserController {
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable UUID userId) {
         userService.deleteUser(userId);
         return ResponseEntity.ok(ApiResponse.ok("User deleted"));
+    }
+
+    @Operation(
+        summary = "User workload",
+        description = "Returns all active users in the tenant with their current open-ticket count. Useful for load-balancing ticket assignment."
+    )
+    @GetMapping("/workload")
+    @PreAuthorize("hasAuthority('user:read')")
+    public ResponseEntity<ApiResponse<List<UserWorkloadResponse>>> getWorkload() {
+        UUID tenantId = TenantContext.getTenantId();
+
+        // Build workload map: userId → openTicketCount
+        Map<UUID, Long> openCounts = ticketRepository
+                .countOpenTicketsPerAssignee(tenantId)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> (Long) row[1]
+                ));
+
+        List<UserWorkloadResponse> result = userRepository
+                .findByTenantIdAndDeletedAtIsNull(tenantId, PageRequest.of(0, 200, Sort.by("fullName")))
+                .stream()
+                .filter(u -> "ACTIVE".equals(u.getStatus()))
+                .map(u -> UserWorkloadResponse.builder()
+                        .id(u.getId())
+                        .fullName(u.getFullName())
+                        .email(u.getEmail())
+                        .openTickets(openCounts.getOrDefault(u.getId(), 0L))
+                        .build())
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(ApiResponse.ok("User workload", result));
     }
 }
