@@ -4,12 +4,10 @@ import com.controltower.app.time.domain.TimeEntry;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
-
-@Schema(description = "A single work-log entry (timer or manual)")
-
 import java.time.Instant;
 import java.util.UUID;
 
+@Schema(description = "A single work-log entry (timer or manual)")
 @Getter
 @Builder
 public class TimeEntryResponse {
