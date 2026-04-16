@@ -58,6 +58,15 @@ public class Client extends BaseEntity {
     @Column(name = "segment")
     private ClientSegment segment;
 
+    /** How this client was acquired. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lead_source")
+    private LeadSource leadSource;
+
+    /** Primary contact phone number. */
+    @Column(name = "phone", length = 50)
+    private String phone;
+
     /** UUID of the user who owns/manages this client account. */
     @Column(name = "account_owner_id")
     private java.util.UUID accountOwnerId;
@@ -82,5 +91,9 @@ public class Client extends BaseEntity {
 
     public enum ClientSegment {
         SMB, MID_MARKET, ENTERPRISE
+    }
+
+    public enum LeadSource {
+        REFERRAL, INBOUND, OUTBOUND, WEBSITE, SOCIAL_MEDIA, EVENT, SUPPORT_ESCALATION, OTHER
     }
 }

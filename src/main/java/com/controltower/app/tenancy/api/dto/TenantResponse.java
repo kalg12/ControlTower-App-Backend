@@ -14,5 +14,8 @@ public class TenantResponse {
     private final String name;
     private final String slug;
     private final String status;
+    private final String country;
+    private final String timezone;
+    private final String currency;
     private final Instant createdAt;
 }

@@ -18,4 +18,13 @@ public class TenantRequest {
     @Size(max = 100, message = "Slug must not exceed 100 characters")
     @Pattern(regexp = "^[a-z0-9-]+$", message = "Slug must be lowercase alphanumeric with hyphens")
     private String slug;
+
+    @Size(max = 100)
+    private String country;
+
+    @Size(max = 100)
+    private String timezone;
+
+    @Size(max = 10)
+    private String currency;
 }

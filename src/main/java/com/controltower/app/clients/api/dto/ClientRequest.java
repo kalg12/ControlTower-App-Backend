@@ -20,4 +20,6 @@ public class ClientRequest {
     private String website;
     private String industry;
     private String segment;
+    private String leadSource;
+    private String phone;
 }

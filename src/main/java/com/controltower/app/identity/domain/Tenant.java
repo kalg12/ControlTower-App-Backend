@@ -29,6 +29,16 @@ public class Tenant extends BaseEntity {
     @Column(name = "status", nullable = false)
     private TenantStatus status = TenantStatus.ACTIVE;
 
+    @Column(name = "country", nullable = false)
+    private String country = "México";
+
+    @Column(name = "timezone", nullable = false)
+    private String timezone = "America/Mexico_City";
+
+    /** ISO 4217 currency code (MXN, USD). */
+    @Column(name = "currency", nullable = false, length = 10)
+    private String currency = "MXN";
+
     @OneToMany(mappedBy = "tenant", fetch = FetchType.LAZY)
     private List<User> users = new ArrayList<>();
 

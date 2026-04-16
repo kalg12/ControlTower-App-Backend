@@ -63,6 +63,10 @@ public class ClientService {
         if (StringUtils.hasText(request.getSegment())) {
             client.setSegment(Client.ClientSegment.valueOf(request.getSegment().toUpperCase()));
         }
+        if (StringUtils.hasText(request.getLeadSource())) {
+            client.setLeadSource(Client.LeadSource.valueOf(request.getLeadSource().toUpperCase()));
+        }
+        if (request.getPhone() != null) client.setPhone(request.getPhone());
 
         return toClientResponse(clientRepository.save(client));
     }
@@ -83,6 +87,10 @@ public class ClientService {
         if (StringUtils.hasText(request.getSegment())) {
             client.setSegment(Client.ClientSegment.valueOf(request.getSegment().toUpperCase()));
         }
+        if (StringUtils.hasText(request.getLeadSource())) {
+            client.setLeadSource(Client.LeadSource.valueOf(request.getLeadSource().toUpperCase()));
+        }
+        if (request.getPhone() != null) client.setPhone(request.getPhone());
 
         return toClientResponse(clientRepository.save(client));
     }
@@ -273,6 +281,8 @@ public class ClientService {
                 .website(c.getWebsite())
                 .industry(c.getIndustry())
                 .segment(c.getSegment() != null ? c.getSegment().name() : null)
+                .leadSource(c.getLeadSource() != null ? c.getLeadSource().name() : null)
+                .phone(c.getPhone())
                 .accountOwnerId(c.getAccountOwnerId())
                 .healthScore(c.getHealthScore())
                 .totalRevenue(c.getTotalRevenue())

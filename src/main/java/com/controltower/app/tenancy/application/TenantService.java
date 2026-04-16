@@ -28,7 +28,7 @@ public class TenantService {
 
     @Transactional(readOnly = true)
     public Page<TenantResponse> listTenants(Pageable pageable) {
-        return tenantRepository.findAll(pageable).map(this::toResponse);
+        return tenantRepository.findAllByDeletedAtIsNull(pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -46,6 +46,9 @@ public class TenantService {
         Tenant tenant = new Tenant();
         tenant.setName(request.getName());
         tenant.setSlug(request.getSlug());
+        if (request.getCountry()  != null) tenant.setCountry(request.getCountry());
+        if (request.getTimezone() != null) tenant.setTimezone(request.getTimezone());
+        if (request.getCurrency() != null) tenant.setCurrency(request.getCurrency());
         return toResponse(tenantRepository.save(tenant));
     }
 
@@ -54,6 +57,9 @@ public class TenantService {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant", tenantId));
         tenant.setName(request.getName());
+        if (request.getCountry()  != null) tenant.setCountry(request.getCountry());
+        if (request.getTimezone() != null) tenant.setTimezone(request.getTimezone());
+        if (request.getCurrency() != null) tenant.setCurrency(request.getCurrency());
         return toResponse(tenantRepository.save(tenant));
     }
 
@@ -116,6 +122,9 @@ public class TenantService {
                 .name(tenant.getName())
                 .slug(tenant.getSlug())
                 .status(tenant.getStatus().name())
+                .country(tenant.getCountry())
+                .timezone(tenant.getTimezone())
+                .currency(tenant.getCurrency())
                 .createdAt(tenant.getCreatedAt())
                 .build();
     }
