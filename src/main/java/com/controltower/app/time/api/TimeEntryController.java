@@ -31,7 +31,7 @@ public class TimeEntryController {
     @Operation(summary = "Start a timer for a ticket or card",
                description = "Creates a running time entry. Any previously active timer for this user is automatically stopped.")
     @PostMapping("/start")
-    @PreAuthorize("hasAuthority('tickets:write') or hasAuthority('kanban:write')")
+    @PreAuthorize("hasAuthority('ticket:write') or hasAuthority('kanban:write')")
     public ResponseEntity<ApiResponse<TimeEntryResponse>> startTimer(
             @Valid @RequestBody StartTimerRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -40,14 +40,14 @@ public class TimeEntryController {
 
     @Operation(summary = "Stop a running timer")
     @PatchMapping("/{id}/stop")
-    @PreAuthorize("hasAuthority('tickets:write') or hasAuthority('kanban:write')")
+    @PreAuthorize("hasAuthority('ticket:write') or hasAuthority('kanban:write')")
     public ResponseEntity<ApiResponse<TimeEntryResponse>> stopTimer(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok("Timer stopped", timeEntryService.stopTimer(id)));
     }
 
     @Operation(summary = "Get the current user's active (running) timer, if any")
     @GetMapping("/active")
-    @PreAuthorize("hasAuthority('tickets:read') or hasAuthority('kanban:read')")
+    @PreAuthorize("hasAuthority('ticket:read') or hasAuthority('kanban:read')")
     public ResponseEntity<ApiResponse<TimeEntryResponse>> getActiveTimer() {
         return timeEntryService.getActiveTimer()
                 .map(e -> ResponseEntity.ok(ApiResponse.ok("Active timer", e)))
@@ -58,7 +58,7 @@ public class TimeEntryController {
 
     @Operation(summary = "Manually log time (no live timer needed)")
     @PostMapping("/log")
-    @PreAuthorize("hasAuthority('tickets:write') or hasAuthority('kanban:write')")
+    @PreAuthorize("hasAuthority('ticket:write') or hasAuthority('kanban:write')")
     public ResponseEntity<ApiResponse<TimeEntryResponse>> logManual(
             @Valid @RequestBody LogTimeRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -69,7 +69,7 @@ public class TimeEntryController {
 
     @Operation(summary = "List all time entries for a ticket or card")
     @GetMapping
-    @PreAuthorize("hasAuthority('tickets:read') or hasAuthority('kanban:read')")
+    @PreAuthorize("hasAuthority('ticket:read') or hasAuthority('kanban:read')")
     public ResponseEntity<ApiResponse<List<TimeEntryResponse>>> listEntries(
             @RequestParam TimeEntry.EntityType entityType,
             @RequestParam UUID entityId) {
@@ -79,7 +79,7 @@ public class TimeEntryController {
 
     @Operation(summary = "Get time summary (estimated vs logged) for a ticket or card")
     @GetMapping("/summary")
-    @PreAuthorize("hasAuthority('tickets:read') or hasAuthority('kanban:read')")
+    @PreAuthorize("hasAuthority('ticket:read') or hasAuthority('kanban:read')")
     public ResponseEntity<ApiResponse<TimeSummaryResponse>> getSummary(
             @RequestParam TimeEntry.EntityType entityType,
             @RequestParam UUID entityId) {
@@ -91,7 +91,7 @@ public class TimeEntryController {
 
     @Operation(summary = "Delete a time entry (soft delete)")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('tickets:write') or hasAuthority('kanban:write')")
+    @PreAuthorize("hasAuthority('ticket:write') or hasAuthority('kanban:write')")
     public ResponseEntity<ApiResponse<Void>> deleteEntry(@PathVariable UUID id) {
         timeEntryService.deleteEntry(id);
         return ResponseEntity.ok(ApiResponse.<Void>ok("Time entry deleted", null));

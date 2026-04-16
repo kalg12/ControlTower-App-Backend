@@ -28,7 +28,7 @@ public class SlaConfigController {
 
     @Operation(summary = "Get current SLA windows (hours) for all priorities")
     @GetMapping
-    @PreAuthorize("hasAuthority('settings:read') or hasAuthority('tickets:read')")
+    @PreAuthorize("hasAuthority('settings:read') or hasAuthority('ticket:read')")
     public ResponseEntity<ApiResponse<SlaConfigResponse>> getConfig() {
         Map<Ticket.Priority, Integer> windows = slaConfigService.getAllWindows();
         SlaConfigResponse response = SlaConfigResponse.builder()

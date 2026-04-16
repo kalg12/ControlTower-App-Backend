@@ -28,7 +28,7 @@ public class TimeAnalyticsController {
         description = "Returns avg resolution time, SLA compliance rate, total logged minutes, and top users. Defaults to last 30 days."
     )
     @GetMapping
-    @PreAuthorize("hasAuthority('tickets:read')")
+    @PreAuthorize("hasAuthority('ticket:read')")
     public ResponseEntity<ApiResponse<TimeAnalyticsResponse>> getAnalytics(
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
