@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -20,7 +22,7 @@ public class CardRequest {
     private String title;
 
     private String description;
-    private UUID assigneeId;
+    private Set<UUID> assigneeIds = new HashSet<>();
     private LocalDate dueDate;
     private Card.Priority priority = Card.Priority.MEDIUM;
     private int position = 0;

@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -18,7 +20,7 @@ public class CardUpdateRequest {
 
     private String description;
 
-    private UUID assigneeId;
+    private Set<UUID> assigneeIds = new HashSet<>();
 
     private LocalDate dueDate;
 

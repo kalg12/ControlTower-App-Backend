@@ -6,6 +6,7 @@ import lombok.Getter;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -15,7 +16,7 @@ public class CardResponse {
     private final UUID columnId;
     private final String title;
     private final String description;
-    private final UUID assigneeId;
+    private final Set<UUID> assigneeIds;
     private final LocalDate dueDate;
     private final String priority;
     private final int position;

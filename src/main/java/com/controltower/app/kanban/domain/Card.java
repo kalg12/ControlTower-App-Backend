@@ -10,7 +10,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -35,8 +37,10 @@ public class Card {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "assignee_id")
-    private UUID assigneeId;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "card_assignees", joinColumns = @JoinColumn(name = "card_id"))
+    @Column(name = "user_id")
+    private Set<UUID> assigneeIds = new HashSet<>();
 
     @Column(name = "due_date")
     private LocalDate dueDate;

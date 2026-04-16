@@ -173,7 +173,7 @@ public class BoardService {
         card.setBoardColumn(column);
         card.setTitle(request.getTitle());
         card.setDescription(request.getDescription());
-        card.setAssigneeId(request.getAssigneeId());
+        if (request.getAssigneeIds() != null) card.setAssigneeIds(request.getAssigneeIds());
         card.setDueDate(request.getDueDate());
         card.setPriority(request.getPriority());
         card.setPosition(request.getPosition());
@@ -224,7 +224,7 @@ public class BoardService {
         Card card = resolveCard(cardId);
         card.setTitle(request.getTitle());
         card.setDescription(request.getDescription());
-        card.setAssigneeId(request.getAssigneeId());
+        if (request.getAssigneeIds() != null) card.setAssigneeIds(request.getAssigneeIds());
         card.setDueDate(request.getDueDate());
         card.setPriority(request.getPriority());
         card.setEstimatedMinutes(request.getEstimatedMinutes());
@@ -363,7 +363,7 @@ public class BoardService {
                 .columnId(c.getBoardColumn().getId())
                 .title(c.getTitle())
                 .description(c.getDescription())
-                .assigneeId(c.getAssigneeId())
+                .assigneeIds(c.getAssigneeIds())
                 .dueDate(c.getDueDate())
                 .priority(c.getPriority().name())
                 .position(c.getPosition())

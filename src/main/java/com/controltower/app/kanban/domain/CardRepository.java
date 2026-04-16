@@ -15,13 +15,13 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
     Optional<Card> findByIdAndDeletedAtIsNull(UUID id);
 
     @Query("""
-        SELECT c FROM Card c
+        SELECT DISTINCT c FROM Card c
         JOIN FETCH c.boardColumn col
         JOIN FETCH col.board b
         WHERE b.tenantId = :tenantId
           AND c.deletedAt IS NULL
           AND b.deletedAt IS NULL
-          AND (:assigneeId IS NULL OR c.assigneeId = :assigneeId)
+          AND (:assigneeId IS NULL OR :assigneeId MEMBER OF c.assigneeIds)
           AND (:columnKind IS NULL OR col.columnKind = :columnKind)
         ORDER BY b.name ASC, col.position ASC, c.position ASC
         """)
