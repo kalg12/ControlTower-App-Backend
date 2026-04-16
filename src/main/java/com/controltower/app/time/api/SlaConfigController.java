@@ -37,7 +37,7 @@ public class SlaConfigController {
                 .high(windows.get(Ticket.Priority.HIGH))
                 .critical(windows.get(Ticket.Priority.CRITICAL))
                 .build();
-        return ResponseEntity.ok(ApiResponse.success("SLA configuration", response));
+        return ResponseEntity.ok(ApiResponse.ok("SLA configuration", response));
     }
 
     @Operation(summary = "Update SLA windows (hours) for all or specific priorities",

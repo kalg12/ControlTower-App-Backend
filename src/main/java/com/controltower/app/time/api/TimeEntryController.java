@@ -35,14 +35,14 @@ public class TimeEntryController {
     public ResponseEntity<ApiResponse<TimeEntryResponse>> startTimer(
             @Valid @RequestBody StartTimerRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Timer started", timeEntryService.startTimer(request)));
+                .body(ApiResponse.ok("Timer started", timeEntryService.startTimer(request)));
     }
 
     @Operation(summary = "Stop a running timer")
     @PatchMapping("/{id}/stop")
     @PreAuthorize("hasAuthority('tickets:write') or hasAuthority('kanban:write')")
     public ResponseEntity<ApiResponse<TimeEntryResponse>> stopTimer(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success("Timer stopped", timeEntryService.stopTimer(id)));
+        return ResponseEntity.ok(ApiResponse.ok("Timer stopped", timeEntryService.stopTimer(id)));
     }
 
     @Operation(summary = "Get the current user's active (running) timer, if any")
@@ -50,8 +50,8 @@ public class TimeEntryController {
     @PreAuthorize("hasAuthority('tickets:read') or hasAuthority('kanban:read')")
     public ResponseEntity<ApiResponse<TimeEntryResponse>> getActiveTimer() {
         return timeEntryService.getActiveTimer()
-                .map(e -> ResponseEntity.ok(ApiResponse.success("Active timer", e)))
-                .orElseGet(() -> ResponseEntity.ok(ApiResponse.success("No active timer", null)));
+                .map(e -> ResponseEntity.ok(ApiResponse.ok("Active timer", e)))
+                .orElseGet(() -> ResponseEntity.ok(ApiResponse.<TimeEntryResponse>ok("No active timer", null)));
     }
 
     // ── Manual log ────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ public class TimeEntryController {
     public ResponseEntity<ApiResponse<TimeEntryResponse>> logManual(
             @Valid @RequestBody LogTimeRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Time logged", timeEntryService.logManual(request)));
+                .body(ApiResponse.ok("Time logged", timeEntryService.logManual(request)));
     }
 
     // ── List & summary ────────────────────────────────────────────────
@@ -73,7 +73,7 @@ public class TimeEntryController {
     public ResponseEntity<ApiResponse<List<TimeEntryResponse>>> listEntries(
             @RequestParam TimeEntry.EntityType entityType,
             @RequestParam UUID entityId) {
-        return ResponseEntity.ok(ApiResponse.success(
+        return ResponseEntity.ok(ApiResponse.ok(
                 "Time entries", timeEntryService.listEntries(entityType, entityId)));
     }
 
@@ -83,7 +83,7 @@ public class TimeEntryController {
     public ResponseEntity<ApiResponse<TimeSummaryResponse>> getSummary(
             @RequestParam TimeEntry.EntityType entityType,
             @RequestParam UUID entityId) {
-        return ResponseEntity.ok(ApiResponse.success(
+        return ResponseEntity.ok(ApiResponse.ok(
                 "Time summary", timeEntryService.getSummary(entityType, entityId)));
     }
 
@@ -94,6 +94,6 @@ public class TimeEntryController {
     @PreAuthorize("hasAuthority('tickets:write') or hasAuthority('kanban:write')")
     public ResponseEntity<ApiResponse<Void>> deleteEntry(@PathVariable UUID id) {
         timeEntryService.deleteEntry(id);
-        return ResponseEntity.ok(ApiResponse.success("Time entry deleted", null));
+        return ResponseEntity.ok(ApiResponse.<Void>ok("Time entry deleted", null));
     }
 }

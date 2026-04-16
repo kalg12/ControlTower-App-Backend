@@ -34,7 +34,7 @@ public class TimeAnalyticsController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
-        return ResponseEntity.ok(ApiResponse.success(
+        return ResponseEntity.ok(ApiResponse.ok(
                 "Time analytics", analyticsService.getAnalytics(from, to)));
     }
 }
