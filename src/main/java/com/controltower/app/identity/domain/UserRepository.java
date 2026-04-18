@@ -25,14 +25,16 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     boolean existsByEmailAndTenantIdAndDeletedAtIsNull(String email, UUID tenantId);
 
-    @Query("""
-        SELECT DISTINCT u FROM User u
-        JOIN u.roles r
-        JOIN r.permissions p
-        WHERE u.tenantId = :tenantId
-          AND u.deletedAt IS NULL
+    @Query(value = """
+        SELECT DISTINCT u.* FROM users u
+        JOIN user_roles ur ON ur.user_id = u.id
+        JOIN roles r ON r.id = ur.role_id
+        JOIN role_permissions rp ON rp.role_id = r.id
+        JOIN permissions p ON p.id = rp.permission_id
+        WHERE u.tenant_id = :tenantId
+          AND u.deleted_at IS NULL
           AND p.code = :permissionCode
-        """)
+        """, nativeQuery = true)
     List<User> findByTenantIdAndPermission(
             @Param("tenantId") UUID tenantId,
             @Param("permissionCode") String permissionCode);
