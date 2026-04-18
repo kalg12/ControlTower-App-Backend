@@ -1,6 +1,7 @@
 package com.controltower.app.notifications.infrastructure;
 
 import com.controltower.app.health.domain.HealthIncidentOpenedEvent;
+import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.infrastructure.EmailService;
@@ -14,12 +15,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
-/**
- * Listens to domain events and creates notifications.
- * Recipients are tenant-wide; in a real system you would query
- * users with the relevant permission instead of broadcasting to a fixed list.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -27,6 +24,12 @@ public class NotificationEventListener {
 
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final UserRepository userRepository;
+
+    private List<UUID> usersWithPermission(UUID tenantId, String permission) {
+        return userRepository.findByTenantIdAndPermission(tenantId, permission)
+                .stream().map(u -> u.getId()).toList();
+    }
 
     @Async
     @EventListener
@@ -50,7 +53,7 @@ public class NotificationEventListener {
                     "incidentId", event.getIncidentId().toString(),
                     "branchId",   event.getBranchId().toString()
                 ),
-                List.of()  // broadcast to all tenant users — actual recipients resolved via query in production
+                usersWithPermission(event.getTenantId(), "health:read")
         );
     }
 
@@ -70,7 +73,7 @@ public class NotificationEventListener {
                     "senderName",  event.getSenderName(),
                     "branchName",  event.getBranchName()
                 ),
-                List.of()
+                usersWithPermission(event.getTenantId(), "ticket:read")
         );
     }
 
@@ -93,7 +96,7 @@ public class NotificationEventListener {
                     "submittedBy", event.getSubmittedBy(),
                     "source",      "POS"
                 ),
-                List.of()
+                usersWithPermission(event.getTenantId(), "ticket:read")
         );
     }
 }
