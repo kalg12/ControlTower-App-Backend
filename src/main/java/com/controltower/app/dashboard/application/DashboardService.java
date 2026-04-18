@@ -79,9 +79,10 @@ public class DashboardService {
                     .toList();
         }
 
-        // Tickets
-        long openTickets       = ticketRepository.countByTenantIdAndStatusAndDeletedAtIsNull(tenantId, Ticket.TicketStatus.OPEN);
+        // Tickets — openTickets includes both OPEN and IN_PROGRESS (any active ticket)
+        long statusOpen        = ticketRepository.countByTenantIdAndStatusAndDeletedAtIsNull(tenantId, Ticket.TicketStatus.OPEN);
         long ticketsInProgress = ticketRepository.countByTenantIdAndStatusAndDeletedAtIsNull(tenantId, Ticket.TicketStatus.IN_PROGRESS);
+        long openTickets       = statusOpen + ticketsInProgress;
         long slaBreached       = slaRepository.countActiveBreachedByTenant(tenantId);
 
         // Licenses
