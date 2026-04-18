@@ -132,11 +132,12 @@ public class FinanceController {
     @PreAuthorize("hasAuthority('finance:read')")
     public ResponseEntity<ApiResponse<PageResponse<ExpenseResponse>>> listExpenses(
             @RequestParam(required = false) ExpenseCategory category,
+            @RequestParam(required = false) UUID clientId,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("paidAt").descending());
         return ResponseEntity.ok(ApiResponse.ok(
-                PageResponse.from(financeService.listExpenses(category, pageable))));
+                PageResponse.from(financeService.listExpenses(category, clientId, pageable))));
     }
 
     @Operation(summary = "Create expense")
@@ -163,6 +164,16 @@ public class FinanceController {
     public ResponseEntity<Void> deleteExpense(@PathVariable UUID id) {
         financeService.deleteExpense(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── CLIENT SUMMARY ───────────────────────────────────────────────────────
+
+    @Operation(summary = "Get finance summary for a specific client")
+    @GetMapping("/clients/{clientId}/summary")
+    @PreAuthorize("hasAuthority('finance:read')")
+    public ResponseEntity<ApiResponse<ClientFinanceSummaryResponse>> getClientSummary(
+            @PathVariable UUID clientId) {
+        return ResponseEntity.ok(ApiResponse.ok(financeService.getClientSummary(clientId)));
     }
 
     // ── CASH FLOW ─────────────────────────────────────────────────────────────

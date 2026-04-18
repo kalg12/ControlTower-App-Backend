@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,6 +34,43 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     boolean existsByTenantIdAndNumber(UUID tenantId, String number);
 
+    @Query("""
+        SELECT COALESCE(SUM(i.total), 0) FROM Invoice i
+        WHERE i.clientId = :clientId AND i.deletedAt IS NULL
+        """)
+    java.math.BigDecimal sumTotalByClientId(@Param("clientId") UUID clientId);
+
+    @Query("""
+        SELECT COALESCE(SUM(i.total), 0) FROM Invoice i
+        WHERE i.clientId = :clientId AND i.deletedAt IS NULL
+          AND i.status = com.controltower.app.finance.domain.Invoice.InvoiceStatus.PAID
+        """)
+    java.math.BigDecimal sumPaidByClientId(@Param("clientId") UUID clientId);
+
+    long countByClientIdAndDeletedAtIsNull(UUID clientId);
+
+    @Query("""
+        SELECT MAX(i.createdAt) FROM Invoice i
+        WHERE i.clientId = :clientId AND i.deletedAt IS NULL
+        """)
+    java.time.Instant findLastInvoiceAtByClientId(@Param("clientId") UUID clientId);
+
     @Query("SELECT COUNT(i) FROM Invoice i WHERE i.tenantId = :tenantId AND i.deletedAt IS NULL AND FUNCTION('date_part', 'year', i.createdAt) = :year")
     long countByTenantIdAndYear(@Param("tenantId") UUID tenantId, @Param("year") int year);
+
+    @Query("""
+        SELECT i FROM Invoice i
+        WHERE i.deletedAt IS NULL
+          AND i.status = com.controltower.app.finance.domain.Invoice.InvoiceStatus.SENT
+          AND i.dueDate < :today
+        """)
+    List<Invoice> findOverdueInvoices(@Param("today") java.time.LocalDate today);
+
+    @Query("""
+        SELECT i FROM Invoice i
+        WHERE i.deletedAt IS NULL
+          AND i.status = com.controltower.app.finance.domain.Invoice.InvoiceStatus.SENT
+          AND i.dueDate = :dueDate
+        """)
+    List<Invoice> findInvoicesDueOn(@Param("dueDate") java.time.LocalDate dueDate);
 }

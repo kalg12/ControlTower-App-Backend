@@ -8,8 +8,10 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
 public record ExpenseRequest(
+        UUID clientId,
         ExpenseCategory category,
         @NotBlank @Size(max = 500) String description,
         @NotNull @DecimalMin("0.01") BigDecimal amount,

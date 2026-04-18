@@ -30,6 +30,14 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
             Pageable pageable);
 
     @Query("""
+        SELECT COALESCE(SUM(p.amount), 0) FROM Payment p
+        WHERE p.clientId = :clientId AND p.deletedAt IS NULL
+        """)
+    java.math.BigDecimal sumAmountByClientId(@Param("clientId") UUID clientId);
+
+    long countByClientIdAndDeletedAtIsNull(UUID clientId);
+
+    @Query("""
         SELECT p FROM Payment p
         WHERE p.tenantId = :tenantId
           AND p.deletedAt IS NULL

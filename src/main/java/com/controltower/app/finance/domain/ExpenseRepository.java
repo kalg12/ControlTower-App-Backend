@@ -22,12 +22,22 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         WHERE e.tenantId = :tenantId
           AND e.deletedAt IS NULL
           AND (:category IS NULL OR e.category = :category)
+          AND (:clientId IS NULL OR e.clientId = :clientId)
         ORDER BY e.paidAt DESC
         """)
     Page<Expense> findFiltered(
             @Param("tenantId") UUID tenantId,
             @Param("category") Expense.ExpenseCategory category,
+            @Param("clientId") UUID clientId,
             Pageable pageable);
+
+    @Query("""
+        SELECT COALESCE(SUM(e.amount), 0) FROM Expense e
+        WHERE e.clientId = :clientId AND e.deletedAt IS NULL
+        """)
+    java.math.BigDecimal sumAmountByClientId(@Param("clientId") UUID clientId);
+
+    long countByClientIdAndDeletedAtIsNull(UUID clientId);
 
     @Query("""
         SELECT e FROM Expense e

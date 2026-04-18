@@ -9,6 +9,8 @@ import java.util.UUID;
 public record ExpenseResponse(
         UUID id,
         UUID tenantId,
+        UUID clientId,
+        String clientName,
         ExpenseCategory category,
         String description,
         BigDecimal amount,

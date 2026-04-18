@@ -1,5 +1,7 @@
 package com.controltower.app.finance.application;
 
+import com.controltower.app.clients.domain.Client;
+import com.controltower.app.clients.domain.ClientRepository;
 import com.controltower.app.finance.api.dto.*;
 import com.controltower.app.finance.domain.*;
 import com.controltower.app.finance.domain.Invoice.InvoiceStatus;
@@ -28,6 +30,7 @@ public class FinanceService {
     private final InvoiceRepository invoiceRepository;
     private final PaymentRepository paymentRepository;
     private final ExpenseRepository expenseRepository;
+    private final ClientRepository clientRepository;
 
     // ── INVOICES ─────────────────────────────────────────────────────────────
 
@@ -48,7 +51,10 @@ public class FinanceService {
         setLineItems(invoice, req.lineItems());
         invoice.recalculate();
 
-        return toInvoiceResponse(invoiceRepository.save(invoice));
+        Invoice saved = invoiceRepository.save(invoice);
+        Map<UUID, Client> clients = saved.getClientId() != null
+                ? loadClients(List.of(saved.getClientId())) : Map.of();
+        return toInvoiceResponse(saved, clients);
     }
 
     @Transactional
@@ -68,7 +74,10 @@ public class FinanceService {
         setLineItems(invoice, req.lineItems());
         invoice.recalculate();
 
-        return toInvoiceResponse(invoiceRepository.save(invoice));
+        Invoice saved = invoiceRepository.save(invoice);
+        Map<UUID, Client> clients = saved.getClientId() != null
+                ? loadClients(List.of(saved.getClientId())) : Map.of();
+        return toInvoiceResponse(saved, clients);
     }
 
     @Transactional
@@ -78,7 +87,10 @@ public class FinanceService {
             throw new IllegalStateException("Invoice is not in DRAFT status");
         }
         invoice.setStatus(InvoiceStatus.SENT);
-        return toInvoiceResponse(invoiceRepository.save(invoice));
+        Invoice saved = invoiceRepository.save(invoice);
+        Map<UUID, Client> clients = saved.getClientId() != null
+                ? loadClients(List.of(saved.getClientId())) : Map.of();
+        return toInvoiceResponse(saved, clients);
     }
 
     @Transactional
@@ -92,7 +104,10 @@ public class FinanceService {
         }
         invoice.setStatus(InvoiceStatus.PAID);
         invoice.setPaidAt(req != null && req.paidAt() != null ? req.paidAt() : Instant.now());
-        return toInvoiceResponse(invoiceRepository.save(invoice));
+        Invoice saved = invoiceRepository.save(invoice);
+        Map<UUID, Client> clients = saved.getClientId() != null
+                ? loadClients(List.of(saved.getClientId())) : Map.of();
+        return toInvoiceResponse(saved, clients);
     }
 
     @Transactional
@@ -102,19 +117,27 @@ public class FinanceService {
             throw new IllegalStateException("Cannot void a PAID invoice");
         }
         invoice.setStatus(InvoiceStatus.VOIDED);
-        return toInvoiceResponse(invoiceRepository.save(invoice));
+        Invoice saved = invoiceRepository.save(invoice);
+        Map<UUID, Client> clients = saved.getClientId() != null
+                ? loadClients(List.of(saved.getClientId())) : Map.of();
+        return toInvoiceResponse(saved, clients);
     }
 
     @Transactional(readOnly = true)
     public Page<InvoiceResponse> listInvoices(InvoiceStatus status, UUID clientId, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        return invoiceRepository.findFiltered(tenantId, status, clientId, pageable)
-                .map(this::toInvoiceResponse);
+        Page<Invoice> page = invoiceRepository.findFiltered(tenantId, status, clientId, pageable);
+        Map<UUID, Client> clients = loadClients(page.stream()
+                .map(Invoice::getClientId).filter(Objects::nonNull).collect(Collectors.toList()));
+        return page.map(i -> toInvoiceResponse(i, clients));
     }
 
     @Transactional(readOnly = true)
     public InvoiceResponse getInvoice(UUID id) {
-        return toInvoiceResponse(requireInvoice(id));
+        Invoice i = requireInvoice(id);
+        Map<UUID, Client> clients = i.getClientId() != null
+                ? loadClients(List.of(i.getClientId())) : Map.of();
+        return toInvoiceResponse(i, clients);
     }
 
     // ── PAYMENTS ─────────────────────────────────────────────────────────────
@@ -147,7 +170,9 @@ public class FinanceService {
             });
         }
 
-        return toPaymentResponse(saved);
+        Map<UUID, Client> clients = saved.getClientId() != null
+                ? loadClients(List.of(saved.getClientId())) : Map.of();
+        return toPaymentResponse(saved, clients);
     }
 
     @Transactional
@@ -161,8 +186,10 @@ public class FinanceService {
     @Transactional(readOnly = true)
     public Page<PaymentResponse> listPayments(UUID clientId, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        return paymentRepository.findFiltered(tenantId, clientId, pageable)
-                .map(this::toPaymentResponse);
+        Page<Payment> page = paymentRepository.findFiltered(tenantId, clientId, pageable);
+        Map<UUID, Client> clients = loadClients(page.stream()
+                .map(Payment::getClientId).filter(Objects::nonNull).collect(Collectors.toList()));
+        return page.map(p -> toPaymentResponse(p, clients));
     }
 
     // ── EXPENSES ─────────────────────────────────────────────────────────────
@@ -173,6 +200,7 @@ public class FinanceService {
 
         Expense expense = new Expense();
         expense.setTenantId(tenantId);
+        expense.setClientId(req.clientId());
         expense.setCategory(req.category() != null ? req.category() : Expense.ExpenseCategory.OTHER);
         expense.setDescription(req.description());
         expense.setAmount(req.amount());
@@ -182,7 +210,7 @@ public class FinanceService {
         expense.setNotes(req.notes());
         expense.setPaidAt(req.paidAt() != null ? req.paidAt() : Instant.now());
 
-        return toExpenseResponse(expenseRepository.save(expense));
+        return toExpenseResponse(expenseRepository.save(expense), Map.of());
     }
 
     @Transactional
@@ -190,6 +218,7 @@ public class FinanceService {
         Expense expense = expenseRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Expense not found: " + id));
 
+        expense.setClientId(req.clientId());
         if (req.category() != null) expense.setCategory(req.category());
         expense.setDescription(req.description());
         expense.setAmount(req.amount());
@@ -199,7 +228,7 @@ public class FinanceService {
         expense.setNotes(req.notes());
         if (req.paidAt() != null) expense.setPaidAt(req.paidAt());
 
-        return toExpenseResponse(expenseRepository.save(expense));
+        return toExpenseResponse(expenseRepository.save(expense), Map.of());
     }
 
     @Transactional
@@ -211,10 +240,34 @@ public class FinanceService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ExpenseResponse> listExpenses(Expense.ExpenseCategory category, Pageable pageable) {
+    public Page<ExpenseResponse> listExpenses(Expense.ExpenseCategory category, UUID clientId, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        return expenseRepository.findFiltered(tenantId, category, pageable)
-                .map(this::toExpenseResponse);
+        Page<Expense> page = expenseRepository.findFiltered(tenantId, category, clientId, pageable);
+        Map<UUID, Client> clients = loadClients(page.stream()
+                .map(Expense::getClientId).filter(Objects::nonNull).collect(Collectors.toList()));
+        return page.map(e -> toExpenseResponse(e, clients));
+    }
+
+    // ── CLIENT SUMMARY ───────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public ClientFinanceSummaryResponse getClientSummary(UUID clientId) {
+        Client client = clientRepository.findById(clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client not found: " + clientId));
+
+        BigDecimal totalInvoiced = invoiceRepository.sumTotalByClientId(clientId);
+        BigDecimal totalPaid = invoiceRepository.sumPaidByClientId(clientId);
+        BigDecimal totalOutstanding = totalInvoiced.subtract(totalPaid);
+        BigDecimal totalExpenses = expenseRepository.sumAmountByClientId(clientId);
+        long invoiceCount = invoiceRepository.countByClientIdAndDeletedAtIsNull(clientId);
+        long paymentCount = paymentRepository.countByClientIdAndDeletedAtIsNull(clientId);
+        long expenseCount = expenseRepository.countByClientIdAndDeletedAtIsNull(clientId);
+        Instant lastInvoiceAt = invoiceRepository.findLastInvoiceAtByClientId(clientId);
+
+        return new ClientFinanceSummaryResponse(
+                clientId, client.getName(),
+                totalInvoiced, totalPaid, totalOutstanding, totalExpenses,
+                invoiceCount, paymentCount, expenseCount, lastInvoiceAt);
     }
 
     // ── CASH FLOW ─────────────────────────────────────────────────────────────
@@ -290,7 +343,14 @@ public class FinanceService {
         }
     }
 
-    private InvoiceResponse toInvoiceResponse(Invoice i) {
+    private Map<UUID, Client> loadClients(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return Map.of();
+        return clientRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Client::getId, c -> c));
+    }
+
+    private InvoiceResponse toInvoiceResponse(Invoice i, Map<UUID, Client> clients) {
+        Client client = i.getClientId() != null ? clients.get(i.getClientId()) : null;
         List<InvoiceLineItemResponse> items = i.getLineItems().stream()
                 .map(li -> new InvoiceLineItemResponse(
                         li.getId(), li.getDescription(), li.getQuantity(),
@@ -298,23 +358,30 @@ public class FinanceService {
                 .collect(Collectors.toList());
 
         return new InvoiceResponse(
-                i.getId(), i.getTenantId(), i.getClientId(), i.getNumber(),
-                i.getStatus(), i.getSubtotal(), i.getTaxRate(), i.getTaxAmount(),
+                i.getId(), i.getTenantId(), i.getClientId(),
+                client != null ? client.getName() : null,
+                client != null ? client.getTaxId() : null,
+                i.getNumber(), i.getStatus(), i.getSubtotal(), i.getTaxRate(), i.getTaxAmount(),
                 i.getTotal(), i.getCurrency(), i.getNotes(),
                 i.getIssuedAt(), i.getDueDate(), i.getPaidAt(),
                 items, i.getCreatedAt(), i.getUpdatedAt());
     }
 
-    private PaymentResponse toPaymentResponse(Payment p) {
+    private PaymentResponse toPaymentResponse(Payment p, Map<UUID, Client> clients) {
+        Client client = p.getClientId() != null ? clients.get(p.getClientId()) : null;
         return new PaymentResponse(
-                p.getId(), p.getTenantId(), p.getClientId(), p.getInvoiceId(),
-                p.getAmount(), p.getCurrency(), p.getMethod(),
+                p.getId(), p.getTenantId(), p.getClientId(),
+                client != null ? client.getName() : null,
+                p.getInvoiceId(), p.getAmount(), p.getCurrency(), p.getMethod(),
                 p.getReference(), p.getNotes(), p.getPaidAt(), p.getCreatedAt());
     }
 
-    private ExpenseResponse toExpenseResponse(Expense e) {
+    private ExpenseResponse toExpenseResponse(Expense e, Map<UUID, Client> clients) {
+        Client client = e.getClientId() != null ? clients.get(e.getClientId()) : null;
         return new ExpenseResponse(
-                e.getId(), e.getTenantId(), e.getCategory(), e.getDescription(),
+                e.getId(), e.getTenantId(), e.getClientId(),
+                client != null ? client.getName() : null,
+                e.getCategory(), e.getDescription(),
                 e.getAmount(), e.getCurrency(), e.getVendor(), e.getReceiptUrl(),
                 e.getNotes(), e.getPaidAt(), e.getCreatedAt(), e.getUpdatedAt());
     }

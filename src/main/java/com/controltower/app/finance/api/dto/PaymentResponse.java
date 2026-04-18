@@ -10,6 +10,7 @@ public record PaymentResponse(
         UUID id,
         UUID tenantId,
         UUID clientId,
+        String clientName,
         UUID invoiceId,
         BigDecimal amount,
         String currency,

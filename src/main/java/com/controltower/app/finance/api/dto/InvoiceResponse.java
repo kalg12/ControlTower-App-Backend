@@ -12,6 +12,8 @@ public record InvoiceResponse(
         UUID id,
         UUID tenantId,
         UUID clientId,
+        String clientName,
+        String clientTaxId,
         String number,
         InvoiceStatus status,
         BigDecimal subtotal,

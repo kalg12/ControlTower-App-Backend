@@ -40,6 +40,9 @@ public class Expense extends BaseEntity {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "client_id")
+    private UUID clientId;
+
     @Column(name = "paid_at", nullable = false)
     private Instant paidAt = Instant.now();
 
