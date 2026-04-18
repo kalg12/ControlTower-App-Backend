@@ -94,6 +94,14 @@ public class FinanceController {
         return ResponseEntity.ok(ApiResponse.ok(financeService.voidInvoice(id)));
     }
 
+    @Operation(summary = "Delete invoice (DRAFT only)")
+    @DeleteMapping("/invoices/{id}")
+    @PreAuthorize("hasAuthority('finance:write')")
+    public ResponseEntity<Void> deleteInvoice(@PathVariable UUID id) {
+        financeService.deleteInvoice(id);
+        return ResponseEntity.noContent().build();
+    }
+
     // ── PAYMENTS ─────────────────────────────────────────────────────────────
 
     @Operation(summary = "List payments")

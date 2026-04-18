@@ -140,6 +140,16 @@ public class FinanceService {
         return toInvoiceResponse(i, clients);
     }
 
+    @Transactional
+    public void deleteInvoice(UUID id) {
+        Invoice invoice = requireInvoice(id);
+        if (invoice.getStatus() != InvoiceStatus.DRAFT) {
+            throw new IllegalStateException("Only DRAFT invoices can be deleted");
+        }
+        invoice.softDelete();
+        invoiceRepository.save(invoice);
+    }
+
     // ── PAYMENTS ─────────────────────────────────────────────────────────────
 
     @Transactional
