@@ -130,20 +130,24 @@ public class TicketController {
             @PathVariable UUID id,
             @Parameter(description = "Target status", required = false)
             @RequestParam(required = false) Ticket.TicketStatus status,
-            @RequestBody(required = false) UpdateTicketStatusRequest request) {
+            @RequestBody(required = false) UpdateTicketStatusRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
         Ticket.TicketStatus targetStatus = status != null ? status : request != null ? request.getStatus() : null;
         if (targetStatus == null) {
             throw new ControlTowerException("status is required", HttpStatus.BAD_REQUEST);
         }
-        return ResponseEntity.ok(ApiResponse.ok(ticketService.updateStatus(id, targetStatus)));
+        UUID userId = UUID.fromString(principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.ok(ticketService.updateStatus(id, targetStatus, userId)));
     }
 
     @PostMapping("/{id}/assign")
     @PreAuthorize("hasAuthority('ticket:write')")
     public ResponseEntity<ApiResponse<TicketResponse>> assign(
             @PathVariable UUID id,
-            @RequestParam UUID assigneeId) {
-        return ResponseEntity.ok(ApiResponse.ok(ticketService.assign(id, assigneeId)));
+            @RequestParam UUID assigneeId,
+            @AuthenticationPrincipal UserDetails principal) {
+        UUID userId = UUID.fromString(principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.ok(ticketService.assign(id, assigneeId, userId)));
     }
 
     @PostMapping("/{id}/escalate")

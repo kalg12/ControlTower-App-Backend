@@ -5,6 +5,7 @@ import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.annotation.Audited;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
 import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
@@ -292,7 +293,7 @@ public class TicketService {
 
     @Transactional
     @Audited(action = "TICKET_STATUS_CHANGED", resource = "Ticket")
-    public TicketResponse updateStatus(UUID ticketId, Ticket.TicketStatus newStatus) {
+    public TicketResponse updateStatus(UUID ticketId, Ticket.TicketStatus newStatus, UUID changedByUserId) {
         Ticket ticket = resolveTicket(ticketId);
         validateTransition(ticket.getStatus(), newStatus);
         ticket.setStatus(newStatus);
@@ -303,35 +304,30 @@ public class TicketService {
                     ? (String) saved.getPosContext().get("callbackUrl") : null;
             posWebhookService.notifyStatusChange(saved.getSourceRefId(), callbackUrl, newStatus.name());
         }
-        if (saved.getAssigneeId() != null) {
-            notificationService.send(
-                    saved.getTenantId(),
-                    "TICKET_STATUS_CHANGED",
-                    "Estado de ticket actualizado",
-                    "El ticket \"" + saved.getTitle() + "\" cambió a " + newStatus.name(),
-                    Notification.Severity.INFO,
-                    Map.of("ticketId", saved.getId().toString(), "newStatus", newStatus.name()),
-                    List.of(saved.getAssigneeId()));
-        }
+        // Notify all relevant recipients (assignee + commenters + all agents), excluding the user who changed the status
+        notifyTicketChange(
+                saved,
+                changedByUserId,
+                "TICKET_STATUS_CHANGED",
+                "Estado de ticket actualizado",
+                "El ticket \"" + saved.getTitle() + "\" cambió a " + newStatus.name(),
+                Map.of("ticketId", saved.getId().toString(), "newStatus", newStatus.name()));
         return toResponse(saved);
     }
 
     @Transactional
     @Audited(action = "TICKET_ASSIGNED", resource = "Ticket")
-    public TicketResponse assign(UUID ticketId, UUID assigneeId) {
+    public TicketResponse assign(UUID ticketId, UUID assigneeId, UUID assignedByUserId) {
         Ticket ticket = resolveTicket(ticketId);
         ticket.assign(assigneeId);
         Ticket saved = ticketRepository.save(ticket);
-        if (assigneeId != null) {
-            notificationService.send(
-                    saved.getTenantId(),
-                    "TICKET_ASSIGNED",
-                    "Ticket asignado",
-                    "Se te asignó el ticket: " + saved.getTitle(),
-                    Notification.Severity.INFO,
-                    Map.of("ticketId", saved.getId().toString()),
-                    List.of(assigneeId));
-        }
+        notifyTicketChange(
+                saved,
+                assignedByUserId,
+                "TICKET_ASSIGNED",
+                "Ticket asignado",
+                "Se te asignó el ticket: " + saved.getTitle(),
+                Map.of("ticketId", saved.getId().toString()));
         return toResponse(saved);
     }
 
@@ -381,16 +377,24 @@ public class TicketService {
         comment.setContent(request.getContent());
         comment.setInternal(request.isInternal());
         ticket.getComments().add(comment);
-        TicketResponse response = toResponse(ticketRepository.save(ticket));
+        Ticket saved = ticketRepository.save(ticket);
         // Notify POS Backend when an operator posts a public comment on a POS ticket
-        if (ticket.getSource() == Ticket.TicketSource.POS &&
-                ticket.getSourceRefId() != null &&
+        if (saved.getSource() == Ticket.TicketSource.POS &&
+                saved.getSourceRefId() != null &&
                 !request.isInternal()) {
-            String callbackUrl = ticket.getPosContext() != null
-                    ? (String) ticket.getPosContext().get("callbackUrl") : null;
-            posWebhookService.notifyNewComment(ticket.getSourceRefId(), callbackUrl, request.getContent(), authorId.toString());
+            String callbackUrl = saved.getPosContext() != null
+                    ? (String) saved.getPosContext().get("callbackUrl") : null;
+            posWebhookService.notifyNewComment(saved.getSourceRefId(), callbackUrl, request.getContent(), authorId.toString());
         }
-        return response;
+        // Notify all relevant recipients about the new comment (excluding the author)
+        notifyTicketChange(
+                saved,
+                authorId,
+                "TICKET_NEW_COMMENT",
+                "Nuevo comentario en ticket",
+                "Nuevo comentario en: " + saved.getTitle(),
+                Map.of("ticketId", saved.getId().toString()));
+        return toResponse(saved);
     }
 
     @Transactional
@@ -547,5 +551,52 @@ public class TicketService {
                 .createdAt(t.getCreatedAt())
                 .updatedAt(t.getUpdatedAt())
                 .build();
+    }
+
+    /**
+     * Returns all users who should receive notifications about a ticket (assignee + commenters + all agents).
+     * The authorUserId (the user who triggered the notification) is excluded to avoid self-notification.
+     */
+    private List<UUID> getNotificationRecipients(Ticket ticket, UUID authorUserId) {
+        java.util.Set<UUID> recipients = new java.util.HashSet<>();
+
+        // 1. Add assignee (if exists and not the author)
+        if (ticket.getAssigneeId() != null && !ticket.getAssigneeId().equals(authorUserId)) {
+            recipients.add(ticket.getAssigneeId());
+        }
+
+        // 2. Add all unique commenters (authors of public comments, excluding internal)
+        ticket.getComments().stream()
+                .filter(c -> !c.isInternal() && c.getAuthorId() != null && !c.getAuthorId().equals(authorUserId))
+                .map(TicketComment::getAuthorId)
+                .forEach(recipients::add);
+
+        // 3. Add all agents in the tenant (ticket:read permission)
+        List<User> agents = userRepository.findByTenantIdAndPermission(
+                ticket.getTenantId(), "ticket:read");
+        agents.stream()
+                .map(u -> u.getId())
+                .filter(uid -> !uid.equals(authorUserId))
+                .forEach(recipients::add);
+
+        return new java.util.ArrayList<>(recipients);
+    }
+
+    /**
+     * Sends a notification to all relevant recipients about a ticket change.
+     */
+    private void notifyTicketChange(Ticket ticket, UUID authorUserId, String type, String title, String body,
+                                     Map<String, Object> metadata) {
+        List<UUID> recipients = getNotificationRecipients(ticket, authorUserId);
+        if (!recipients.isEmpty()) {
+            notificationService.send(
+                    ticket.getTenantId(),
+                    type,
+                    title,
+                    body,
+                    Notification.Severity.INFO,
+                    metadata,
+                    recipients);
+        }
     }
 }
