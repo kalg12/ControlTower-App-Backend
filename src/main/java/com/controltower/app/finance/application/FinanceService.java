@@ -143,8 +143,8 @@ public class FinanceService {
     @Transactional
     public void deleteInvoice(UUID id) {
         Invoice invoice = requireInvoice(id);
-        if (invoice.getStatus() != InvoiceStatus.DRAFT) {
-            throw new IllegalStateException("Only DRAFT invoices can be deleted");
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            throw new IllegalStateException("Paid invoices cannot be deleted");
         }
         invoice.softDelete();
         invoiceRepository.save(invoice);
