@@ -15,15 +15,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private final NotificationRepository          notificationRepository;
-    private final NotificationUserStateRepository stateRepository;
-    private final WebSocketNotificationChannel    webSocketChannel;
+    private final NotificationRepository           notificationRepository;
+    private final NotificationUserStateRepository  stateRepository;
+    private final WebSocketNotificationChannel     webSocketChannel;
+    private final NotificationPreferenceRepository preferenceRepository;
 
     /**
      * Creates a notification and fans it out to all specified recipients.
@@ -42,7 +44,11 @@ public class NotificationService {
         notification.setMetadata(metadata);
         notificationRepository.save(notification);
 
-        recipientUserIds.forEach(userId -> {
+        List<UUID> filtered = recipientUserIds.stream()
+                .filter(uid -> preferenceRepository.isEnabled(uid, type))
+                .collect(Collectors.toList());
+
+        filtered.forEach(userId -> {
             NotificationUserState state = new NotificationUserState();
             state.setNotification(notification);
             state.setUserId(userId);
@@ -84,6 +90,27 @@ public class NotificationService {
     @Transactional
     public void deleteAll(UUID userId) {
         stateRepository.softDeleteAllByUserId(userId, java.time.Instant.now());
+    }
+
+    // ── Preferences ──────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<NotificationPreference> getPreferences(UUID userId) {
+        return preferenceRepository.findByUserId(userId);
+    }
+
+    @Transactional
+    public NotificationPreference setPreference(UUID userId, String notificationType, boolean enabled) {
+        NotificationPreference pref = preferenceRepository
+                .findByUserIdAndNotificationType(userId, notificationType)
+                .orElseGet(() -> {
+                    NotificationPreference p = new NotificationPreference();
+                    p.setUserId(userId);
+                    p.setNotificationType(notificationType);
+                    return p;
+                });
+        pref.setEnabled(enabled);
+        return preferenceRepository.save(pref);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 package com.controltower.app.support.application;
 
+import com.controltower.app.notifications.application.NotificationService;
+import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.annotation.Audited;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
@@ -42,6 +44,7 @@ public class TicketService {
     private final UserRepository         userRepository;
     private final NoteRepository         noteRepository;
     private final TimeEntryRepository    timeEntryRepository;
+    private final NotificationService    notificationService;
 
     @Transactional(readOnly = true)
     public Page<TicketResponse> listTickets(
@@ -284,14 +287,24 @@ public class TicketService {
         Ticket ticket = resolveTicket(ticketId);
         validateTransition(ticket.getStatus(), newStatus);
         ticket.setStatus(newStatus);
-        TicketResponse response = toResponse(ticketRepository.save(ticket));
+        Ticket saved = ticketRepository.save(ticket);
         // Notify POS Backend so its ctStatus updates immediately (no wait for cron)
-        if (ticket.getSource() == Ticket.TicketSource.POS && ticket.getSourceRefId() != null) {
-            String callbackUrl = ticket.getPosContext() != null
-                    ? (String) ticket.getPosContext().get("callbackUrl") : null;
-            posWebhookService.notifyStatusChange(ticket.getSourceRefId(), callbackUrl, newStatus.name());
+        if (saved.getSource() == Ticket.TicketSource.POS && saved.getSourceRefId() != null) {
+            String callbackUrl = saved.getPosContext() != null
+                    ? (String) saved.getPosContext().get("callbackUrl") : null;
+            posWebhookService.notifyStatusChange(saved.getSourceRefId(), callbackUrl, newStatus.name());
         }
-        return response;
+        if (saved.getAssigneeId() != null) {
+            notificationService.send(
+                    saved.getTenantId(),
+                    "TICKET_STATUS_CHANGED",
+                    "Estado de ticket actualizado",
+                    "El ticket \"" + saved.getTitle() + "\" cambió a " + newStatus.name(),
+                    Notification.Severity.INFO,
+                    Map.of("ticketId", saved.getId().toString(), "newStatus", newStatus.name()),
+                    List.of(saved.getAssigneeId()));
+        }
+        return toResponse(saved);
     }
 
     @Transactional
@@ -299,7 +312,18 @@ public class TicketService {
     public TicketResponse assign(UUID ticketId, UUID assigneeId) {
         Ticket ticket = resolveTicket(ticketId);
         ticket.assign(assigneeId);
-        return toResponse(ticketRepository.save(ticket));
+        Ticket saved = ticketRepository.save(ticket);
+        if (assigneeId != null) {
+            notificationService.send(
+                    saved.getTenantId(),
+                    "TICKET_ASSIGNED",
+                    "Ticket asignado",
+                    "Se te asignó el ticket: " + saved.getTitle(),
+                    Notification.Severity.INFO,
+                    Map.of("ticketId", saved.getId().toString()),
+                    List.of(assigneeId));
+        }
+        return toResponse(saved);
     }
 
     /**

@@ -134,4 +134,16 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
         @Param("createdAfter")  Instant createdAfter,
         @Param("createdBefore") Instant createdBefore
     );
+
+    @Query("""
+        SELECT t FROM Ticket t
+        WHERE t.deletedAt IS NULL
+          AND t.estimatedMinutes IS NOT NULL
+          AND t.estimatedMinutes > 0
+          AND t.assigneeId IS NOT NULL
+          AND t.status NOT IN (
+              com.controltower.app.support.domain.Ticket.TicketStatus.RESOLVED,
+              com.controltower.app.support.domain.Ticket.TicketStatus.CLOSED)
+        """)
+    List<Ticket> findActiveWithEstimates();
 }

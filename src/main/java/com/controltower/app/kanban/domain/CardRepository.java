@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,4 +30,39 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
             @Param("tenantId") UUID tenantId,
             @Param("assigneeId") UUID assigneeId,
             @Param("columnKind") BoardColumn.ColumnKind columnKind);
+
+    @Query("""
+        SELECT c FROM Card c
+        JOIN c.boardColumn col
+        JOIN col.board b
+        WHERE c.deletedAt IS NULL
+          AND b.deletedAt IS NULL
+          AND c.dueDate = :dueDate
+          AND SIZE(c.assigneeIds) > 0
+        """)
+    List<Card> findByDueDateAndHasAssignees(@Param("dueDate") LocalDate dueDate);
+
+    @Query("""
+        SELECT c FROM Card c
+        JOIN c.boardColumn col
+        JOIN col.board b
+        WHERE c.deletedAt IS NULL
+          AND b.deletedAt IS NULL
+          AND c.dueDate < :today
+          AND SIZE(c.assigneeIds) > 0
+        """)
+    List<Card> findOverdueWithAssignees(@Param("today") LocalDate today);
+
+    @Query("""
+        SELECT c FROM Card c
+        JOIN c.boardColumn col
+        WHERE c.deletedAt IS NULL
+          AND c.estimatedMinutes IS NOT NULL
+          AND c.estimatedMinutes > 0
+          AND SIZE(c.assigneeIds) > 0
+          AND col.columnKind NOT IN (
+              com.controltower.app.kanban.domain.BoardColumn.ColumnKind.DONE,
+              com.controltower.app.kanban.domain.BoardColumn.ColumnKind.HISTORY)
+        """)
+    List<Card> findActiveWithEstimates();
 }

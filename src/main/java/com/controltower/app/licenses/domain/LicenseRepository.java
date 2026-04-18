@@ -37,4 +37,13 @@ public interface LicenseRepository extends JpaRepository<License, UUID> {
           AND l.gracePeriodEnd <= :now
         """)
     List<License> findGraceExpired(Instant now);
+
+    @Query("""
+        SELECT l FROM License l
+        WHERE l.deletedAt IS NULL
+          AND l.status IN ('TRIAL', 'ACTIVE')
+          AND l.currentPeriodEnd >= :from
+          AND l.currentPeriodEnd < :to
+        """)
+    List<License> findExpiringBetween(Instant from, Instant to);
 }

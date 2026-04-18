@@ -2,6 +2,7 @@ package com.controltower.app.notifications.api;
 
 import com.controltower.app.notifications.api.dto.NotificationResponse;
 import com.controltower.app.notifications.application.NotificationService;
+import com.controltower.app.notifications.domain.NotificationPreference;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -77,5 +79,26 @@ public class NotificationController {
             @AuthenticationPrincipal UserDetails principal) {
         notificationService.deleteAll(UUID.fromString(principal.getUsername()));
         return ResponseEntity.ok(ApiResponse.ok("All notifications deleted"));
+    }
+
+    @Operation(summary = "Get notification preferences")
+    @GetMapping("/preferences")
+    @PreAuthorize("hasAuthority('notification:read')")
+    public ResponseEntity<ApiResponse<List<NotificationPreference>>> getPreferences(
+            @AuthenticationPrincipal UserDetails principal) {
+        UUID userId = UUID.fromString(principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.ok(notificationService.getPreferences(userId)));
+    }
+
+    @Operation(summary = "Set notification preference (toggle on/off)")
+    @PutMapping("/preferences/{type}")
+    @PreAuthorize("hasAuthority('notification:read')")
+    public ResponseEntity<ApiResponse<NotificationPreference>> setPreference(
+            @PathVariable String type,
+            @RequestParam boolean enabled,
+            @AuthenticationPrincipal UserDetails principal) {
+        UUID userId = UUID.fromString(principal.getUsername());
+        return ResponseEntity.ok(ApiResponse.ok(
+                notificationService.setPreference(userId, type, enabled)));
     }
 }
