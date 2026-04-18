@@ -156,14 +156,23 @@ public class TicketService {
         return ticket.getComments().stream()
                 .filter(c -> !c.isInternal())
                 .sorted(java.util.Comparator.comparing(TicketComment::getCreatedAt))
-                .map(c -> new TicketCommentResponse(
-                        c.getId(),
-                        c.getAuthorId(),
-                        c.getContent(),
-                        c.isInternal(),
-                        c.getAuthorId() != null ? "OPERATOR" : "POS_USER",
-                        c.getCreatedAt()
-                ))
+                .map(c -> {
+                    String authorName = null;
+                    if (c.getAuthorId() != null) {
+                        authorName = userRepository.findById(c.getAuthorId())
+                                .map(u -> u.getFullName())
+                                .orElse(null);
+                    }
+                    return new TicketCommentResponse(
+                            c.getId(),
+                            c.getAuthorId(),
+                            authorName,
+                            c.getContent(),
+                            c.isInternal(),
+                            c.getAuthorId() != null ? "OPERATOR" : "POS_USER",
+                            c.getCreatedAt()
+                    );
+                })
                 .toList();
     }
 
