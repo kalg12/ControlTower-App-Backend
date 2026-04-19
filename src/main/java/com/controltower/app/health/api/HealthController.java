@@ -17,6 +17,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -108,8 +110,13 @@ public class HealthController {
     @Operation(summary = "Resolve incident", description = "Marks an open health incident as resolved. Requires the 'health:write' permission.")
     @PostMapping("/incidents/{incidentId}/resolve")
     @PreAuthorize("hasAuthority('health:write')")
-    public ResponseEntity<ApiResponse<Void>> resolveIncident(@PathVariable UUID incidentId) {
-        incidentService.resolve(incidentId);
+    public ResponseEntity<ApiResponse<Void>> resolveIncident(
+            @PathVariable UUID incidentId,
+            @RequestBody(required = false) ResolveIncidentRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
+        UUID userId = UUID.fromString(principal.getUsername());
+        String note = request != null ? request.getResolutionNote() : null;
+        incidentService.resolve(incidentId, userId, note);
         return ResponseEntity.ok(ApiResponse.ok("Incident resolved"));
     }
 

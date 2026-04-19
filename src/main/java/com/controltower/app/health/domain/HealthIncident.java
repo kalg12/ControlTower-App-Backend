@@ -38,6 +38,14 @@ public class HealthIncident {
     @Column(name = "resolved_at")
     private Instant resolvedAt;
 
+    /** User who resolved the incident (null for auto-resolved). */
+    @Column(name = "resolved_by")
+    private UUID resolvedBy;
+
+    /** Optional note explaining how the incident was resolved. */
+    @Column(name = "resolution_note", columnDefinition = "TEXT")
+    private String resolutionNote;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "severity", nullable = false)
     private Severity severity = Severity.MEDIUM;
@@ -61,7 +69,13 @@ public class HealthIncident {
         return resolvedAt == null;
     }
 
-    public void resolve() {
+    public void resolve(UUID resolvedByUserId, String note) {
+        this.resolvedAt = Instant.now();
+        this.resolvedBy = resolvedByUserId;
+        this.resolutionNote = note;
+    }
+
+    public void autoResolve() {
         this.resolvedAt = Instant.now();
     }
 

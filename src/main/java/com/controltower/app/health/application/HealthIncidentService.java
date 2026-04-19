@@ -94,7 +94,7 @@ public class HealthIncidentService {
             // DEGRADED means the service is responding — the outage is over.
             // If it stays degraded long-term that's a separate concern, not a DOWN incident.
             HealthIncident incident = openIncident.get();
-            incident.resolve();
+            incident.autoResolve();
             incidentRepository.save(incident);
             log.info("Health incident {} auto-resolved (branch {} recovered to {})",
                     incident.getId(), branch.getId(), latestCheck.getStatus());
@@ -127,10 +127,10 @@ public class HealthIncidentService {
     }
 
     @Transactional
-    public void resolve(java.util.UUID incidentId) {
+    public void resolve(java.util.UUID incidentId, java.util.UUID resolvedBy, String resolutionNote) {
         HealthIncident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new com.controltower.app.shared.exception.ResourceNotFoundException("HealthIncident", incidentId));
-        incident.resolve();
+        incident.resolve(resolvedBy, resolutionNote);
         incidentRepository.save(incident);
     }
 }
