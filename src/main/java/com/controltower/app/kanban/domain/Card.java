@@ -64,6 +64,15 @@ public class Card {
     @OrderBy("position ASC")
     private List<ChecklistItem> checklist = new ArrayList<>();
 
+    @Column(name = "attended_by")
+    private UUID attendedBy;
+
+    @Column(name = "attended_at")
+    private Instant attendedAt;
+
+    @Column(name = "was_overdue")
+    private boolean wasOverdue;
+
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
@@ -76,6 +85,17 @@ public class Card {
     private Instant updatedAt;
 
     public void softDelete() { this.deletedAt = Instant.now(); }
+
+    public void attend(UUID userId, boolean wasOverdue) {
+        this.attendedBy = userId;
+        this.attendedAt = Instant.now();
+        this.wasOverdue = wasOverdue;
+    }
+
+    public boolean isOverdue() {
+        if (dueDate == null) return false;
+        return dueDate.isBefore(java.time.LocalDate.now());
+    }
 
     public enum Priority { LOW, MEDIUM, HIGH, CRITICAL }
 }

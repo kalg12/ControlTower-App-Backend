@@ -56,11 +56,25 @@ public class User extends BaseEntity {
     @Column(name = "totp_enabled", nullable = false)
     private boolean totpEnabled = false;
 
+    @Column(name = "kanban_points", nullable = false)
+    private int kanbanPoints = 0;
+
+    @Column(name = "overdue_attended", nullable = false)
+    private int overdueAttended = 0;
+
     /** Returns all permission codes from assigned roles. */
     public Set<String> getAllPermissions() {
         Set<String> perms = new HashSet<>();
         roles.forEach(r -> r.getPermissions().forEach(p -> perms.add(p.getCode())));
         return perms;
+    }
+
+    public void addKanbanPoints(int points) {
+        this.kanbanPoints += points;
+    }
+
+    public void incrementOverdueAttended() {
+        this.overdueAttended++;
     }
 
     public enum UserStatus {

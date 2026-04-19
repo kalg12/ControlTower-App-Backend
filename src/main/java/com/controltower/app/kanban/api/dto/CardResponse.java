@@ -23,6 +23,9 @@ public class CardResponse {
     private final String[] labels;
     private final List<ChecklistItemResponse> checklist;
     private final Integer estimatedMinutes;
+    private final UUID attendedBy;
+    private final Instant attendedAt;
+    private final boolean wasOverdue;
     private final Instant createdAt;
     private final Instant updatedAt;
 }

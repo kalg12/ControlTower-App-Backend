@@ -279,21 +279,37 @@ private List<String> getAssigneeNames(Card card) {
         Card card = resolveCard(cardId);
         String cardTitle = card.getTitle();
         String fromColumn = card.getBoardColumn().getName();
+        UUID userId = resolveUserId();
+
+        boolean wasOverdue = card.isOverdue() && card.getAttendedAt() == null;
+        boolean movedAwayFromDone = card.getBoardColumn().getColumnKind() == BoardColumn.ColumnKind.DONE
+                || card.getBoardColumn().getColumnKind() == BoardColumn.ColumnKind.HISTORY;
 
         BoardColumn target = columnRepository.findById(request.getTargetColumnId())
                 .orElseThrow(() -> new ResourceNotFoundException("BoardColumn", request.getTargetColumnId()));
+        boolean movedToDone = target.getColumnKind() == BoardColumn.ColumnKind.DONE
+                || target.getColumnKind() == BoardColumn.ColumnKind.HISTORY;
+
+        if (!movedAwayFromDone && !movedToDone && (wasOverdue || card.isOverdue())) {
+            card.attend(userId, wasOverdue);
+            awardPoints(userId);
+            log.info("User {} attended overdue card {} - awarding 10 points", userId, cardId);
+        } else if (movedAwayFromDone && !movedToDone) {
+            card.attend(userId, card.isWasOverdue());
+        }
+
         card.setBoardColumn(target);
         card.setPosition(request.getPosition());
         card = cardRepository.save(card);
 
         publisher.publishEvent(UserActionEvent.builder()
                 .tenantId(TenantContext.getTenantId())
-                .userId(resolveUserId())
+                .userId(userId)
                 .actionName("CARD_MOVED")
                 .entityType("KanbanCard")
                 .entityId(cardId)
                 .description("Moved card '" + cardTitle + "' from '" + fromColumn + "' to '" + target.getName() + "'")
-                .metadata(Map.of("fromColumn", fromColumn, "toColumn", target.getName()))
+                .metadata(Map.of("fromColumn", fromColumn, "toColumn", target.getName(), "wasOverdue", String.valueOf(wasOverdue)))
                 .build());
 
         return toCardResponse(card);
@@ -302,12 +318,22 @@ private List<String> getAssigneeNames(Card card) {
     @Transactional
     public CardResponse updateCard(UUID cardId, CardUpdateRequest request) {
         Card card = resolveCard(cardId);
+        boolean wasOverdue = card.isOverdue() && card.getAttendedAt() == null;
+        
         card.setTitle(request.getTitle());
         card.setDescription(request.getDescription());
         if (request.getAssigneeIds() != null) card.setAssigneeIds(request.getAssigneeIds());
         card.setDueDate(request.getDueDate());
         card.setPriority(request.getPriority());
         card.setEstimatedMinutes(request.getEstimatedMinutes());
+        
+        if (wasOverdue) {
+            UUID userId = resolveUserId();
+            card.attend(userId, true);
+            awardPoints(userId);
+            log.info("User {} attended overdue card {} via update - awarding 10 points", userId, cardId);
+        }
+        
         return toCardResponse(cardRepository.save(card));
     }
 
@@ -450,6 +476,9 @@ private List<String> getAssigneeNames(Card card) {
                 .labels(c.getLabels())
                 .checklist(checklist)
                 .estimatedMinutes(c.getEstimatedMinutes())
+                .attendedBy(c.getAttendedBy())
+                .attendedAt(c.getAttendedAt())
+                .wasOverdue(c.isWasOverdue())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .build();
@@ -464,5 +493,14 @@ private List<String> getAssigneeNames(Card card) {
                 .position(i.getPosition())
                 .createdAt(i.getCreatedAt())
                 .build();
+    }
+
+    private void awardPoints(UUID userId) {
+        userRepository.findById(userId).ifPresent(user -> {
+            user.addKanbanPoints(10);
+            user.incrementOverdueAttended();
+            userRepository.save(user);
+            log.info("User {} earned 10 points for attending overdue card (total: {})", user.getFullName(), user.getKanbanPoints());
+        });
     }
 }
