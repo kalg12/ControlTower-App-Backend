@@ -132,5 +132,7 @@ public class HealthIncidentService {
                 .orElseThrow(() -> new com.controltower.app.shared.exception.ResourceNotFoundException("HealthIncident", incidentId));
         incident.resolve(resolvedBy, resolutionNote);
         incidentRepository.save(incident);
+        
+        eventPublisher.publishEvent(new com.controltower.app.health.domain.HealthIncidentResolvedEvent(incident, resolvedBy));
     }
 }

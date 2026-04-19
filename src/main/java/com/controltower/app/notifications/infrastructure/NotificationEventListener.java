@@ -1,6 +1,7 @@
 package com.controltower.app.notifications.infrastructure;
 
 import com.controltower.app.health.domain.HealthIncidentOpenedEvent;
+import com.controltower.app.health.domain.HealthIncidentResolvedEvent;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
@@ -52,6 +53,35 @@ public class NotificationEventListener {
                 Map.of(
                     "incidentId", event.getIncidentId().toString(),
                     "branchId",   event.getBranchId().toString()
+                ),
+                usersWithPermission(event.getTenantId(), "health:read")
+        );
+    }
+
+    @Async
+    @EventListener
+    public void onHealthIncidentResolved(HealthIncidentResolvedEvent event) {
+        log.info("Sending notification for resolved health incident {}", event.getIncidentId());
+        
+        String resolvedByName = event.getResolvedBy() != null 
+                ? userRepository.findById(event.getResolvedBy()).map(u -> u.getFullName()).orElse("unknown")
+                : "System";
+        
+        String title = event.isAutoResolved() 
+                ? "Health incident auto-resolved" 
+                : "Health incident resolved";
+        
+        String body = event.getDescription() + " - Resolved by " + resolvedByName;
+        
+        notificationService.send(
+                event.getTenantId(),
+                "HEALTH_INCIDENT_RESOLVED",
+                title,
+                body,
+                Notification.Severity.INFO,
+                Map.of(
+                    "incidentId", event.getIncidentId().toString(),
+                    "branchId", event.getBranchId().toString()
                 ),
                 usersWithPermission(event.getTenantId(), "health:read")
         );
