@@ -1,11 +1,13 @@
 package com.controltower.app.integrations.api;
 
 import com.controltower.app.integrations.api.dto.IntegrationEndpointRequest;
+import com.controltower.app.integrations.api.dto.IntegrationEndpointResponse;
+import com.controltower.app.integrations.api.dto.IntegrationEventDto;
 import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
 import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
 import com.controltower.app.integrations.api.dto.PushEventRequest;
+import com.controltower.app.integrations.api.dto.WebhookDeliveryDto;
 import com.controltower.app.integrations.application.IntegrationService;
-import com.controltower.app.integrations.domain.IntegrationEndpoint;
 import com.controltower.app.integrations.infrastructure.PullScheduler;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
@@ -40,7 +42,7 @@ public class IntegrationController {
     @Operation(summary = "List integration endpoints", description = "Returns a paginated list of all registered integration endpoints for the current tenant. Optionally filter by type (POS, CUSTOM). Requires the 'integration:read' permission.")
     @GetMapping
     @PreAuthorize("hasAuthority('integration:read')")
-    public ResponseEntity<ApiResponse<PageResponse<IntegrationEndpoint>>> list(
+    public ResponseEntity<ApiResponse<PageResponse<IntegrationEndpointResponse>>> list(
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false)    String type) {
@@ -52,7 +54,7 @@ public class IntegrationController {
     @Operation(summary = "Register integration endpoint", description = "Registers a new external integration endpoint and generates an API key. Requires the 'integration:write' permission.")
     @PostMapping
     @PreAuthorize("hasAuthority('integration:write')")
-    public ResponseEntity<ApiResponse<IntegrationEndpoint>> register(
+    public ResponseEntity<ApiResponse<IntegrationEndpointResponse>> register(
             @Valid @RequestBody IntegrationEndpointRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(integrationService.register(request)));
@@ -61,7 +63,7 @@ public class IntegrationController {
     @Operation(summary = "Update integration endpoint", description = "Updates the configuration of an existing integration endpoint. Requires the 'integration:write' permission.")
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('integration:write')")
-    public ResponseEntity<ApiResponse<IntegrationEndpoint>> update(
+    public ResponseEntity<ApiResponse<IntegrationEndpointResponse>> update(
             @PathVariable UUID id,
             @Valid @RequestBody IntegrationEndpointRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(integrationService.update(id, request)));
@@ -70,7 +72,7 @@ public class IntegrationController {
     @Operation(summary = "Activate integration endpoint", description = "Re-activates a previously deactivated integration endpoint. Requires the 'integration:write' permission.")
     @PatchMapping("/{id}/activate")
     @PreAuthorize("hasAuthority('integration:write')")
-    public ResponseEntity<ApiResponse<IntegrationEndpoint>> activate(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<IntegrationEndpointResponse>> activate(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(integrationService.activate(id)));
     }
 
@@ -96,6 +98,37 @@ public class IntegrationController {
     public ResponseEntity<ApiResponse<Void>> checkNow(@PathVariable UUID id) {
         pullScheduler.pullEndpoint(id);
         return ResponseEntity.ok(ApiResponse.ok("Pull check triggered"));
+    }
+
+    @Operation(summary = "List integration events", description = "Returns the event history for an integration endpoint.")
+    @GetMapping("/{id}/events")
+    @PreAuthorize("hasAuthority('integration:read')")
+    public ResponseEntity<ApiResponse<PageResponse<IntegrationEventDto>>> getEvents(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+        PageRequest pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(ApiResponse.ok(
+                PageResponse.from(integrationService.getEvents(id, pageable))));
+    }
+
+    @Operation(summary = "List webhook deliveries", description = "Returns outbound webhook delivery history for an integration endpoint.")
+    @GetMapping("/{id}/webhooks")
+    @PreAuthorize("hasAuthority('integration:read')")
+    public ResponseEntity<ApiResponse<PageResponse<WebhookDeliveryDto>>> getWebhooks(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+        PageRequest pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(ApiResponse.ok(
+                PageResponse.from(integrationService.getWebhookDeliveries(id, pageable))));
+    }
+
+    @Operation(summary = "Regenerate API key", description = "Generates a new API key for the endpoint. The previous key is immediately invalidated. Returns the new plain-text key (one-time display).")
+    @PostMapping("/{id}/regenerate-key")
+    @PreAuthorize("hasAuthority('integration:write')")
+    public ResponseEntity<ApiResponse<String>> regenerateKey(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(integrationService.regenerateApiKey(id)));
     }
 
     /**

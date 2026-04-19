@@ -1,5 +1,7 @@
 package com.controltower.app.integrations.domain;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -12,4 +14,6 @@ public interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery
 
     @Query("SELECT d FROM WebhookDelivery d WHERE d.status = 'PENDING' AND d.attempts < 3")
     List<WebhookDelivery> findRetryable();
+
+    Page<WebhookDelivery> findByEndpointIdOrderByCreatedAtDesc(UUID endpointId, Pageable pageable);
 }

@@ -3,6 +3,7 @@ package com.controltower.app.kanban.api;
 import com.controltower.app.kanban.api.dto.WorkItemResponse;
 import com.controltower.app.kanban.application.BoardService;
 import com.controltower.app.kanban.domain.BoardColumn;
+import com.controltower.app.kanban.domain.Card;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,11 +13,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,15 +43,45 @@ public class KanbanWorkItemsController {
     public ResponseEntity<ApiResponse<List<WorkItemResponse>>> workItems(
             @RequestParam(required = false) UUID assigneeId,
             @RequestParam(required = false) String columnKind) {
-        BoardColumn.ColumnKind kind = null;
-        if (columnKind != null && !columnKind.isBlank()) {
-            try {
-                kind = BoardColumn.ColumnKind.valueOf(columnKind.trim().toUpperCase());
-            } catch (IllegalArgumentException ex) {
-                throw new ControlTowerException(
-                        "Invalid columnKind. Use TODO, IN_PROGRESS, DONE, or HISTORY.", HttpStatus.BAD_REQUEST);
-            }
-        }
+        BoardColumn.ColumnKind kind = parseColumnKind(columnKind);
         return ResponseEntity.ok(ApiResponse.ok(boardService.listWorkItems(assigneeId, kind)));
+    }
+
+    @Operation(summary = "Supervisor work items", description = "Lists all cards across all tenants with advanced filters. Requires superAdmin.")
+    @GetMapping("/supervisor-items")
+    @PreAuthorize("hasAuthority('super:admin')")
+    public ResponseEntity<ApiResponse<List<WorkItemResponse>>> supervisorItems(
+            @RequestParam(required = false) UUID tenantId,
+            @RequestParam(required = false) UUID boardId,
+            @RequestParam(required = false) UUID assigneeId,
+            @RequestParam(required = false) String columnKind,
+            @RequestParam(required = false) String priority,
+            @RequestParam(required = false) LocalDate dueDateFrom,
+            @RequestParam(required = false) LocalDate dueDateTo,
+            @RequestParam(required = false) String label) {
+        BoardColumn.ColumnKind kind = parseColumnKind(columnKind);
+        Card.Priority prio = parsePriority(priority);
+        return ResponseEntity.ok(ApiResponse.ok(boardService.listAllForSupervisor(
+                tenantId, boardId, assigneeId, kind, prio, dueDateFrom, dueDateTo, label)));
+    }
+
+    private BoardColumn.ColumnKind parseColumnKind(String columnKind) {
+        if (columnKind == null || columnKind.isBlank()) return null;
+        try {
+            return BoardColumn.ColumnKind.valueOf(columnKind.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ControlTowerException(
+                    "Invalid columnKind. Use TODO, IN_PROGRESS, DONE, or HISTORY.", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private Card.Priority parsePriority(String priority) {
+        if (priority == null || priority.isBlank()) return null;
+        try {
+            return Card.Priority.valueOf(priority.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ControlTowerException(
+                    "Invalid priority. Use LOW, MEDIUM, HIGH, or CRITICAL.", HttpStatus.BAD_REQUEST);
+        }
     }
 }

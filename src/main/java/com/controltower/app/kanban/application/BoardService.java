@@ -2,6 +2,10 @@ package com.controltower.app.kanban.application;
 
 import com.controltower.app.kanban.api.dto.*;
 import com.controltower.app.kanban.domain.*;
+import com.controltower.app.identity.domain.Tenant;
+import com.controltower.app.identity.domain.TenantRepository;
+import com.controltower.app.identity.domain.User;
+import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.shared.events.UserActionEvent;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.tenancy.domain.TenantContext;
@@ -18,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +38,8 @@ public class BoardService {
     private final CardRepository           cardRepository;
     private final ChecklistItemRepository  checklistRepository;
     private final ApplicationEventPublisher publisher;
+    private final TenantRepository         tenantRepository;
+    private final UserRepository          userRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -101,15 +108,88 @@ public class BoardService {
             BoardColumn col = c.getBoardColumn();
             Board b = col.getBoard();
             out.add(WorkItemResponse.builder()
+                    .id(c.getId())
                     .card(toCardResponse(c))
                     .boardId(b.getId())
                     .boardName(b.getName())
                     .columnId(col.getId())
                     .columnName(col.getName())
                     .columnKind(col.getColumnKind() != null ? col.getColumnKind().name() : null)
+                    .tenantId(b.getTenantId())
+                    .tenantName(getTenantName(b.getTenantId()))
+                    .assigneeNames(getAssigneeNames(c))
+                    .checklistProgress(getChecklistProgress(c))
+                    .overdue(isOverdue(c))
                     .build());
         }
         return out;
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkItemResponse> listAllForSupervisor(
+            UUID tenantId,
+            UUID boardId,
+            UUID assigneeId,
+            BoardColumn.ColumnKind columnKind,
+            Card.Priority priority,
+            LocalDate dueDateFrom,
+            LocalDate dueDateTo,
+            String label) {
+        List<Card> cards = cardRepository.findAllForSupervisor(
+                tenantId, boardId, assigneeId, columnKind, priority, dueDateFrom, dueDateTo, label);
+        List<WorkItemResponse> out = new ArrayList<>(cards.size());
+        for (Card c : cards) {
+            BoardColumn col = c.getBoardColumn();
+            Board b = col.getBoard();
+            out.add(WorkItemResponse.builder()
+                    .id(c.getId())
+                    .card(toCardResponse(c))
+                    .boardId(b.getId())
+                    .boardName(b.getName())
+                    .columnId(col.getId())
+                    .columnName(col.getName())
+                    .columnKind(col.getColumnKind() != null ? col.getColumnKind().name() : null)
+                    .tenantId(b.getTenantId())
+                    .tenantName(getTenantName(b.getTenantId()))
+                    .assigneeNames(getAssigneeNames(c))
+                    .checklistProgress(getChecklistProgress(c))
+                    .overdue(isOverdue(c))
+                    .build());
+        }
+        return out;
+    }
+
+    private String getTenantName(UUID tenantId) {
+        if (tenantId == null) return null;
+        return tenantRepository.findById(tenantId)
+                .map(Tenant::getName)
+                .orElse(null);
+    }
+
+private List<String> getAssigneeNames(Card card) {
+        if (card.getAssigneeIds() == null || card.getAssigneeIds().isEmpty()) {
+            return List.of();
+        }
+        return card.getAssigneeIds().stream()
+                .map(id -> userRepository.findById(id))
+                .filter(java.util.Optional::isPresent)
+                .map(java.util.Optional::get)
+                .map(User::getFullName)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    private String getChecklistProgress(Card card) {
+        if (card.getChecklist() == null || card.getChecklist().isEmpty()) {
+            return null;
+        }
+        long completed = card.getChecklist().stream().filter(ChecklistItem::isCompleted).count();
+        long total = card.getChecklist().size();
+        return completed + "/" + total;
+    }
+
+    private boolean isOverdue(Card card) {
+        if (card.getDueDate() == null) return false;
+        return card.getDueDate().isBefore(LocalDate.now());
     }
 
     @Transactional(readOnly = true)

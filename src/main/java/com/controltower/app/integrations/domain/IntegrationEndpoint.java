@@ -22,6 +22,9 @@ public class IntegrationEndpoint extends BaseEntity {
     @Column(name = "client_branch_id")
     private UUID clientBranchId;
 
+    @Column(name = "name")
+    private String name;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
     private EndpointType type = EndpointType.CUSTOM;

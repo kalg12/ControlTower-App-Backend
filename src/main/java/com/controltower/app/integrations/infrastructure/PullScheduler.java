@@ -15,9 +15,11 @@ import org.springframework.web.client.ResourceAccessException;
 
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Periodically pulls health status from registered endpoints that expose a pullUrl.
@@ -54,6 +56,7 @@ public class PullScheduler {
     private final HeartbeatService              heartbeatService;
 
     private final RestClient restClient = buildRestClient();
+    private final Map<UUID, Instant> lastChecked = new ConcurrentHashMap<>();
 
     /**
      * Creates a RestClient backed by SimpleClientHttpRequestFactory (HttpURLConnection).
@@ -71,7 +74,7 @@ public class PullScheduler {
         return RestClient.builder().requestFactory(factory).build();
     }
 
-    /** Every 60 seconds: pull-check all active endpoints that have a pullUrl. Runs immediately on startup. */
+    /** Every 60 seconds: check all active endpoints and pull those whose interval has elapsed. */
     @Scheduled(initialDelay = 0, fixedDelay = 60_000)
     public void pullAll() {
         List<IntegrationEndpoint> endpoints =
@@ -79,8 +82,22 @@ public class PullScheduler {
 
         if (endpoints.isEmpty()) return;
 
-        log.info("Pull-checking {} integration endpoint(s)", endpoints.size());
-        endpoints.forEach(this::pullOne);
+        Instant now = Instant.now();
+        List<IntegrationEndpoint> due = endpoints.stream()
+                .filter(ep -> {
+                    Instant last = lastChecked.get(ep.getId());
+                    if (last == null) return true;
+                    return Duration.between(last, now).getSeconds() >= ep.getHeartbeatIntervalSeconds();
+                })
+                .toList();
+
+        if (due.isEmpty()) return;
+
+        log.info("Pull-checking {}/{} integration endpoint(s) (others not yet due)", due.size(), endpoints.size());
+        due.forEach(ep -> {
+            lastChecked.put(ep.getId(), now);
+            pullOne(ep);
+        });
     }
 
     /** Triggers an immediate pull-check for a single endpoint by ID. No-op if not found/inactive/no URL. */

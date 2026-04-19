@@ -1,8 +1,13 @@
 package com.controltower.app.integrations.application;
 
+import com.controltower.app.clients.domain.ClientBranch;
+import com.controltower.app.clients.domain.ClientBranchRepository;
 import com.controltower.app.integrations.api.dto.IntegrationEndpointRequest;
+import com.controltower.app.integrations.api.dto.IntegrationEndpointResponse;
+import com.controltower.app.integrations.api.dto.IntegrationEventDto;
 import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
 import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
+import com.controltower.app.integrations.api.dto.WebhookDeliveryDto;
 import com.controltower.app.integrations.domain.*;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.shared.infrastructure.AesEncryptor;
@@ -14,14 +19,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -32,45 +37,54 @@ public class IntegrationService {
 
     private final IntegrationEndpointRepository endpointRepository;
     private final IntegrationEventRepository    eventRepository;
+    private final WebhookDeliveryRepository     webhookDeliveryRepository;
     private final ApplicationEventPublisher     publisher;
     private final AesEncryptor                  aesEncryptor;
     private final TicketService                 ticketService;
+    private final ClientBranchRepository        clientBranchRepository;
 
     @Transactional(readOnly = true)
-    public Page<IntegrationEndpoint> listEndpoints(Pageable pageable, String type) {
+    public Page<IntegrationEndpointResponse> listEndpoints(Pageable pageable, String type) {
         UUID tenantId = TenantContext.getTenantId();
+        Page<IntegrationEndpoint> page;
         if (type != null && !type.isBlank()) {
             IntegrationEndpoint.EndpointType endpointType =
                     IntegrationEndpoint.EndpointType.valueOf(type.toUpperCase());
-            return endpointRepository.findByTenantIdAndTypeAndDeletedAtIsNull(
-                    tenantId, endpointType, pageable);
+            page = endpointRepository.findByTenantIdAndTypeAndDeletedAtIsNull(tenantId, endpointType, pageable);
+        } else {
+            page = endpointRepository.findByTenantIdAndDeletedAtIsNull(tenantId, pageable);
         }
-        return endpointRepository.findByTenantIdAndDeletedAtIsNull(tenantId, pageable);
+        return enrichPage(page, pageable);
     }
 
     @Transactional
-    public IntegrationEndpoint register(IntegrationEndpointRequest request) {
+    public IntegrationEndpointResponse register(IntegrationEndpointRequest request) {
         IntegrationEndpoint endpoint = new IntegrationEndpoint();
         endpoint.setTenantId(TenantContext.getTenantId());
         endpoint.setClientBranchId(request.getClientBranchId());
+        endpoint.setName(request.getName());
         endpoint.setType(request.getType());
         endpoint.setPullUrl(request.getPullUrl());
         endpoint.setApiKey(aesEncryptor.encrypt(request.getApiKey()));
         endpoint.setHeartbeatIntervalSeconds(request.getHeartbeatIntervalSeconds());
         endpoint.setContractVersion(request.getContractVersion());
         endpoint.setMetadata(request.getMetadata());
-        return endpointRepository.save(endpoint);
+        return toResponse(endpointRepository.save(endpoint));
     }
 
     @Transactional
-    public IntegrationEndpoint update(UUID endpointId, IntegrationEndpointRequest request) {
+    public IntegrationEndpointResponse update(UUID endpointId, IntegrationEndpointRequest request) {
         IntegrationEndpoint endpoint = resolve(endpointId);
+        endpoint.setName(request.getName());
+        endpoint.setClientBranchId(request.getClientBranchId());
         endpoint.setPullUrl(request.getPullUrl());
-        endpoint.setApiKey(aesEncryptor.encrypt(request.getApiKey()));
+        if (request.getApiKey() != null && !request.getApiKey().isBlank()) {
+            endpoint.setApiKey(aesEncryptor.encrypt(request.getApiKey()));
+        }
         endpoint.setHeartbeatIntervalSeconds(request.getHeartbeatIntervalSeconds());
         endpoint.setContractVersion(request.getContractVersion());
         endpoint.setMetadata(request.getMetadata());
-        return endpointRepository.save(endpoint);
+        return toResponse(endpointRepository.save(endpoint));
     }
 
     /** Returns the decrypted API key for comparison. */
@@ -79,10 +93,52 @@ public class IntegrationService {
     }
 
     @Transactional
-    public IntegrationEndpoint activate(UUID endpointId) {
+    public IntegrationEndpointResponse activate(UUID endpointId) {
         IntegrationEndpoint endpoint = resolve(endpointId);
         endpoint.setActive(true);
-        return endpointRepository.save(endpoint);
+        return toResponse(endpointRepository.save(endpoint));
+    }
+
+    private Page<IntegrationEndpointResponse> enrichPage(Page<IntegrationEndpoint> page, Pageable pageable) {
+        List<UUID> branchIds = page.getContent().stream()
+                .map(IntegrationEndpoint::getClientBranchId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<UUID, ClientBranch> branchMap = branchIds.isEmpty() ? Map.of()
+                : clientBranchRepository.findAllByIdsWithClient(branchIds).stream()
+                    .collect(Collectors.toMap(b -> b.getId(), b -> b));
+        List<IntegrationEndpointResponse> content = page.getContent().stream()
+                .map(ep -> toResponse(ep, branchMap.get(ep.getClientBranchId())))
+                .collect(Collectors.toList());
+        return new PageImpl<>(content, pageable, page.getTotalElements());
+    }
+
+    public IntegrationEndpointResponse toResponse(IntegrationEndpoint ep) {
+        ClientBranch branch = ep.getClientBranchId() != null
+                ? clientBranchRepository.findById(ep.getClientBranchId()).orElse(null)
+                : null;
+        return toResponse(ep, branch);
+    }
+
+    private IntegrationEndpointResponse toResponse(IntegrationEndpoint ep, ClientBranch branch) {
+        return IntegrationEndpointResponse.builder()
+                .id(ep.getId())
+                .tenantId(ep.getTenantId())
+                .clientBranchId(ep.getClientBranchId())
+                .clientId(branch != null ? branch.getClient().getId() : null)
+                .clientName(branch != null ? branch.getClient().getName() : null)
+                .branchName(branch != null ? branch.getName() : null)
+                .name(ep.getName())
+                .type(ep.getType())
+                .pullUrl(ep.getPullUrl())
+                .heartbeatIntervalSeconds(ep.getHeartbeatIntervalSeconds())
+                .contractVersion(ep.getContractVersion())
+                .metadata(ep.getMetadata())
+                .active(ep.isActive())
+                .createdAt(ep.getCreatedAt())
+                .updatedAt(ep.getUpdatedAt())
+                .build();
     }
 
     @Transactional
@@ -97,6 +153,43 @@ public class IntegrationService {
         IntegrationEndpoint endpoint = resolve(endpointId);
         endpoint.softDelete();
         endpointRepository.save(endpoint);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<IntegrationEventDto> getEvents(UUID endpointId, Pageable pageable) {
+        resolve(endpointId);
+        return eventRepository.findByEndpointIdOrderByReceivedAtDesc(endpointId, pageable)
+                .map(e -> IntegrationEventDto.builder()
+                        .id(e.getId())
+                        .eventType(e.getEventType())
+                        .receivedAt(e.getReceivedAt())
+                        .processedAt(e.getProcessedAt())
+                        .payload(e.getPayload())
+                        .build());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<WebhookDeliveryDto> getWebhookDeliveries(UUID endpointId, Pageable pageable) {
+        resolve(endpointId);
+        return webhookDeliveryRepository.findByEndpointIdOrderByCreatedAtDesc(endpointId, pageable)
+                .map(d -> WebhookDeliveryDto.builder()
+                        .id(d.getId())
+                        .url(d.getUrl())
+                        .status(d.getStatus())
+                        .attempts(d.getAttempts())
+                        .lastAttemptAt(d.getLastAttemptAt())
+                        .responseStatus(d.getResponseStatus())
+                        .createdAt(d.getCreatedAt())
+                        .build());
+    }
+
+    @Transactional
+    public String regenerateApiKey(UUID endpointId) {
+        IntegrationEndpoint endpoint = resolve(endpointId);
+        String newKey = UUID.randomUUID().toString().replace("-", "");
+        endpoint.setApiKey(aesEncryptor.encrypt(newKey));
+        endpointRepository.save(endpoint);
+        return newKey;
     }
 
     /**

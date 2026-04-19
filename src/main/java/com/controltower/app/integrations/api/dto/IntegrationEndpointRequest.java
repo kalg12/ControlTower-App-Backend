@@ -14,6 +14,8 @@ public class IntegrationEndpointRequest {
 
     private UUID clientBranchId;
 
+    private String name;
+
     @NotNull(message = "type is required")
     private IntegrationEndpoint.EndpointType type;
 

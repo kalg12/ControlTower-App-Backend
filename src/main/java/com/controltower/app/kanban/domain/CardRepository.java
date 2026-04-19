@@ -37,6 +37,32 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
         JOIN col.board b
         WHERE c.deletedAt IS NULL
           AND b.deletedAt IS NULL
+          AND (:tenantId IS NULL OR b.tenantId = :tenantId)
+          AND (:boardId IS NULL OR b.id = :boardId)
+          AND (:assigneeId IS NULL OR :assigneeId MEMBER OF c.assigneeIds)
+          AND (:columnKind IS NULL OR col.columnKind = :columnKind)
+          AND (:priority IS NULL OR c.priority = :priority)
+          AND (:dueDateFrom IS NULL OR c.dueDate >= :dueDateFrom)
+          AND (:dueDateTo IS NULL OR c.dueDate <= :dueDateTo)
+          AND (:label IS NULL OR EXISTS SELECT l FROM c.labels l WHERE l = :label)
+        ORDER BY b.name ASC, col.position ASC, c.position ASC
+        """)
+    List<Card> findAllForSupervisor(
+            @Param("tenantId") UUID tenantId,
+            @Param("boardId") UUID boardId,
+            @Param("assigneeId") UUID assigneeId,
+            @Param("columnKind") BoardColumn.ColumnKind columnKind,
+            @Param("priority") Card.Priority priority,
+            @Param("dueDateFrom") LocalDate dueDateFrom,
+            @Param("dueDateTo") LocalDate dueDateTo,
+            @Param("label") String label);
+
+    @Query("""
+        SELECT c FROM Card c
+        JOIN c.boardColumn col
+        JOIN col.board b
+        WHERE c.deletedAt IS NULL
+          AND b.deletedAt IS NULL
           AND c.dueDate = :dueDate
           AND SIZE(c.assigneeIds) > 0
         """)
