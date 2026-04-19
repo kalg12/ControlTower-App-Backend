@@ -27,6 +27,7 @@ public class HealthQueryService {
     private final HealthCheckRepository    checkRepository;
     private final HealthIncidentRepository incidentRepository;
     private final ClientBranchRepository   branchRepository;
+    private final com.controltower.app.identity.domain.UserRepository userRepository;
 
     /** Returns the latest health check for each branch of a tenant (dashboard view). */
     @Transactional(readOnly = true)
@@ -123,6 +124,17 @@ public class HealthQueryService {
         Instant end = i.getResolvedAt() != null ? i.getResolvedAt() : Instant.now();
         long durationSeconds = end.getEpochSecond() - i.getOpenedAt().getEpochSecond();
 
+        String resolvedByUserName = null;
+        boolean autoResolved = false;
+        
+        if (i.getResolvedBy() != null && i.getResolvedBy().toString().equals("00000000-0000-0000-0000-000000000000")) {
+            autoResolved = true;
+        } else if (i.getResolvedBy() != null) {
+            resolvedByUserName = userRepository.findById(i.getResolvedBy())
+                    .map(u -> u.getFullName())
+                    .orElse(null);
+        }
+
         return HealthIncidentResponse.builder()
                 .id(i.getId())
                 .branchId(i.getBranchId())
@@ -131,8 +143,12 @@ public class HealthQueryService {
                 .description(i.getDescription())
                 .openedAt(i.getOpenedAt())
                 .resolvedAt(i.getResolvedAt())
+                .resolvedBy(i.getResolvedBy())
+                .resolvedByUserName(resolvedByUserName)
+                .resolutionNote(i.getResolutionNote())
                 .open(i.isOpen())
                 .autoCreated(i.isAutoCreated())
+                .autoResolved(autoResolved)
                 .durationSeconds(durationSeconds)
                 .build();
     }
