@@ -65,6 +65,9 @@ public class CalendarEvent extends BaseEntity {
     @Column(name = "user_id")
     private List<UUID> assigneeIds = new ArrayList<>();
 
+    @Column(name = "google_event_id")
+    private String googleEventId;
+
     public enum EventType {
         CALL, MEETING, SITE_VISIT, DEMO, FOLLOW_UP, WHATSAPP, INSTAGRAM, OTHER
     }

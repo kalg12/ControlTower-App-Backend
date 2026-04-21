@@ -62,6 +62,15 @@ public class User extends BaseEntity {
     @Column(name = "overdue_attended", nullable = false)
     private int overdueAttended = 0;
 
+    @Column(name = "google_refresh_token", columnDefinition = "TEXT")
+    private String googleRefreshToken;
+
+    @Column(name = "google_calendar_enabled", nullable = false)
+    private boolean googleCalendarEnabled = false;
+
+    @Column(name = "google_calendar_email")
+    private String googleCalendarEmail;
+
     /** Returns all permission codes from assigned roles. */
     public Set<String> getAllPermissions() {
         Set<String> perms = new HashSet<>();
