@@ -30,7 +30,7 @@ public class CalendarEventRequest {
     @NotNull
     private Instant endAt;
 
-    private UUID clientId;
+    private UUID clientId = null;
     private UUID branchId;
     private String notes;
     private String outcome;
