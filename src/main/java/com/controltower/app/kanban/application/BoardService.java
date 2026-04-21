@@ -102,9 +102,9 @@ public class BoardService {
     }
 
     @Transactional(readOnly = true)
-    public List<WorkItemResponse> listWorkItems(UUID assigneeId, BoardColumn.ColumnKind columnKind) {
+    public List<WorkItemResponse> listWorkItems(UUID boardId, UUID assigneeId, BoardColumn.ColumnKind columnKind) {
         UUID tenantId = TenantContext.getTenantId();
-        List<Card> cards = cardRepository.findWorkItems(tenantId, assigneeId, columnKind);
+        List<Card> cards = cardRepository.findWorkItems(tenantId, boardId, assigneeId, columnKind);
         List<WorkItemResponse> out = new ArrayList<>(cards.size());
         for (Card c : cards) {
             BoardColumn col = c.getBoardColumn();

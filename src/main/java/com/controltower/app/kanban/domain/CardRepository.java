@@ -15,19 +15,21 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
 
     Optional<Card> findByIdAndDeletedAtIsNull(UUID id);
 
-    @Query("""
-        SELECT DISTINCT c FROM Card c
-        JOIN FETCH c.boardColumn col
-        JOIN FETCH col.board b
-        WHERE b.tenantId = :tenantId
-          AND c.deletedAt IS NULL
+@Query("""
+        SELECT c FROM Card c
+        JOIN c.boardColumn col
+        JOIN col.board b
+        WHERE c.deletedAt IS NULL
           AND b.deletedAt IS NULL
+          AND b.tenantId = :tenantId
+          AND (:boardId IS NULL OR b.id = :boardId)
           AND (:assigneeId IS NULL OR c.assigneeIds IS NOT NULL AND EXISTS (SELECT a FROM c.assigneeIds a WHERE a = :assigneeId))
           AND (:columnKind IS NULL OR col.columnKind = :columnKind)
         ORDER BY b.name ASC, col.position ASC, c.position ASC
         """)
     List<Card> findWorkItems(
             @Param("tenantId") UUID tenantId,
+            @Param("boardId") UUID boardId,
             @Param("assigneeId") UUID assigneeId,
             @Param("columnKind") BoardColumn.ColumnKind columnKind);
 

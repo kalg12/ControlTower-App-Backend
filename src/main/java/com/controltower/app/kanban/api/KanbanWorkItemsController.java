@@ -41,14 +41,15 @@ public class KanbanWorkItemsController {
 
     private final BoardService boardService;
 
-    @Operation(summary = "Cross-board work items", description = "Lists cards from all boards in the tenant, optionally filtered by assignee and default column kind (TODO, IN_PROGRESS, DONE, HISTORY). Requires the 'kanban:read' permission.")
+    @Operation(summary = "Cross-board work items", description = "Lists cards from all boards in the tenant, optionally filtered by boardId, assignee and default column kind (TODO, IN_PROGRESS, DONE, HISTORY). Requires the 'kanban:read' permission.")
     @GetMapping("/work-items")
     @PreAuthorize("hasAuthority('kanban:read')")
     public ResponseEntity<ApiResponse<List<WorkItemResponse>>> workItems(
+            @RequestParam(required = false) UUID boardId,
             @RequestParam(required = false) UUID assigneeId,
             @RequestParam(required = false) String columnKind) {
         BoardColumn.ColumnKind kind = parseColumnKind(columnKind);
-        return ResponseEntity.ok(ApiResponse.ok(boardService.listWorkItems(assigneeId, kind)));
+        return ResponseEntity.ok(ApiResponse.ok(boardService.listWorkItems(boardId, assigneeId, kind)));
     }
 
     @Operation(summary = "Supervisor work items", description = "Lists all cards across all tenants with advanced filters. Requires superAdmin.")
