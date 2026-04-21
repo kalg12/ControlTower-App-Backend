@@ -8,8 +8,6 @@ import com.controltower.app.clients.domain.ClientContact;
 import com.controltower.app.clients.domain.ClientOpportunity;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,7 +21,6 @@ public class CrmHistoryService {
 
     private final AuditService auditService;
     private final NotificationService notificationService;
-    private final ObjectMapper objectMapper;
 
     public void logClientChange(UUID tenantId, UUID userId, Client oldClient, Client newClient, 
                                 AuditAction action, UUID assignedUserId) {
@@ -283,38 +280,38 @@ public class CrmHistoryService {
     private Map<String, Object> serializeClient(Client client) {
         if (client == null) return null;
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("id", client.getId());
+        map.put("id", client.getId() != null ? client.getId().toString() : null);
         map.put("name", client.getName());
-        map.put("status", client.getStatus());
-        map.put("segment", client.getSegment());
-        map.put("accountOwnerId", client.getAccountOwnerId());
+        map.put("status", client.getStatus() != null ? client.getStatus().name() : null);
+        map.put("segment", client.getSegment() != null ? client.getSegment().name() : null);
+        map.put("accountOwnerId", client.getAccountOwnerId() != null ? client.getAccountOwnerId().toString() : null);
         return map;
     }
 
     private Map<String, Object> serializeBranch(ClientBranch branch) {
         if (branch == null) return null;
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("id", branch.getId());
+        map.put("id", branch.getId() != null ? branch.getId().toString() : null);
         map.put("name", branch.getName());
-        map.put("status", branch.getStatus());
+        map.put("status", branch.getStatus() != null ? branch.getStatus().name() : null);
         return map;
     }
 
     private Map<String, Object> serializeOpportunity(ClientOpportunity opp) {
         if (opp == null) return null;
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("id", opp.getId());
+        map.put("id", opp.getId() != null ? opp.getId().toString() : null);
         map.put("title", opp.getTitle());
-        map.put("stage", opp.getStage());
+        map.put("stage", opp.getStage() != null ? opp.getStage().name() : null);
         map.put("value", opp.getValue());
-        map.put("ownerId", opp.getOwnerId());
+        map.put("ownerId", opp.getOwnerId() != null ? opp.getOwnerId().toString() : null);
         return map;
     }
 
     private Map<String, Object> serializeContact(ClientContact contact) {
         if (contact == null) return null;
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("id", contact.getId());
+        map.put("id", contact.getId() != null ? contact.getId().toString() : null);
         map.put("fullName", contact.getFullName());
         map.put("email", contact.getEmail());
         return map;
@@ -322,11 +319,17 @@ public class CrmHistoryService {
 
     private String toJson(Object obj) {
         if (obj == null) return null;
-        try {
-            return objectMapper.writeValueAsString(obj);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize to JSON", e);
-            return null;
+        StringBuilder sb = new StringBuilder("{");
+        Map<String, Object> map = (Map<String, Object>) obj;
+        int i = 0;
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (i > 0) sb.append(",");
+            sb.append("\"").append(entry.getKey()).append("\":\"");
+            sb.append(entry.getValue() != null ? entry.getValue().toString().replace("\"", "'") : "");
+            sb.append("\"");
+            i++;
         }
+        sb.append("}");
+        return sb.toString();
     }
 }
