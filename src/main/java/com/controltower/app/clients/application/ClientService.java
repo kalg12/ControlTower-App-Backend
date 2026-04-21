@@ -6,6 +6,8 @@ import com.controltower.app.identity.domain.Tenant;
 import com.controltower.app.identity.domain.TenantRepository;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.tenancy.domain.TenantContext;
+import com.controltower.app.audit.application.CrmHistoryService;
+import com.controltower.app.audit.domain.AuditAction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +27,7 @@ public class ClientService {
     private final ClientBranchRepository   branchRepository;
     private final ClientContactRepository  contactRepository;
     private final TenantRepository         tenantRepository;
+    private final CrmHistoryService        crmHistoryService;
 
     // ── Clients ───────────────────────────────────────────────────────
 
@@ -67,6 +70,9 @@ public class ClientService {
             client.setLeadSource(Client.LeadSource.valueOf(request.getLeadSource().toUpperCase()));
         }
         if (request.getPhone() != null) client.setPhone(request.getPhone());
+        if (request.getPrimaryPhone() != null) client.setPrimaryPhone(request.getPrimaryPhone());
+        if (request.getPrimaryEmail() != null) client.setPrimaryEmail(request.getPrimaryEmail());
+        if (request.getPrimaryContactName() != null) client.setPrimaryContactName(request.getPrimaryContactName());
 
         return toClientResponse(clientRepository.save(client));
     }
@@ -91,6 +97,9 @@ public class ClientService {
             client.setLeadSource(Client.LeadSource.valueOf(request.getLeadSource().toUpperCase()));
         }
         if (request.getPhone() != null) client.setPhone(request.getPhone());
+        if (request.getPrimaryPhone() != null) client.setPrimaryPhone(request.getPrimaryPhone());
+        if (request.getPrimaryEmail() != null) client.setPrimaryEmail(request.getPrimaryEmail());
+        if (request.getPrimaryContactName() != null) client.setPrimaryContactName(request.getPrimaryContactName());
 
         return toClientResponse(clientRepository.save(client));
     }
@@ -206,41 +215,64 @@ public class ClientService {
         if (StringUtils.hasText(request.getRole())) {
             contact.setRole(ClientContact.ContactRole.valueOf(request.getRole().toUpperCase()));
         }
-        return toContactResponse(contactRepository.save(contact));
+        ContactResponse saved = toContactResponse(contactRepository.save(contact));
+        
+        // Log to history
+        crmHistoryService.logContactChange(tenantId, null, null, contact, AuditAction.CONTACT_CREATED, client.getAccountOwnerId());
+        
+        return saved;
     }
 
     @Transactional
     public ContactResponse updateContact(UUID clientId, UUID contactId, ContactRequest request) {
         UUID tenantId = TenantContext.getTenantId();
-        clientRepository.findByIdAndTenantIdAndDeletedAtIsNull(clientId, tenantId)
+        Client client = clientRepository.findByIdAndTenantIdAndDeletedAtIsNull(clientId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", clientId));
-        ClientContact contact = contactRepository.findByIdAndClientId(contactId, clientId)
+        ClientContact oldContact = contactRepository.findByIdAndClientId(contactId, clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("ClientContact", contactId));
 
-        if (request.isPrimary() && !contact.isPrimary()) {
+        if (request.isPrimary() && !oldContact.isPrimary()) {
             contactRepository.findByClientIdOrderByPrimaryDescCreatedAtAsc(clientId)
                     .stream().filter(ClientContact::isPrimary)
                     .forEach(c -> { c.setPrimary(false); contactRepository.save(c); });
         }
 
-        contact.setFullName(request.getFullName());
-        if (request.getEmail()  != null) contact.setEmail(request.getEmail());
-        if (request.getPhone()  != null) contact.setPhone(request.getPhone());
-        if (request.getNotes()  != null) contact.setNotes(request.getNotes());
-        contact.setPrimary(request.isPrimary());
+        // Store old values for history
+        String oldFullName = oldContact.getFullName();
+        String oldEmail = oldContact.getEmail();
+        String oldPhone = oldContact.getPhone();
+
+        oldContact.setFullName(request.getFullName());
+        if (request.getEmail()  != null) oldContact.setEmail(request.getEmail());
+        if (request.getPhone()  != null) oldContact.setPhone(request.getPhone());
+        if (request.getNotes()  != null) oldContact.setNotes(request.getNotes());
+        oldContact.setPrimary(request.isPrimary());
         if (StringUtils.hasText(request.getRole())) {
-            contact.setRole(ClientContact.ContactRole.valueOf(request.getRole().toUpperCase()));
+            oldContact.setRole(ClientContact.ContactRole.valueOf(request.getRole().toUpperCase()));
         }
-        return toContactResponse(contactRepository.save(contact));
+        ContactResponse saved = toContactResponse(contactRepository.save(oldContact));
+        
+        // Log to history if name, email or phone changed
+        if (!request.getFullName().equals(oldFullName) || 
+            (request.getEmail() != null && !request.getEmail().equals(oldEmail)) ||
+            (request.getPhone() != null && !request.getPhone().equals(oldPhone))) {
+            crmHistoryService.logContactChange(tenantId, null, oldContact, oldContact, AuditAction.CONTACT_UPDATED, client.getAccountOwnerId());
+        }
+        
+        return saved;
     }
 
     @Transactional
     public void deleteContact(UUID clientId, UUID contactId) {
         UUID tenantId = TenantContext.getTenantId();
-        clientRepository.findByIdAndTenantIdAndDeletedAtIsNull(clientId, tenantId)
+        Client client = clientRepository.findByIdAndTenantIdAndDeletedAtIsNull(clientId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Client", clientId));
         ClientContact contact = contactRepository.findByIdAndClientId(contactId, clientId)
                 .orElseThrow(() -> new ResourceNotFoundException("ClientContact", contactId));
+        
+        // Log to history before deleting
+        crmHistoryService.logContactChange(tenantId, null, contact, null, AuditAction.CONTACT_DELETED, client.getAccountOwnerId());
+        
         contactRepository.delete(contact);
     }
 
@@ -283,6 +315,9 @@ public class ClientService {
                 .segment(c.getSegment() != null ? c.getSegment().name() : null)
                 .leadSource(c.getLeadSource() != null ? c.getLeadSource().name() : null)
                 .phone(c.getPhone())
+                .primaryPhone(c.getPrimaryPhone())
+                .primaryEmail(c.getPrimaryEmail())
+                .primaryContactName(c.getPrimaryContactName())
                 .accountOwnerId(c.getAccountOwnerId())
                 .healthScore(c.getHealthScore())
                 .totalRevenue(c.getTotalRevenue())

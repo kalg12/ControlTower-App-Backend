@@ -22,4 +22,7 @@ public class ClientRequest {
     private String segment;
     private String leadSource;
     private String phone;
+    private String primaryPhone;
+    private String primaryEmail;
+    private String primaryContactName;
 }

@@ -67,6 +67,18 @@ public class Client extends BaseEntity {
     @Column(name = "phone", length = 50)
     private String phone;
 
+    /** Primary phone at company level (visible even without contacts). */
+    @Column(name = "primary_phone", length = 50)
+    private String primaryPhone;
+
+    /** Primary email at company level (visible even without contacts). */
+    @Column(name = "primary_email")
+    private String primaryEmail;
+
+    /** Primary contact name at company level. */
+    @Column(name = "primary_contact_name")
+    private String primaryContactName;
+
     /** UUID of the user who owns/manages this client account. */
     @Column(name = "account_owner_id")
     private java.util.UUID accountOwnerId;

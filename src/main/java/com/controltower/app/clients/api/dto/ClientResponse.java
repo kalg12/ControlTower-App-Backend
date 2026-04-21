@@ -23,6 +23,9 @@ public class ClientResponse {
     private final String segment;
     private final String leadSource;
     private final String phone;
+    private final String primaryPhone;
+    private final String primaryEmail;
+    private final String primaryContactName;
     private final UUID accountOwnerId;
     private final String accountOwnerName;
     private final Integer healthScore;
