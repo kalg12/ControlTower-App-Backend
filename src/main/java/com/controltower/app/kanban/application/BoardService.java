@@ -548,8 +548,22 @@ private List<String> getAssigneeNames(Card card) {
                 .description("Moved card '" + card.getTitle() + "' to " + targetKind.name())
                 .build());
 
-        WorkItemResponse response = toWorkItemResponse(card);
-        return response;
+        BoardColumn col = card.getBoardColumn();
+        Board b = col.getBoard();
+        return WorkItemResponse.builder()
+                .id(card.getId())
+                .card(toCardResponse(card))
+                .boardId(b.getId())
+                .boardName(b.getName())
+                .columnId(col.getId())
+                .columnName(col.getName())
+                .columnKind(col.getColumnKind() != null ? col.getColumnKind().name() : null)
+                .tenantId(b.getTenantId())
+                .tenantName(getTenantName(b.getTenantId()))
+                .assigneeNames(getAssigneeNames(card))
+                .checklistProgress(getChecklistProgress(card))
+                .overdue(isOverdue(card))
+                .build();
     }
 
     private void awardPoints(UUID userId) {
