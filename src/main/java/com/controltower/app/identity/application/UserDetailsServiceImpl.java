@@ -55,6 +55,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                     user.getRoles().stream()
                             .map(r -> new SimpleGrantedAuthority("ROLE_" + r.getCode()))
             ).collect(Collectors.toSet());
+            // Super-admins also get the literal 'super:admin' authority
+            // required by cross-tenant endpoints (e.g. supervisor work items)
+            if (user.isSuperAdmin()) {
+                authorities.add(new SimpleGrantedAuthority("super:admin"));
+            }
         } else {
             // Regular users: derive authorities only from assigned role permissions
             authorities = Stream.concat(
