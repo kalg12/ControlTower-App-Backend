@@ -12,11 +12,11 @@ import java.util.UUID;
 public interface CalendarEventRepository extends JpaRepository<CalendarEvent, UUID> {
 
     @Query("SELECT e FROM CalendarEvent e WHERE e.tenant.id = :tenantId AND e.deletedAt IS NULL " +
-           "AND e.startAt >= :from AND e.startAt < :to ORDER BY e.startAt")
+           "AND e.startAt >= :rangeFrom AND e.startAt < :rangeTo ORDER BY e.startAt")
     List<CalendarEvent> findByTenantAndRange(
             @Param("tenantId") UUID tenantId,
-            @Param("from") Instant from,
-            @Param("to") Instant to);
+            @Param("rangeFrom") Instant rangeFrom,
+            @Param("rangeTo") Instant rangeTo);
 
     @Query("SELECT e FROM CalendarEvent e WHERE e.tenant.id = :tenantId AND e.clientId = :clientId " +
            "AND e.deletedAt IS NULL AND e.startAt >= :after ORDER BY e.startAt")
