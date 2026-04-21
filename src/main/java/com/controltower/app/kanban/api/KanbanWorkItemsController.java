@@ -16,12 +16,16 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -83,5 +87,22 @@ public class KanbanWorkItemsController {
             throw new ControlTowerException(
                     "Invalid priority. Use LOW, MEDIUM, HIGH, or CRITICAL.", HttpStatus.BAD_REQUEST);
         }
+    }
+
+    @Operation(summary = "Move card to column by kind", description = "Move a card to a column of the specified kind within the same board.")
+    @PatchMapping("/cards/{cardId}/move-to")
+    @PreAuthorize("hasAuthority('kanban:write')")
+    public ResponseEntity<ApiResponse<WorkItemResponse>> moveCardTo(
+            @PathVariable UUID cardId,
+            @RequestBody Map<String, String> request) {
+        String boardId = request.get("boardId");
+        String targetKind = request.get("columnKind");
+        if (boardId == null || targetKind == null) {
+            throw new ControlTowerException("boardId and columnKind are required", HttpStatus.BAD_REQUEST);
+        }
+        UUID boardUuid = UUID.fromString(boardId);
+        BoardColumn.ColumnKind kind = parseColumnKind(targetKind);
+        WorkItemResponse result = boardService.moveCardToBoardColumn(cardId, boardUuid, kind);
+        return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }

@@ -127,6 +127,13 @@ public class BoardController {
         return ResponseEntity.ok(ApiResponse.ok(boardService.updateCard(cardId, request)));
     }
 
+    @Operation(summary = "Attend card", description = "Marks an overdue card as attended by the current user. No-op if already attended.")
+    @PatchMapping("/cards/{cardId}/attend")
+    @PreAuthorize("hasAuthority('kanban:write')")
+    public ResponseEntity<ApiResponse<CardResponse>> attendCard(@PathVariable UUID cardId) {
+        return ResponseEntity.ok(ApiResponse.ok(boardService.attendCard(cardId)));
+    }
+
     @Operation(summary = "Delete card", description = "Permanently deletes a card and its checklist items. Requires the 'kanban:write' permission.")
     @DeleteMapping("/cards/{cardId}")
     @PreAuthorize("hasAuthority('kanban:write')")

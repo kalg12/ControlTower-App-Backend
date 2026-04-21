@@ -7,6 +7,7 @@ import com.controltower.app.identity.domain.TenantRepository;
 import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.shared.events.UserActionEvent;
+import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -338,6 +340,17 @@ private List<String> getAssigneeNames(Card card) {
     }
 
     @Transactional
+    public CardResponse attendCard(UUID cardId) {
+        Card card = resolveCard(cardId);
+        if (card.getAttendedAt() != null) return toCardResponse(card);
+        UUID userId = resolveUserId();
+        card.attend(userId, card.isOverdue());
+        awardPoints(userId);
+        log.info("User {} manually attended card {}", userId, cardId);
+        return toCardResponse(cardRepository.save(card));
+    }
+
+    @Transactional
     public void deleteCard(UUID cardId) {
         Card card = resolveCard(cardId);
         String cardTitle = card.getTitle();
@@ -493,6 +506,50 @@ private List<String> getAssigneeNames(Card card) {
                 .position(i.getPosition())
                 .createdAt(i.getCreatedAt())
                 .build();
+    }
+
+    @Transactional
+    public WorkItemResponse moveCardToBoardColumn(UUID cardId, UUID boardId, BoardColumn.ColumnKind targetKind) {
+        Card card = resolveCard(cardId);
+        UUID userId = resolveUserId();
+
+        List<BoardColumn> columns = columnRepository.findByBoardId(boardId);
+        BoardColumn targetColumn = columns.stream()
+                .filter(col -> col.getColumnKind() == targetKind)
+                .findFirst()
+                .orElseThrow(() -> new ControlTowerException(
+                        "Column not found with kind: " + targetKind, HttpStatus.BAD_REQUEST));
+
+        BoardColumn currentColumn = card.getBoardColumn();
+        boolean wasOverdue = card.isOverdue() && card.getAttendedAt() == null;
+        boolean movedAwayFromDone = currentColumn.getColumnKind() == BoardColumn.ColumnKind.DONE
+                || currentColumn.getColumnKind() == BoardColumn.ColumnKind.HISTORY;
+        boolean movedToDone = targetColumn.getColumnKind() == BoardColumn.ColumnKind.DONE
+                || targetColumn.getColumnKind() == BoardColumn.ColumnKind.HISTORY;
+
+        if (!movedAwayFromDone && !movedToDone && (wasOverdue || card.isOverdue())) {
+            card.attend(userId, wasOverdue);
+            awardPoints(userId);
+            log.info("User {} attended overdue card {} - awarding 10 points", userId, cardId);
+        } else if (movedAwayFromDone && !movedToDone) {
+            card.attend(userId, card.isWasOverdue());
+        }
+
+        card.setBoardColumn(targetColumn);
+        card.setPosition(targetColumn.getCards().size());
+        card = cardRepository.save(card);
+
+        publisher.publishEvent(UserActionEvent.builder()
+                .tenantId(TenantContext.getTenantId())
+                .userId(userId)
+                .actionName("CARD_MOVED_VIA_WORKHUB")
+                .entityType("KanbanCard")
+                .entityId(cardId)
+                .description("Moved card '" + card.getTitle() + "' to " + targetKind.name())
+                .build());
+
+        WorkItemResponse response = toWorkItemResponse(card);
+        return response;
     }
 
     private void awardPoints(UUID userId) {
