@@ -27,6 +27,21 @@ public class AuditQueryService {
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
+    public PageResponse<AuditLogResponse> getHistoryByResource(String resourceType, UUID resourceId, Pageable pageable) {
+        Page<AuditLog> page = auditLogRepository.findByResourceTypeAndResourceIdOrderByCreatedAtDesc(
+                resourceType, resourceId.toString(), pageable);
+        
+        Map<UUID, User> userCache = new HashMap<>();
+        for (AuditLog log : page.getContent()) {
+            if (log.getUserId() != null && !userCache.containsKey(log.getUserId())) {
+                userRepository.findById(log.getUserId()).ifPresent(u -> userCache.put(log.getUserId(), u));
+            }
+        }
+        
+        return PageResponse.from(page.map(log -> toResponse(log, userCache)));
+    }
+
+    @Transactional(readOnly = true)
     public PageResponse<AuditLogResponse> query(
             UUID tenantId,
             UUID userId,
