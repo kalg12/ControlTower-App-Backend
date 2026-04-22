@@ -42,19 +42,15 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
           AND (:tenantId IS NULL OR b.tenantId = :tenantId)
           AND (:boardId IS NULL OR b.id = :boardId)
           AND (:assigneeId IS NULL OR c.assigneeIds IS NOT NULL AND EXISTS (SELECT a FROM c.assigneeIds a WHERE a = :assigneeId))
-          AND (:columnKind IS NULL OR col.columnKind = :columnKind)
-          AND (:priority IS NULL OR c.priority = :priority)
           AND (:dueDateFrom IS NULL OR c.dueDate >= :dueDateFrom)
           AND (:dueDateTo IS NULL OR c.dueDate <= :dueDateTo)
           AND (:label IS NULL OR c.labels IS NOT NULL AND EXISTS (SELECT l FROM c.labels l WHERE l = :label))
         ORDER BY b.name ASC, col.position ASC, c.position ASC
         """)
-    List<Card> findAllForSupervisor(
+    List<Card> findAllForSupervisorBase(
             @Param("tenantId") UUID tenantId,
             @Param("boardId") UUID boardId,
             @Param("assigneeId") UUID assigneeId,
-            @Param("columnKind") BoardColumn.ColumnKind columnKind,
-            @Param("priority") Card.Priority priority,
             @Param("dueDateFrom") LocalDate dueDateFrom,
             @Param("dueDateTo") LocalDate dueDateTo,
             @Param("label") String label);

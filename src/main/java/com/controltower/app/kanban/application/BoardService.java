@@ -137,8 +137,10 @@ public class BoardService {
             LocalDate dueDateFrom,
             LocalDate dueDateTo,
             String label) {
-        List<Card> cards = cardRepository.findAllForSupervisor(
-                tenantId, boardId, assigneeId, columnKind, priority, dueDateFrom, dueDateTo, label);
+        List<Card> cards = new ArrayList<>(cardRepository.findAllForSupervisorBase(
+                tenantId, boardId, assigneeId, dueDateFrom, dueDateTo, label));
+        if (columnKind != null) cards.removeIf(c -> columnKind != c.getBoardColumn().getColumnKind());
+        if (priority != null)   cards.removeIf(c -> priority != c.getPriority());
         List<WorkItemResponse> out = new ArrayList<>(cards.size());
         for (Card c : cards) {
             BoardColumn col = c.getBoardColumn();
