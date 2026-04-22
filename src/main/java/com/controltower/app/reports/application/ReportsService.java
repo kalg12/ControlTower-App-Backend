@@ -7,7 +7,6 @@ import com.controltower.app.support.domain.TicketRepository;
 import com.controltower.app.support.domain.TicketSlaRepository;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,8 +44,7 @@ public class ReportsService {
         UUID tenantId = TenantContext.getTenantId();
         Map<String, Long> byDay = new LinkedHashMap<>();
         ticketRepository
-            .findFiltered(tenantId, null, null, null, null, defaultFrom(from), defaultTo(to),
-                    PageRequest.of(0, 5000))
+            .findForReports(tenantId, defaultFrom(from), defaultTo(to))
             .forEach(ticket -> {
                 String day = DAY_FMT.format(ticket.getCreatedAt());
                 byDay.merge(day, 1L, Long::sum);
@@ -72,8 +70,7 @@ public class ReportsService {
         // [assigned, resolved]
         Map<UUID, long[]> stats = new LinkedHashMap<>();
         ticketRepository
-            .findFiltered(tenantId, null, null, null, null, defaultFrom(from), defaultTo(to),
-                    PageRequest.of(0, 5000))
+            .findForReports(tenantId, defaultFrom(from), defaultTo(to))
             .forEach(ticket -> {
                 if (ticket.getAssigneeId() == null) return;
                 long[] s = stats.computeIfAbsent(ticket.getAssigneeId(), k -> new long[]{0, 0});
@@ -107,8 +104,7 @@ public class ReportsService {
 
         Map<UUID, Long> counts = new LinkedHashMap<>();
         ticketRepository
-            .findFiltered(tenantId, null, null, null, null, defaultFrom(from), defaultTo(to),
-                    PageRequest.of(0, 5000))
+            .findForReports(tenantId, defaultFrom(from), defaultTo(to))
             .forEach(ticket -> {
                 if (ticket.getClientId() != null)
                     counts.merge(ticket.getClientId(), 1L, Long::sum);
@@ -141,8 +137,7 @@ public class ReportsService {
 
         Map<String, long[]> byDay = new LinkedHashMap<>();
         ticketRepository
-            .findFiltered(tenantId, null, null, null, null, defaultFrom(from), defaultTo(to),
-                    PageRequest.of(0, 5000))
+            .findForReports(tenantId, defaultFrom(from), defaultTo(to))
             .forEach(ticket -> {
                 String day = DAY_FMT.format(ticket.getCreatedAt());
                 long[] pair = byDay.computeIfAbsent(day, k -> new long[]{0, 0});

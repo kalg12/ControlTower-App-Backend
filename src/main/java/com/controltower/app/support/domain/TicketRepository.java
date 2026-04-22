@@ -66,6 +66,21 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
         Pageable pageable
     );
 
+    /** Simple date-range query used by reports — avoids null typed-parameter issues in Hibernate 6. */
+    @Query("""
+        SELECT t FROM Ticket t
+        WHERE t.tenantId = :tenantId
+          AND t.deletedAt IS NULL
+          AND t.createdAt >= :from
+          AND t.createdAt <= :to
+        ORDER BY t.createdAt DESC
+        """)
+    List<Ticket> findForReports(
+        @Param("tenantId") UUID tenantId,
+        @Param("from")     Instant from,
+        @Param("to")       Instant to
+    );
+
     Optional<Ticket> findBySourceRefIdAndTenantIdAndDeletedAtIsNull(String sourceRefId, UUID tenantId);
 
     long countByTenantIdAndSourceAndDeletedAtIsNull(UUID tenantId, Ticket.TicketSource source);
