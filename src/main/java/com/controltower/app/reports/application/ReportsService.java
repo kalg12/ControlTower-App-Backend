@@ -1,12 +1,15 @@
 package com.controltower.app.reports.application;
 
+import com.controltower.app.clients.domain.Client;
 import com.controltower.app.clients.domain.ClientRepository;
+import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.reports.api.dto.*;
 import com.controltower.app.support.domain.TicketRepository;
 import com.controltower.app.support.domain.TicketSlaRepository;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,8 +67,9 @@ public class ReportsService {
 
         Map<UUID, String> nameMap = userRepository
             .findByTenantIdAndDeletedAtIsNull(tenantId, PageRequest.of(0, 500))
+            .getContent()
             .stream()
-            .collect(Collectors.toMap(u -> u.getId(), u -> u.getFullName()));
+            .collect(Collectors.toMap(User::getId, User::getFullName));
 
         // [assigned, resolved]
         Map<UUID, long[]> stats = new LinkedHashMap<>();
@@ -115,6 +119,7 @@ public class ReportsService {
         if (!counts.isEmpty()) {
             clientRepository
                 .findByTenantIdAndDeletedAtIsNull(tenantId, PageRequest.of(0, 1000))
+                .getContent()
                 .forEach(c -> nameMap.put(c.getId(), c.getName()));
         }
 
