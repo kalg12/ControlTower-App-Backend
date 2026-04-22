@@ -20,6 +20,8 @@ public class CalendarEventResponse {
     private Instant endAt;
     private UUID clientId;
     private String clientName;
+    private UUID personId;
+    private String personName;
     private UUID branchId;
     private CalendarEvent.EventStatus status;
     private String notes;

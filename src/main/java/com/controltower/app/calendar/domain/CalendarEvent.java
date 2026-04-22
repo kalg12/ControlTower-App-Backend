@@ -40,6 +40,9 @@ public class CalendarEvent extends BaseEntity {
     @Column(name = "client_id")
     private UUID clientId;
 
+    @Column(name = "person_id")
+    private UUID personId;
+
     @Column(name = "branch_id")
     private UUID branchId;
 

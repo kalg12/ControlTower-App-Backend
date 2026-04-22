@@ -37,10 +37,11 @@ public class CalendarController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             @RequestParam(required = false) UUID clientId,
+            @RequestParam(required = false) UUID personId,
             @RequestParam(required = false) UUID assigneeId) {
         Instant rangeFrom = from != null ? from : Instant.now().minusSeconds(86400L * 30);
         Instant rangeTo   = to   != null ? to   : Instant.now().plusSeconds(86400L * 365);
-        return ResponseEntity.ok(ApiResponse.ok(calendarService.listEvents(rangeFrom, rangeTo, clientId, assigneeId)));
+        return ResponseEntity.ok(ApiResponse.ok(calendarService.listEvents(rangeFrom, rangeTo, clientId, personId, assigneeId)));
     }
 
     @Operation(summary = "Create event", description = "Creates a new calendar event. Requires 'client:write'.")

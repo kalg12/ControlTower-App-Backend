@@ -31,6 +31,7 @@ public class CalendarEventRequest {
     private Instant endAt;
 
     private UUID clientId = null;
+    private UUID personId;
     private UUID branchId;
     private String notes;
     private String outcome;

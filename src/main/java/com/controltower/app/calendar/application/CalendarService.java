@@ -5,6 +5,7 @@ import com.controltower.app.calendar.api.dto.CalendarEventResponse;
 import com.controltower.app.calendar.domain.CalendarEvent;
 import com.controltower.app.calendar.domain.CalendarEventRepository;
 import com.controltower.app.clients.domain.ClientRepository;
+import com.controltower.app.persons.domain.PersonRepository;
 import com.controltower.app.identity.domain.Tenant;
 import com.controltower.app.identity.domain.TenantRepository;
 import com.controltower.app.identity.domain.UserRepository;
@@ -31,18 +32,21 @@ public class CalendarService {
     private final CalendarEventRepository eventRepository;
     private final TenantRepository        tenantRepository;
     private final ClientRepository        clientRepository;
-    private final UserRepository        userRepository;
-    private final NotificationService  notificationService;
+    private final PersonRepository        personRepository;
+    private final UserRepository          userRepository;
+    private final NotificationService     notificationService;
 
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     @Transactional(readOnly = true)
-    public List<CalendarEventResponse> listEvents(Instant from, Instant to, UUID clientId, UUID assigneeId) {
+    public List<CalendarEventResponse> listEvents(Instant from, Instant to, UUID clientId, UUID personId, UUID assigneeId) {
         UUID tenantId = TenantContext.getTenantId();
         List<CalendarEvent> events;
 
         if (clientId != null) {
             events = eventRepository.findByTenantAndClientAfter(tenantId, clientId, from);
+        } else if (personId != null) {
+            events = eventRepository.findByTenantAndPersonAfter(tenantId, personId, from);
         } else {
             events = eventRepository.findByTenantAndRange(tenantId, from, to);
         }
@@ -130,6 +134,7 @@ public class CalendarService {
         event.setStartAt(req.getStartAt());
         event.setEndAt(req.getEndAt());
         event.setClientId(req.getClientId());
+        event.setPersonId(req.getPersonId());
         event.setBranchId(req.getBranchId());
         event.setNotes(req.getNotes());
         event.setOutcome(req.getOutcome());
@@ -144,6 +149,11 @@ public class CalendarService {
             clientName = clientRepository.findById(e.getClientId())
                     .map(c -> c.getName()).orElse(null);
         }
+        String personName = null;
+        if (e.getPersonId() != null) {
+            personName = personRepository.findById(e.getPersonId())
+                    .map(p -> p.getFullName()).orElse(null);
+        }
         return CalendarEventResponse.builder()
                 .id(e.getId())
                 .tenantId(e.getTenant().getId())
@@ -154,6 +164,8 @@ public class CalendarService {
                 .endAt(e.getEndAt())
                 .clientId(e.getClientId())
                 .clientName(clientName)
+                .personId(e.getPersonId())
+                .personName(personName)
                 .branchId(e.getBranchId())
                 .status(e.getStatus())
                 .notes(e.getNotes())
