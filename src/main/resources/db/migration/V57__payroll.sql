@@ -77,15 +77,17 @@ CREATE INDEX idx_payroll_items_employee ON payroll_items (employee_id);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 
-INSERT INTO permissions (id, name, description) VALUES
-    (gen_random_uuid(), 'payroll:read',  'View payroll data'),
-    (gen_random_uuid(), 'payroll:write', 'Create and edit payroll data'),
-    (gen_random_uuid(), 'payroll:close', 'Close payroll periods and send receipts')
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO permissions (id, code, description, module) VALUES
+    (gen_random_uuid(), 'payroll:read',  'View payroll data',                         'payroll'),
+    (gen_random_uuid(), 'payroll:write', 'Create and edit payroll data',              'payroll'),
+    (gen_random_uuid(), 'payroll:close', 'Close payroll periods and send receipts',   'payroll')
+ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
-FROM roles r, permissions p
-WHERE r.name = 'ADMIN'
-  AND p.name IN ('payroll:read','payroll:write','payroll:close')
+FROM   roles r
+CROSS  JOIN permissions p
+WHERE  r.code = 'ADMIN'
+  AND  r.deleted_at IS NULL
+  AND  p.code IN ('payroll:read', 'payroll:write', 'payroll:close')
 ON CONFLICT DO NOTHING;
