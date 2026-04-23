@@ -17,8 +17,8 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
 
 @Query("""
         SELECT c FROM Card c
-        JOIN c.boardColumn col
-        JOIN col.board b
+        LEFT JOIN FETCH c.boardColumn col
+        LEFT JOIN FETCH col.board b
         WHERE c.deletedAt IS NULL
           AND b.deletedAt IS NULL
           AND b.tenantId = :tenantId
@@ -35,8 +35,8 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
 
     @Query("""
         SELECT c FROM Card c
-        JOIN c.boardColumn col
-        JOIN col.board b
+        LEFT JOIN FETCH c.boardColumn col
+        LEFT JOIN FETCH col.board b
         WHERE c.deletedAt IS NULL
           AND b.deletedAt IS NULL
           AND (:tenantId IS NULL OR b.tenantId = :tenantId)
