@@ -135,17 +135,44 @@ public class FinanceController {
 
     // ── EXPENSES ─────────────────────────────────────────────────────────────
 
-    @Operation(summary = "List expenses")
+    @Operation(summary = "List expenses with advanced filters")
     @GetMapping("/expenses")
     @PreAuthorize("hasAuthority('finance:read')")
     public ResponseEntity<ApiResponse<PageResponse<ExpenseResponse>>> listExpenses(
             @RequestParam(required = false) ExpenseCategory category,
             @RequestParam(required = false) UUID clientId,
+            @RequestParam(required = false) String vendor,
+            @RequestParam(required = false) java.math.BigDecimal amountMin,
+            @RequestParam(required = false) java.math.BigDecimal amountMax,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("paidAt").descending());
+        if (vendor != null || amountMin != null || amountMax != null || from != null || to != null) {
+            return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(
+                    financeService.listExpensesAdvanced(category, clientId, vendor, amountMin, amountMax, from, to, pageable))));
+        }
         return ResponseEntity.ok(ApiResponse.ok(
                 PageResponse.from(financeService.listExpenses(category, clientId, pageable))));
+    }
+
+    @Operation(summary = "Get expense summary by category and month")
+    @GetMapping("/expenses/summary")
+    @PreAuthorize("hasAuthority('finance:read')")
+    public ResponseEntity<ApiResponse<com.controltower.app.finance.api.dto.ExpenseSummaryResponse>> getExpenseSummary(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return ResponseEntity.ok(ApiResponse.ok(financeService.getExpenseSummary(from, to)));
+    }
+
+    @Operation(summary = "Send finance expense report via email")
+    @PostMapping("/reports/email")
+    @PreAuthorize("hasAuthority('finance:write')")
+    public ResponseEntity<ApiResponse<String>> sendFinanceReport(
+            @jakarta.validation.Valid @RequestBody com.controltower.app.finance.api.dto.FinanceReportEmailRequest request) {
+        financeService.sendFinanceReportEmail(request.toEmail(), request.from(), request.to());
+        return ResponseEntity.ok(ApiResponse.ok("Report sent successfully"));
     }
 
     @Operation(summary = "Create expense")

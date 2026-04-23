@@ -1,16 +1,21 @@
 package com.controltower.app.finance.application;
 
+import com.controltower.app.audit.application.AuditService;
+import com.controltower.app.audit.domain.AuditAction;
 import com.controltower.app.clients.domain.Client;
 import com.controltower.app.clients.domain.ClientRepository;
 import com.controltower.app.finance.api.dto.*;
 import com.controltower.app.finance.domain.*;
 import com.controltower.app.finance.domain.Invoice.InvoiceStatus;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +26,8 @@ import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 
 @Slf4j
 @Service
@@ -31,6 +38,8 @@ public class FinanceService {
     private final PaymentRepository paymentRepository;
     private final ExpenseRepository expenseRepository;
     private final ClientRepository clientRepository;
+    private final AuditService auditService;
+    private final EmailService emailService;
 
     // ── INVOICES ─────────────────────────────────────────────────────────────
 
@@ -258,6 +267,87 @@ public class FinanceService {
         return page.map(e -> toExpenseResponse(e, clients));
     }
 
+    @Transactional(readOnly = true)
+    public Page<ExpenseResponse> listExpensesAdvanced(
+            Expense.ExpenseCategory category, UUID clientId, String vendor,
+            BigDecimal amountMin, BigDecimal amountMax,
+            Instant from, Instant to, Pageable pageable) {
+        UUID tenantId = TenantContext.getTenantId();
+        Page<Expense> page = expenseRepository.findFilteredAdvanced(
+                tenantId, category, clientId, vendor, amountMin, amountMax, from, to, pageable);
+        Map<UUID, Client> clients = loadClients(page.stream()
+                .map(Expense::getClientId).filter(Objects::nonNull).collect(Collectors.toList()));
+        return page.map(e -> toExpenseResponse(e, clients));
+    }
+
+    @Transactional(readOnly = true)
+    public ExpenseSummaryResponse getExpenseSummary(Instant from, Instant to) {
+        if (to.toEpochMilli() - from.toEpochMilli() > 366L * 24 * 60 * 60 * 1000) {
+            throw new IllegalArgumentException("Date range must not exceed 366 days");
+        }
+        UUID tenantId = TenantContext.getTenantId();
+        List<Expense> expenses = expenseRepository.findByTenantIdAndPaidAtBetween(tenantId, from, to);
+
+        BigDecimal grandTotal = expenses.stream()
+                .map(Expense::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<String, List<Expense>> byCategory = expenses.stream()
+                .collect(Collectors.groupingBy(e -> e.getCategory().name()));
+
+        List<ExpenseSummaryResponse.CategoryBreakdown> categoryBreakdowns = byCategory.entrySet().stream()
+                .map(entry -> {
+                    BigDecimal catTotal = entry.getValue().stream()
+                            .map(Expense::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+                    double pct = grandTotal.compareTo(BigDecimal.ZERO) == 0 ? 0.0
+                            : catTotal.multiply(new BigDecimal("100"))
+                              .divide(grandTotal, 2, java.math.RoundingMode.HALF_UP).doubleValue();
+                    return new ExpenseSummaryResponse.CategoryBreakdown(
+                            entry.getKey(), catTotal, entry.getValue().size(), pct);
+                })
+                .sorted(Comparator.comparing(ExpenseSummaryResponse.CategoryBreakdown::total).reversed())
+                .collect(Collectors.toList());
+
+        Map<YearMonth, Map<String, BigDecimal>> monthCatMap = new TreeMap<>();
+        Map<YearMonth, BigDecimal> monthTotalMap = new TreeMap<>();
+        for (Expense e : expenses) {
+            YearMonth ym = YearMonth.from(e.getPaidAt().atZone(ZoneOffset.UTC));
+            String cat = e.getCategory().name();
+            monthCatMap.computeIfAbsent(ym, k -> new LinkedHashMap<>())
+                    .merge(cat, e.getAmount(), BigDecimal::add);
+            monthTotalMap.merge(ym, e.getAmount(), BigDecimal::add);
+        }
+
+        List<ExpenseSummaryResponse.MonthlyBreakdown> byMonth = monthTotalMap.entrySet().stream()
+                .map(entry -> new ExpenseSummaryResponse.MonthlyBreakdown(
+                        entry.getKey().toString(),
+                        entry.getValue(),
+                        monthCatMap.getOrDefault(entry.getKey(), Map.of())))
+                .collect(Collectors.toList());
+
+        return new ExpenseSummaryResponse(from, to, grandTotal, categoryBreakdowns, byMonth);
+    }
+
+    @Transactional
+    public void sendFinanceReportEmail(String toEmail, Instant from, Instant to) {
+        UUID tenantId = TenantContext.getTenantId();
+        UUID userId   = currentUserId();
+
+        ExpenseSummaryResponse summary = getExpenseSummary(from, to);
+
+        String grandTotal = String.format("$%,.2f MXN", summary.grandTotal());
+        List<String> lines = summary.byCategory().stream()
+                .map(cb -> String.format("%s: $%,.2f (%.1f%%)", cb.category(), cb.total(), cb.percentage()))
+                .collect(Collectors.toList());
+
+        String fromLabel = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                .withZone(ZoneOffset.UTC).format(from);
+        String toLabel = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                .withZone(ZoneOffset.UTC).format(to);
+
+        emailService.sendFinanceReport(toEmail, fromLabel, toLabel, grandTotal, lines);
+        auditService.log(AuditAction.FINANCE_REPORT_SENT, tenantId, userId, "FinanceReport", toEmail);
+    }
+
     // ── CLIENT SUMMARY ───────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
@@ -357,6 +447,16 @@ public class FinanceService {
         if (ids == null || ids.isEmpty()) return Map.of();
         return clientRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(Client::getId, c -> c));
+    }
+
+    private UUID currentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) return null;
+        try {
+            return UUID.fromString(auth.getName());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private InvoiceResponse toInvoiceResponse(Invoice i, Map<UUID, Client> clients) {

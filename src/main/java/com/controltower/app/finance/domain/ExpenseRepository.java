@@ -32,6 +32,30 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
             Pageable pageable);
 
     @Query("""
+        SELECT e FROM Expense e
+        WHERE e.tenantId = :tenantId
+          AND e.deletedAt IS NULL
+          AND (:category IS NULL OR e.category = :category)
+          AND (:clientId IS NULL OR e.clientId = :clientId)
+          AND (:vendor IS NULL OR LOWER(e.vendor) LIKE LOWER(CONCAT('%', :vendor, '%')))
+          AND (:amountMin IS NULL OR e.amount >= :amountMin)
+          AND (:amountMax IS NULL OR e.amount <= :amountMax)
+          AND (:from IS NULL OR e.paidAt >= :from)
+          AND (:to IS NULL OR e.paidAt <= :to)
+        ORDER BY e.paidAt DESC
+        """)
+    Page<Expense> findFilteredAdvanced(
+            @Param("tenantId") UUID tenantId,
+            @Param("category") Expense.ExpenseCategory category,
+            @Param("clientId") UUID clientId,
+            @Param("vendor") String vendor,
+            @Param("amountMin") java.math.BigDecimal amountMin,
+            @Param("amountMax") java.math.BigDecimal amountMax,
+            @Param("from") Instant from,
+            @Param("to") Instant to,
+            Pageable pageable);
+
+    @Query("""
         SELECT COALESCE(SUM(e.amount), 0) FROM Expense e
         WHERE e.clientId = :clientId AND e.deletedAt IS NULL
         """)
