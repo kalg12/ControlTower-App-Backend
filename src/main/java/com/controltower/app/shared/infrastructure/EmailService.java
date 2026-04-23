@@ -8,6 +8,8 @@ import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * Thin wrapper around JavaMailSender.
  * If mail is not configured, logs a warning and silently skips sending.
@@ -57,6 +59,64 @@ public class EmailService {
             log.info("Welcome email sent to {}", toEmail);
         } catch (MailException ex) {
             log.warn("Failed to send welcome email to {}: {}", toEmail, ex.getMessage());
+        }
+    }
+
+    public void sendProposal(String toEmail, String clientName, String proposalNumber,
+                              String proposalTitle, String total, String validUntil,
+                              String proposalUrl) {
+        if (mailSender == null) {
+            log.warn("Mail sender not configured. Proposal {} for {}", proposalNumber, toEmail);
+            return;
+        }
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(from);
+            message.setTo(toEmail);
+            message.setSubject("Propuesta Económica " + proposalNumber + " — " + proposalTitle);
+            message.setText(
+                    "Estimado/a " + clientName + ",\n\n"
+                    + "Le enviamos la propuesta económica " + proposalNumber + ":\n\n"
+                    + "Título: " + proposalTitle + "\n"
+                    + "Total: " + total + "\n"
+                    + "Válida hasta: " + validUntil + "\n\n"
+                    + (proposalUrl != null && !proposalUrl.isBlank()
+                            ? "Ver propuesta: " + proposalUrl + "\n\n" : "")
+                    + "Para aceptar o rechazar esta propuesta, por favor contáctenos.\n\n"
+                    + "Atentamente,\nControl Tower");
+            mailSender.send(message);
+            log.info("Proposal email {} sent to {}", proposalNumber, toEmail);
+        } catch (MailException ex) {
+            log.warn("Failed to send proposal email {} to {}: {}", proposalNumber, toEmail, ex.getMessage());
+        }
+    }
+
+    public void sendFinanceReport(String toEmail, String from, String to,
+                                   String grandTotal, List<String> summaryLines) {
+        if (mailSender == null) {
+            log.warn("Mail sender not configured. Finance report to {}", toEmail);
+            return;
+        }
+        try {
+            StringBuilder body = new StringBuilder();
+            body.append("Reporte de Gastos\n");
+            body.append("Período: ").append(from).append(" — ").append(to).append("\n");
+            body.append("Total: ").append(grandTotal).append("\n\n");
+            body.append("Desglose por categoría:\n");
+            if (summaryLines != null) {
+                summaryLines.forEach(line -> body.append("  ").append(line).append("\n"));
+            }
+            body.append("\nGenerado automáticamente por Control Tower.");
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(this.from);
+            message.setTo(toEmail);
+            message.setSubject("Reporte de Gastos — " + from + " al " + to);
+            message.setText(body.toString());
+            mailSender.send(message);
+            log.info("Finance report email sent to {}", toEmail);
+        } catch (MailException ex) {
+            log.warn("Failed to send finance report to {}: {}", toEmail, ex.getMessage());
         }
     }
 }
