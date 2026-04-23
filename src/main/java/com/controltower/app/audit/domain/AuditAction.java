@@ -124,6 +124,15 @@ public enum AuditAction {
     // Finance reports
     FINANCE_REPORT_SENT,
 
+    // Payroll / Nómina
+    EMPLOYEE_CREATED,
+    EMPLOYEE_UPDATED,
+    EMPLOYEE_TERMINATED,
+    PAYROLL_PERIOD_CREATED,
+    PAYROLL_PERIOD_PROCESSED,
+    PAYROLL_PERIOD_PAID,
+    PAYROLL_RECEIPT_SENT,
+
     // Generic
     CREATE,
     UPDATE,
