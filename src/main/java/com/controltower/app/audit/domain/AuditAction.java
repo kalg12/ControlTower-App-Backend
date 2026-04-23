@@ -112,6 +112,18 @@ public enum AuditAction {
     OPPORTUNITY_CREATED,
     OPPORTUNITY_UPDATED,
 
+    // Proposals
+    PROPOSAL_CREATED,
+    PROPOSAL_UPDATED,
+    PROPOSAL_SENT,
+    PROPOSAL_ACCEPTED,
+    PROPOSAL_REJECTED,
+    PROPOSAL_EXPIRED,
+    PROPOSAL_DELETED,
+
+    // Finance reports
+    FINANCE_REPORT_SENT,
+
     // Generic
     CREATE,
     UPDATE,
