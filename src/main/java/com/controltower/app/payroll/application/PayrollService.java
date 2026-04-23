@@ -29,6 +29,7 @@ public class PayrollService {
     private final PayrollPeriodRepository periodRepository;
     private final PayrollItemRepository itemRepository;
     private final AuditService auditService;
+    private final com.controltower.app.shared.infrastructure.EmailService emailService;
 
     // ──────────────────────────────────────────────────────────────
     // ISR 2024 SAT monthly bracket table (11 tramos)
@@ -197,6 +198,33 @@ public class PayrollService {
         period.setItems(allItems);
         period.recalculateTotals();
         periodRepository.save(period);
+        return PayrollItemResponse.from(item);
+    }
+
+    @Transactional
+    public PayrollItemResponse sendReceipt(UUID periodId, UUID itemId) {
+        UUID tenantId = TenantContext.getTenantId();
+        PayrollPeriod period = findPeriod(periodId, tenantId);
+        PayrollItem item = itemRepository.findByIdAndTenantId(itemId, tenantId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        Employee emp = item.getEmployee();
+        if (emp.getEmail() == null || emp.getEmail().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Employee has no email configured");
+        }
+        String periodLabel = period.getPeriodType().name() + " " + period.getPeriodNumber() + "/" + period.getYear();
+        emailService.sendReciboNomina(
+                emp.getEmail(), emp.getFullName(), periodLabel,
+                item.getGrossPay().toPlainString(),
+                item.getImssEmployee().toPlainString(),
+                item.getIsr().toPlainString(),
+                item.getInfonavit().toPlainString(),
+                item.getOtherDeductions().toPlainString(),
+                item.getNetPay().toPlainString(),
+                "MXN");
+        item.setReceiptSent(true);
+        item.setReceiptSentAt(java.time.Instant.now());
+        itemRepository.save(item);
+        auditService.log(AuditAction.PAYROLL_RECEIPT_SENT, tenantId, currentUserId(), "PayrollItem", itemId.toString());
         return PayrollItemResponse.from(item);
     }
 

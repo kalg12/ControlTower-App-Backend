@@ -119,4 +119,38 @@ public class EmailService {
             log.warn("Failed to send finance report to {}: {}", toEmail, ex.getMessage());
         }
     }
+
+    public void sendReciboNomina(String toEmail, String employeeName, String periodLabel,
+                                  String grossPay, String imssEmployee, String isr,
+                                  String infonavit, String otherDeductions, String netPay,
+                                  String currency) {
+        if (mailSender == null) {
+            log.warn("Mail sender not configured. Payroll receipt to {}", toEmail);
+            return;
+        }
+        try {
+            String body = "Recibo de Nómina\n" +
+                "Empleado: " + employeeName + "\n" +
+                "Período: " + periodLabel + "\n\n" +
+                "Percepciones:\n" +
+                "  Sueldo bruto: " + grossPay + " " + currency + "\n\n" +
+                "Deducciones:\n" +
+                "  IMSS (empleado): " + imssEmployee + " " + currency + "\n" +
+                "  ISR: " + isr + " " + currency + "\n" +
+                "  INFONAVIT: " + infonavit + " " + currency + "\n" +
+                "  Otras deducciones: " + otherDeductions + " " + currency + "\n\n" +
+                "Neto a pagar: " + netPay + " " + currency + "\n\n" +
+                "Generado automáticamente por Control Tower.";
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(this.from);
+            message.setTo(toEmail);
+            message.setSubject("Recibo de Nómina — " + periodLabel);
+            message.setText(body);
+            mailSender.send(message);
+            log.info("Payroll receipt sent to {}", toEmail);
+        } catch (MailException ex) {
+            log.warn("Failed to send payroll receipt to {}: {}", toEmail, ex.getMessage());
+        }
+    }
 }
