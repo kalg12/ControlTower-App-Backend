@@ -38,14 +38,14 @@ public class PayrollController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         var result = payrollService.listEmployees(status, PageRequest.of(page, size, Sort.by("fullName")));
-        return ResponseEntity.ok(PageResponse.of(result));
+        return ResponseEntity.ok(PageResponse.from(result));
     }
 
     @Operation(summary = "Create employee")
     @PostMapping("/employees")
     @PreAuthorize("hasAuthority('payroll:write')")
     public ResponseEntity<ApiResponse<EmployeeResponse>> createEmployee(@Valid @RequestBody EmployeeRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(payrollService.createEmployee(req)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(payrollService.createEmployee(req)));
     }
 
     @Operation(summary = "Update employee")
@@ -53,7 +53,7 @@ public class PayrollController {
     @PreAuthorize("hasAuthority('payroll:write')")
     public ResponseEntity<ApiResponse<EmployeeResponse>> updateEmployee(
             @PathVariable UUID id, @Valid @RequestBody EmployeeRequest req) {
-        return ResponseEntity.ok(ApiResponse.success(payrollService.updateEmployee(id, req)));
+        return ResponseEntity.ok(ApiResponse.ok(payrollService.updateEmployee(id, req)));
     }
 
     @Operation(summary = "Terminate (soft-delete) employee")
@@ -61,7 +61,7 @@ public class PayrollController {
     @PreAuthorize("hasAuthority('payroll:write')")
     public ResponseEntity<ApiResponse<Void>> terminateEmployee(@PathVariable UUID id) {
         payrollService.terminateEmployee(id);
-        return ResponseEntity.ok(ApiResponse.success(null));
+        return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
     // ── Periods ────────────────────────────────────────────────────
@@ -72,35 +72,35 @@ public class PayrollController {
     public ResponseEntity<PageResponse<PayrollPeriodResponse>> listPeriods(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "24") int size) {
-        return ResponseEntity.ok(PageResponse.of(payrollService.listPeriods(PageRequest.of(page, size))));
+        return ResponseEntity.ok(PageResponse.from(payrollService.listPeriods(PageRequest.of(page, size))));
     }
 
     @Operation(summary = "Get payroll period with items")
     @GetMapping("/periods/{id}")
     @PreAuthorize("hasAuthority('payroll:read')")
     public ResponseEntity<ApiResponse<PayrollPeriodResponse>> getPeriod(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success(payrollService.getPeriod(id)));
+        return ResponseEntity.ok(ApiResponse.ok(payrollService.getPeriod(id)));
     }
 
     @Operation(summary = "Create payroll period")
     @PostMapping("/periods")
     @PreAuthorize("hasAuthority('payroll:write')")
     public ResponseEntity<ApiResponse<PayrollPeriodResponse>> createPeriod(@Valid @RequestBody PayrollPeriodRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(payrollService.createPeriod(req)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(payrollService.createPeriod(req)));
     }
 
     @Operation(summary = "Process payroll period (recalculate all items)")
     @PostMapping("/periods/{id}/process")
     @PreAuthorize("hasAuthority('payroll:write')")
     public ResponseEntity<ApiResponse<PayrollPeriodResponse>> processPeriod(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success(payrollService.processPeriod(id)));
+        return ResponseEntity.ok(ApiResponse.ok(payrollService.processPeriod(id)));
     }
 
     @Operation(summary = "Close payroll period (mark as PAID)")
     @PostMapping("/periods/{id}/close")
     @PreAuthorize("hasAuthority('payroll:close')")
     public ResponseEntity<ApiResponse<PayrollPeriodResponse>> closePeriod(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success(payrollService.closePeriod(id)));
+        return ResponseEntity.ok(ApiResponse.ok(payrollService.closePeriod(id)));
     }
 
     @Operation(summary = "Update payroll item (override days/overtime/other)")
@@ -110,7 +110,7 @@ public class PayrollController {
             @PathVariable UUID periodId,
             @PathVariable UUID itemId,
             @Valid @RequestBody PayrollItemUpdateRequest req) {
-        return ResponseEntity.ok(ApiResponse.success(payrollService.updateItem(periodId, itemId, req)));
+        return ResponseEntity.ok(ApiResponse.ok(payrollService.updateItem(periodId, itemId, req)));
     }
 
     @Operation(summary = "Send payroll receipt to employee")
@@ -119,6 +119,6 @@ public class PayrollController {
     public ResponseEntity<ApiResponse<PayrollItemResponse>> sendReceipt(
             @PathVariable UUID periodId,
             @PathVariable UUID itemId) {
-        return ResponseEntity.ok(ApiResponse.success(payrollService.sendReceipt(periodId, itemId)));
+        return ResponseEntity.ok(ApiResponse.ok(payrollService.sendReceipt(periodId, itemId)));
     }
 }
