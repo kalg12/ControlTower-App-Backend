@@ -29,7 +29,6 @@ public interface ProposalRepository extends JpaRepository<Proposal, UUID> {
           AND (:clientId IS NULL OR p.clientId = :clientId)
           AND (:from IS NULL OR p.createdAt >= :from)
           AND (:to IS NULL OR p.createdAt <= :to)
-        ORDER BY p.createdAt DESC
         """)
     Page<Proposal> findFiltered(
             @Param("tenantId") UUID tenantId,
@@ -45,7 +44,6 @@ public interface ProposalRepository extends JpaRepository<Proposal, UUID> {
           AND p.clientId = :clientId
           AND p.deletedAt IS NULL
           AND (:status IS NULL OR p.status = :status)
-        ORDER BY p.createdAt DESC
         """)
     Page<Proposal> findByClientId(
             @Param("tenantId") UUID tenantId,
@@ -65,16 +63,18 @@ public interface ProposalRepository extends JpaRepository<Proposal, UUID> {
         SELECT p FROM Proposal p
         WHERE p.deletedAt IS NULL
           AND p.validityDate < :today
-          AND p.status IN ('SENT', 'VIEWED')
+          AND p.status IN (com.controltower.app.proposals.domain.ProposalStatus.SENT,
+                           com.controltower.app.proposals.domain.ProposalStatus.VIEWED)
         """)
     List<Proposal> findExpiredCandidates(@Param("today") LocalDate today);
 
     @Modifying
     @Query("""
-        UPDATE Proposal p SET p.status = 'EXPIRED'
+        UPDATE Proposal p SET p.status = com.controltower.app.proposals.domain.ProposalStatus.EXPIRED
         WHERE p.deletedAt IS NULL
           AND p.validityDate < :today
-          AND p.status IN ('SENT', 'VIEWED')
+          AND p.status IN (com.controltower.app.proposals.domain.ProposalStatus.SENT,
+                           com.controltower.app.proposals.domain.ProposalStatus.VIEWED)
         """)
     int bulkExpire(@Param("today") LocalDate today);
 }
