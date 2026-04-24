@@ -1,5 +1,6 @@
 package com.controltower.app.integrations.api;
 
+import com.controltower.app.integrations.api.dto.IntegrationCreateResponse;
 import com.controltower.app.integrations.api.dto.IntegrationEndpointRequest;
 import com.controltower.app.integrations.api.dto.IntegrationEndpointResponse;
 import com.controltower.app.integrations.api.dto.IntegrationEventDto;
@@ -51,13 +52,14 @@ public class IntegrationController {
                 ApiResponse.ok(PageResponse.from(integrationService.listEndpoints(pageable, type))));
     }
 
-    @Operation(summary = "Register integration endpoint", description = "Registers a new external integration endpoint and generates an API key. Requires the 'integration:write' permission.")
+    @Operation(summary = "Register integration endpoint", description = "Registers a new external integration endpoint and auto-generates an API key (returned once). Requires the 'integration:write' permission.")
     @PostMapping
     @PreAuthorize("hasAuthority('integration:write')")
-    public ResponseEntity<ApiResponse<IntegrationEndpointResponse>> register(
+    public ResponseEntity<ApiResponse<IntegrationCreateResponse>> register(
             @Valid @RequestBody IntegrationEndpointRequest request) {
+        var result = integrationService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(integrationService.register(request)));
+                .body(ApiResponse.ok(new IntegrationCreateResponse(result.endpoint(), result.plainApiKey())));
     }
 
     @Operation(summary = "Update integration endpoint", description = "Updates the configuration of an existing integration endpoint. Requires the 'integration:write' permission.")

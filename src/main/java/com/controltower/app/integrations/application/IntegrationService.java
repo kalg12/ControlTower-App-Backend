@@ -57,19 +57,22 @@ public class IntegrationService {
         return enrichPage(page, pageable);
     }
 
+    public record IntegrationCreateResult(IntegrationEndpointResponse endpoint, String plainApiKey) {}
+
     @Transactional
-    public IntegrationEndpointResponse register(IntegrationEndpointRequest request) {
+    public IntegrationCreateResult register(IntegrationEndpointRequest request) {
+        String plainKey = UUID.randomUUID().toString().replace("-", "");
         IntegrationEndpoint endpoint = new IntegrationEndpoint();
         endpoint.setTenantId(TenantContext.getTenantId());
         endpoint.setClientBranchId(request.getClientBranchId());
         endpoint.setName(request.getName());
         endpoint.setType(request.getType());
         endpoint.setPullUrl(request.getPullUrl());
-        endpoint.setApiKey(aesEncryptor.encrypt(request.getApiKey()));
+        endpoint.setApiKey(aesEncryptor.encrypt(plainKey));
         endpoint.setHeartbeatIntervalSeconds(request.getHeartbeatIntervalSeconds());
         endpoint.setContractVersion(request.getContractVersion());
         endpoint.setMetadata(request.getMetadata());
-        return toResponse(endpointRepository.save(endpoint));
+        return new IntegrationCreateResult(toResponse(endpointRepository.save(endpoint)), plainKey);
     }
 
     @Transactional
