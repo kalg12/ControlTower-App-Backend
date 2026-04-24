@@ -60,6 +60,7 @@ public class SecurityConfig {
         "/api/v1/survey/**",                                    // CSAT survey (token-based, no auth)
         "/actuator/health",
         "/actuator/info",
+        "/api/v1/public/chat/**",                               // POS chat widget (visitor token auth)
         // Swagger UI
         "/v3/api-docs/**",
         "/swagger-ui/**",
