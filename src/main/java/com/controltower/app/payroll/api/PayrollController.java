@@ -12,11 +12,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Tag(name = "Payroll", description = "Mexican payroll management (IMSS, ISR, INFONAVIT)")
@@ -120,5 +124,84 @@ public class PayrollController {
             @PathVariable UUID periodId,
             @PathVariable UUID itemId) {
         return ResponseEntity.ok(ApiResponse.ok(payrollService.sendReceipt(periodId, itemId)));
+    }
+
+    @Operation(summary = "Download payroll period as CSV")
+    @GetMapping("/periods/{id}/export.csv")
+    @PreAuthorize("hasAuthority('payroll:read')")
+    public ResponseEntity<byte[]> exportCsv(@PathVariable UUID id) {
+        PayrollPeriodResponse period = payrollService.getPeriod(id);
+        StringBuilder sb = new StringBuilder();
+        sb.append("Empleado,RFC,Dias trabajados,Horas extra,Sueldo bruto,IMSS empleado,ISR,INFONAVIT,Otras deducciones,Total deducciones,Neto\n");
+        for (PayrollItemResponse item : period.getItems()) {
+            sb.append(csv(item.employeeName())).append(',')
+              .append(csv(item.employeeRfc())).append(',')
+              .append(item.daysWorked()).append(',')
+              .append(item.overtimeHours()).append(',')
+              .append(item.grossPay()).append(',')
+              .append(item.imssEmployee()).append(',')
+              .append(item.isr()).append(',')
+              .append(item.infonavit()).append(',')
+              .append(item.otherDeductions()).append(',')
+              .append(item.totalDeductions()).append(',')
+              .append(item.netPay()).append('\n');
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        String filename = "nomina-" + period.getYear() + "-P" + period.getPeriodNumber() + ".csv";
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(bytes);
+    }
+
+    @Operation(summary = "Download CFDI XML stub for payroll period (SAT)")
+    @GetMapping("/periods/{id}/cfdi.xml")
+    @PreAuthorize("hasAuthority('payroll:read')")
+    public ResponseEntity<byte[]> exportCfdi(@PathVariable UUID id) {
+        PayrollPeriodResponse period = payrollService.getPeriod(id);
+        StringBuilder xml = new StringBuilder();
+        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        xml.append("<!-- CFDI de Nómina — Stub generado por Control Tower. Requiere certificación SAT. -->\n");
+        xml.append("<cfdi:Comprobante xmlns:cfdi=\"http://www.sat.gob.mx/cfd/4\"\n");
+        xml.append("  xmlns:nomina12=\"http://www.sat.gob.mx/nomina12\"\n");
+        xml.append("  Version=\"4.0\" TipoDeComprobante=\"N\"\n");
+        xml.append("  Fecha=\"").append(LocalDate.now()).append("T00:00:00\"\n");
+        xml.append("  SubTotal=\"").append(period.getTotalGross()).append("\"\n");
+        xml.append("  Total=\"").append(period.getTotalNet()).append("\"\n");
+        xml.append("  Moneda=\"MXN\" LugarExpedicion=\"00000\">\n");
+        xml.append("  <cfdi:Complemento>\n");
+        xml.append("    <nomina12:Nomina Version=\"1.2\"\n");
+        xml.append("      TipoNomina=\"O\"\n");
+        xml.append("      FechaPago=\"").append(period.getEndDate()).append("\"\n");
+        xml.append("      FechaInicialPago=\"").append(period.getStartDate()).append("\"\n");
+        xml.append("      FechaFinalPago=\"").append(period.getEndDate()).append("\"\n");
+        xml.append("      NumDiasPagados=\"").append(period.getPeriodType() == com.controltower.app.payroll.domain.PayrollPeriod.PeriodType.SEMANAL ? 7 : 15).append("\"\n");
+        xml.append("      TotalPercepciones=\"").append(period.getTotalGross()).append("\"\n");
+        xml.append("      TotalDeducciones=\"").append(period.getTotalDeductions()).append("\"\n");
+        xml.append("      TotalOtrosPagos=\"0.00\">\n");
+        xml.append("      <nomina12:Receptor>\n");
+        xml.append("        <!-- Datos del receptor se generan por empleado en CFDI individual -->\n");
+        xml.append("      </nomina12:Receptor>\n");
+        for (PayrollItemResponse item : period.getItems()) {
+            xml.append("      <!-- Empleado: ").append(item.employeeName())
+               .append(" RFC: ").append(item.employeeRfc())
+               .append(" Neto: ").append(item.netPay()).append(" -->\n");
+        }
+        xml.append("    </nomina12:Nomina>\n");
+        xml.append("  </cfdi:Complemento>\n");
+        xml.append("</cfdi:Comprobante>\n");
+        byte[] bytes = xml.toString().getBytes(StandardCharsets.UTF_8);
+        String filename = "cfdi-nomina-" + period.getYear() + "-P" + period.getPeriodNumber() + ".xml";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_XML)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(bytes);
+    }
+
+    private static String csv(String value) {
+        if (value == null) return "";
+        return value.contains(",") || value.contains("\"") || value.contains("\n")
+                ? "\"" + value.replace("\"", "\"\"") + "\""
+                : value;
     }
 }
