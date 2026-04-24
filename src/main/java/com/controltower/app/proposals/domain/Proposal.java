@@ -77,6 +77,12 @@ public class Proposal extends BaseEntity {
     @Column(name = "sent_by_id")
     private UUID sentById;
 
+    @Column(name = "email_tracking_token", unique = true)
+    private UUID emailTrackingToken;
+
+    @Column(name = "email_viewed_at")
+    private Instant emailViewedAt;
+
     @OneToMany(mappedBy = "proposal", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("position ASC")
     private List<ProposalLineItem> lineItems = new ArrayList<>();

@@ -61,6 +61,7 @@ public class SecurityConfig {
         "/actuator/health",
         "/actuator/info",
         "/api/v1/public/chat/**",                               // POS chat widget (visitor token auth)
+        "/api/v1/public/tracking/**",                           // email open tracking pixel (no auth)
         // Swagger UI
         "/v3/api-docs/**",
         "/swagger-ui/**",

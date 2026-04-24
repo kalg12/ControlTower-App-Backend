@@ -36,6 +36,7 @@ public class ProposalResponse {
     private Instant acceptedAt;
     private Instant rejectedAt;
     private UUID sentById;
+    private Instant emailViewedAt;
     private List<ProposalLineItemResponse> lineItems;
     private Instant createdAt;
     private Instant updatedAt;

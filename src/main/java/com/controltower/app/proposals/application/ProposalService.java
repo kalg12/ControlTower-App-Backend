@@ -13,6 +13,7 @@ import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
@@ -36,6 +37,9 @@ public class ProposalService {
     private final ClientContactRepository clientContactRepository;
     private final AuditService auditService;
     private final EmailService emailService;
+
+    @Value("${app.base-url:http://localhost:8080}")
+    private String appBaseUrl;
 
     // ── CREATE / UPDATE / DELETE ─────────────────────────────────────────────
 
@@ -156,18 +160,22 @@ public class ProposalService {
 
         Client client = requireClient(proposal.getClientId());
 
+        UUID trackingToken = UUID.randomUUID();
         proposal.setStatus(ProposalStatus.SENT);
         proposal.setSentAt(Instant.now());
         proposal.setSentById(userId);
+        proposal.setEmailTrackingToken(trackingToken);
         Proposal saved = proposalRepository.save(proposal);
 
         String validUntil = proposal.getValidityDate() != null
                 ? proposal.getValidityDate().format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
                 : "N/A";
         String total = String.format("$%,.2f %s", proposal.getTotal(), proposal.getCurrency());
+        String pixelUrl = appBaseUrl + "/api/v1/public/tracking/" + trackingToken + "/pixel.gif";
+        String pixelHtml = "<img src=\"" + pixelUrl + "\" width=\"1\" height=\"1\" style=\"display:none\" alt=\"\" />";
 
         emailService.sendProposal(clientEmail, client.getName(),
-                proposal.getNumber(), proposal.getTitle(), total, validUntil, "");
+                proposal.getNumber(), proposal.getTitle(), total, validUntil, pixelHtml);
 
         auditService.log(AuditAction.PROPOSAL_SENT, tenantId, userId, "Proposal", id.toString());
         return toResponse(saved, client);
@@ -284,6 +292,16 @@ public class ProposalService {
         }
     }
 
+    @Transactional
+    public void markEmailViewed(UUID trackingToken) {
+        proposalRepository.findByEmailTrackingToken(trackingToken).ifPresent(p -> {
+            if (p.getEmailViewedAt() == null) {
+                p.setEmailViewedAt(Instant.now());
+                proposalRepository.save(p);
+            }
+        });
+    }
+
     ProposalResponse toResponse(Proposal p, Client client) {
         List<ProposalLineItemResponse> items = p.getLineItems().stream()
                 .map(li -> new ProposalLineItemResponse(
@@ -315,6 +333,7 @@ public class ProposalService {
                 .acceptedAt(p.getAcceptedAt())
                 .rejectedAt(p.getRejectedAt())
                 .sentById(p.getSentById())
+                .emailViewedAt(p.getEmailViewedAt())
                 .lineItems(items)
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())

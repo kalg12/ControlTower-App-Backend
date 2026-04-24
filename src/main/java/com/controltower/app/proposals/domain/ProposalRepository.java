@@ -19,6 +19,8 @@ public interface ProposalRepository extends JpaRepository<Proposal, UUID> {
 
     Optional<Proposal> findByIdAndDeletedAtIsNull(UUID id);
 
+    Optional<Proposal> findByEmailTrackingToken(UUID emailTrackingToken);
+
     Optional<Proposal> findByIdAndTenantIdAndDeletedAtIsNull(UUID id, UUID tenantId);
 
     @Query("""
