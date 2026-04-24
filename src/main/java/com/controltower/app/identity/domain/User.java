@@ -71,6 +71,9 @@ public class User extends BaseEntity {
     @Column(name = "google_calendar_email")
     private String googleCalendarEmail;
 
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
     /** Returns all permission codes from assigned roles. */
     public Set<String> getAllPermissions() {
         Set<String> perms = new HashSet<>();

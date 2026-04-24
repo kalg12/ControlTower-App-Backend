@@ -133,6 +133,14 @@ public enum AuditAction {
     PAYROLL_PERIOD_PAID,
     PAYROLL_RECEIPT_SENT,
 
+    // Chat
+    CHAT_CONVERSATION_STARTED,
+    CHAT_CLAIMED,
+    CHAT_TRANSFERRED,
+    CHAT_CLOSED,
+    CHAT_ARCHIVED,
+    CHAT_DELETED,
+
     // Generic
     CREATE,
     UPDATE,
