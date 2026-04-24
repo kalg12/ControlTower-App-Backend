@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 public class BoardRequest {
@@ -15,4 +17,5 @@ public class BoardRequest {
     private String description;
 
     private Board.Visibility visibility = Board.Visibility.TEAM;
+    private UUID clientId;
 }

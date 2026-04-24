@@ -26,6 +26,7 @@ public class CardResponse {
     private final UUID attendedBy;
     private final Instant attendedAt;
     private final boolean wasOverdue;
+    private final UUID clientId;
     private final Instant createdAt;
     private final Instant updatedAt;
 }

@@ -89,4 +89,15 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
               com.controltower.app.kanban.domain.BoardColumn.ColumnKind.HISTORY)
         """)
     List<Card> findActiveWithEstimates();
+
+    @Query("""
+        SELECT c FROM Card c
+        JOIN c.boardColumn col
+        JOIN col.board b
+        WHERE c.deletedAt IS NULL
+          AND b.deletedAt IS NULL
+          AND c.clientId = :clientId
+        ORDER BY c.createdAt DESC
+        """)
+    List<Card> findByClientId(@Param("clientId") UUID clientId);
 }

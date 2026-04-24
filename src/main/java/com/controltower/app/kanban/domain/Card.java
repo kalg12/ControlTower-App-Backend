@@ -73,6 +73,9 @@ public class Card {
     @Column(name = "was_overdue")
     private boolean wasOverdue;
 
+    @Column(name = "client_id")
+    private UUID clientId;
+
     @Column(name = "deleted_at")
     private Instant deletedAt;
 

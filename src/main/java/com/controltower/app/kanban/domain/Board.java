@@ -31,6 +31,9 @@ public class Board extends BaseEntity {
     @Column(name = "created_by")
     private UUID createdBy;
 
+    @Column(name = "client_id")
+    private UUID clientId;
+
     /** Not named "columns" — can clash with JPQL/SQL reserved words in fetch queries. */
     @OneToMany(mappedBy = "board", cascade = CascadeType.ALL, fetch = FetchType.LAZY,
                orphanRemoval = true)

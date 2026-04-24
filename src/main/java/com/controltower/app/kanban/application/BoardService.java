@@ -63,6 +63,7 @@ public class BoardService {
         board.setDescription(request.getDescription());
         board.setVisibility(request.getVisibility());
         board.setCreatedBy(userId);
+        board.setClientId(request.getClientId());
         board = boardRepository.save(board);
         seedDefaultColumns(board);
         UUID newBoardId = board.getId();
@@ -262,6 +263,7 @@ private List<String> getAssigneeNames(Card card) {
         card.setPriority(request.getPriority());
         card.setPosition(request.getPosition());
         card.setEstimatedMinutes(request.getEstimatedMinutes());
+        card.setClientId(request.getClientId());
         card = cardRepository.save(card);
 
         publisher.publishEvent(UserActionEvent.builder()
@@ -435,6 +437,7 @@ private List<String> getAssigneeNames(Card card) {
                 .description(b.getDescription())
                 .visibility(b.getVisibility().name())
                 .createdBy(b.getCreatedBy())
+                .clientId(b.getClientId())
                 .createdAt(b.getCreatedAt())
                 .updatedAt(b.getUpdatedAt())
                 .columns(null)
@@ -452,6 +455,7 @@ private List<String> getAssigneeNames(Card card) {
                 .description(b.getDescription())
                 .visibility(b.getVisibility().name())
                 .createdBy(b.getCreatedBy())
+                .clientId(b.getClientId())
                 .createdAt(b.getCreatedAt())
                 .updatedAt(b.getUpdatedAt())
                 .columns(cols)
@@ -494,6 +498,7 @@ private List<String> getAssigneeNames(Card card) {
                 .attendedBy(c.getAttendedBy())
                 .attendedAt(c.getAttendedAt())
                 .wasOverdue(c.isWasOverdue())
+                .clientId(c.getClientId())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .build();

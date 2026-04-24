@@ -1,6 +1,7 @@
 package com.controltower.app.proposals.api;
 
 import com.controltower.app.proposals.api.dto.*;
+import com.controltower.app.proposals.application.ProposalPdfService;
 import com.controltower.app.proposals.application.ProposalService;
 import com.controltower.app.proposals.domain.ProposalStatus;
 import com.controltower.app.shared.response.ApiResponse;
@@ -13,13 +14,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 
 @Tag(name = "Proposals", description = "Economic proposals lifecycle management")
@@ -30,6 +32,7 @@ import java.util.UUID;
 public class ProposalController {
 
     private final ProposalService proposalService;
+    private final ProposalPdfService proposalPdfService;
 
     @Operation(summary = "List proposals")
     @GetMapping
@@ -107,11 +110,16 @@ public class ProposalController {
         return ResponseEntity.ok(ApiResponse.ok(proposalService.markViewed(id)));
     }
 
-    @Operation(summary = "Download proposal PDF (coming soon)")
+    @Operation(summary = "Download proposal as PDF")
     @GetMapping("/{id}/pdf")
     @PreAuthorize("hasAuthority('proposal:read')")
-    public ResponseEntity<Map<String, String>> downloadPdf(@PathVariable UUID id) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
-                .body(Map.of("message", "PDF generation coming soon"));
+    public ResponseEntity<byte[]> downloadPdf(@PathVariable UUID id) {
+        ProposalResponse proposal = proposalService.getProposal(id);
+        byte[] pdf = proposalPdfService.generate(proposal);
+        String filename = "propuesta-" + proposal.number().replace("/", "-") + ".pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdf);
     }
 }

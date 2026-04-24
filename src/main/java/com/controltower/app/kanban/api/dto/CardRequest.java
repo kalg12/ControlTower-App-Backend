@@ -27,4 +27,5 @@ public class CardRequest {
     private Card.Priority priority = Card.Priority.MEDIUM;
     private int position = 0;
     private Integer estimatedMinutes;
+    private UUID clientId;
 }
