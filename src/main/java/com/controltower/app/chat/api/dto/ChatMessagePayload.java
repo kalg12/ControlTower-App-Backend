@@ -16,6 +16,7 @@ public record ChatMessagePayload(
         String senderName,
         String senderAvatarUrl,
         String content,
+        String attachmentUrl,
         boolean isRead,
         Instant createdAt,
         String conversationStatus  // for STATUS_CHANGED events

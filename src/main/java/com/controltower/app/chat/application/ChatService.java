@@ -227,6 +227,41 @@ public class ChatService {
         return response;
     }
 
+    @Transactional
+    public ChatMessageResponse sendMessageWithAttachment(UUID conversationId, UUID agentId,
+                                                          String attachmentUrl, String filename) {
+        ChatConversation conv = conversationRepository.findByIdAndDeletedAtIsNull(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found: " + conversationId));
+
+        ChatMessage msg = new ChatMessage();
+        msg.setConversation(conv);
+        msg.setSenderType(SenderType.AGENT);
+        msg.setSenderId(agentId);
+        msg.setContent(filename != null ? "📎 " + filename : "📎 Adjunto");
+        msg.setAttachmentUrl(attachmentUrl);
+        msg.setRead(true);
+        ChatMessage saved = messageRepository.save(msg);
+
+        User sender = userRepository.findByIdAndDeletedAtIsNull(agentId).orElse(null);
+        ChatMessageResponse response = toMessageResponse(saved, sender);
+
+        broadcast(conversationId, ChatMessagePayload.builder()
+                .type("MESSAGE")
+                .id(saved.getId())
+                .conversationId(conversationId)
+                .senderType(SenderType.AGENT)
+                .senderId(agentId)
+                .senderName(sender != null ? sender.getFullName() : null)
+                .senderAvatarUrl(sender != null ? sender.getAvatarUrl() : null)
+                .content(msg.getContent())
+                .attachmentUrl(attachmentUrl)
+                .isRead(true)
+                .createdAt(saved.getCreatedAt())
+                .build());
+
+        return response;
+    }
+
     // ── Read ─────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
@@ -400,6 +435,7 @@ public class ChatService {
                 name,
                 avatar,
                 m.getContent(),
+                m.getAttachmentUrl(),
                 m.isRead(),
                 m.getCreatedAt()
         );

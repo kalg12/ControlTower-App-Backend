@@ -3,6 +3,7 @@ package com.controltower.app.chat.api;
 import com.controltower.app.chat.api.dto.*;
 import com.controltower.app.chat.application.ChatService;
 import com.controltower.app.chat.domain.ConversationStatus;
+import com.controltower.app.shared.infrastructure.FileStorageService;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,14 +11,20 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.UUID;
 
 @Tag(name = "Chat", description = "Live chat inbox management for CT agents")
@@ -28,6 +35,7 @@ import java.util.UUID;
 public class ChatController {
 
     private final ChatService chatService;
+    private final FileStorageService fileStorageService;
 
     @Operation(summary = "List conversations")
     @GetMapping("/conversations")
@@ -117,5 +125,33 @@ public class ChatController {
                 .map(r -> new ChatQuickReplyResponse(r.getId(), r.getShortcut(), r.getContent()))
                 .toList();
         return ResponseEntity.ok(ApiResponse.ok(list));
+    }
+
+    @Operation(summary = "Upload attachment to conversation (agent)")
+    @PostMapping("/conversations/{id}/attachments")
+    @PreAuthorize("hasAuthority('chat:write')")
+    public ResponseEntity<ApiResponse<ChatMessageResponse>> uploadAttachment(
+            @PathVariable UUID id,
+            @RequestParam("file") MultipartFile file,
+            Authentication auth) {
+        String storageKey = fileStorageService.store(file, "chat/" + id);
+        String publicUrl = "/api/v1/chat/attachments/" + storageKey;
+        UUID agentId = UUID.fromString(auth.getName());
+        ChatMessageResponse msg = chatService.sendMessageWithAttachment(id, agentId, publicUrl, file.getOriginalFilename());
+        return ResponseEntity.ok(ApiResponse.ok(msg));
+    }
+
+    @Operation(summary = "Serve chat attachment file")
+    @GetMapping("/attachments/**")
+    @PreAuthorize("hasAuthority('chat:read')")
+    public ResponseEntity<Resource> serveAttachment(jakarta.servlet.http.HttpServletRequest request) {
+        String path = request.getRequestURI().replaceFirst(".*/api/v1/chat/attachments/", "");
+        Resource resource = fileStorageService.load(path);
+        String contentType = "application/octet-stream";
+        try { contentType = request.getServletContext().getMimeType(resource.getFile().getAbsolutePath()); } catch (Exception ignored) {}
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType != null ? contentType : "application/octet-stream"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                .body(resource);
     }
 }

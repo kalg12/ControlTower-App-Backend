@@ -13,6 +13,7 @@ public record ChatMessageResponse(
         String senderName,
         String senderAvatarUrl,
         String content,
+        String attachmentUrl,
         boolean isRead,
         Instant createdAt
 ) {}
