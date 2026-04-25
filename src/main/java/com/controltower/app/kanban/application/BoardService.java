@@ -55,6 +55,19 @@ public class BoardService {
                 .map(this::toBoardSummary);
     }
 
+    @Transactional(readOnly = true)
+    public Page<BoardResponse> listBoardsByClient(UUID clientId, Pageable pageable) {
+        return boardRepository.findByTenantIdAndClientIdAndDeletedAtIsNull(
+                TenantContext.getTenantId(), clientId, pageable)
+                .map(this::toBoardSummary);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CardResponse> listCardsByClient(UUID clientId) {
+        List<Card> cards = cardRepository.findByClientId(clientId);
+        return cards.stream().map(this::toCardResponse).toList();
+    }
+
     @Transactional
     public BoardResponse createBoard(BoardRequest request, UUID userId) {
         Board board = new Board();
@@ -209,6 +222,7 @@ private List<String> getAssigneeNames(Card card) {
         board.setName(request.getName());
         board.setDescription(request.getDescription());
         board.setVisibility(request.getVisibility());
+        board.setClientId(request.getClientId());
         return toBoardSummary(boardRepository.save(board));
     }
 
