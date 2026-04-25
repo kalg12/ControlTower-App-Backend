@@ -1,7 +1,6 @@
 package com.controltower.app.integrations.api.dto;
 
 import com.controltower.app.integrations.domain.IntegrationEndpoint;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,7 +15,6 @@ public class IntegrationEndpointRequest {
 
     private String name;
 
-    @NotNull(message = "type is required")
     private IntegrationEndpoint.EndpointType type;
 
     private String pullUrl;

@@ -15,6 +15,8 @@ public interface BoardRepository extends JpaRepository<Board, UUID> {
 
     Page<Board> findByTenantIdAndDeletedAtIsNull(UUID tenantId, Pageable pageable);
 
+    Page<Board> findByTenantIdAndClientIdAndDeletedAtIsNull(UUID tenantId, UUID clientId, Pageable pageable);
+
     Optional<Board> findByIdAndTenantIdAndDeletedAtIsNull(UUID id, UUID tenantId);
 
     /**

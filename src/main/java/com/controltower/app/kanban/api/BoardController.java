@@ -15,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,9 +39,20 @@ public class BoardController {
     @PreAuthorize("hasAuthority('kanban:read')")
     public ResponseEntity<ApiResponse<PageResponse<BoardResponse>>> list(
             @RequestParam(defaultValue = "0")  int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) UUID clientId) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        if (clientId != null) {
+            return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(boardService.listBoardsByClient(clientId, pageable))));
+        }
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(boardService.listBoards(pageable))));
+    }
+
+    @Operation(summary = "Get cards by client", description = "Returns all cards associated with a client. Requires the 'kanban:read' permission.")
+    @GetMapping("/client/{clientId}/cards")
+    @PreAuthorize("hasAuthority('kanban:read')")
+    public ResponseEntity<ApiResponse<List<CardResponse>>> getClientCards(@PathVariable UUID clientId) {
+        return ResponseEntity.ok(ApiResponse.ok(boardService.listCardsByClient(clientId)));
     }
 
     @Operation(summary = "Create board", description = "Creates a new Kanban board owned by the authenticated user. Requires the 'kanban:write' permission.")

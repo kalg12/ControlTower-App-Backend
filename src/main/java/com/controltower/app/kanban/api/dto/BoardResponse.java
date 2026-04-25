@@ -16,6 +16,7 @@ public class BoardResponse {
     private final String description;
     private final String visibility;
     private final UUID createdBy;
+    private final UUID clientId;
     private final Instant createdAt;
     private final Instant updatedAt;
     /** Populated only on GET /boards/{id}; null on list. */

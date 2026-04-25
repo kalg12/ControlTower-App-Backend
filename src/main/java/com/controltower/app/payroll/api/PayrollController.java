@@ -175,7 +175,7 @@ public class PayrollController {
         xml.append("      FechaPago=\"").append(period.getEndDate()).append("\"\n");
         xml.append("      FechaInicialPago=\"").append(period.getStartDate()).append("\"\n");
         xml.append("      FechaFinalPago=\"").append(period.getEndDate()).append("\"\n");
-        xml.append("      NumDiasPagados=\"").append(period.getPeriodType() == com.controltower.app.payroll.domain.PayrollPeriod.PeriodType.SEMANAL ? 7 : 15).append("\"\n");
+        xml.append("      NumDiasPagados=\"").append(period.getPeriodType() == com.controltower.app.payroll.domain.PayrollPeriod.PeriodType.QUINCENAL ? 7 : 15).append("\"\n");
         xml.append("      TotalPercepciones=\"").append(period.getTotalGross()).append("\"\n");
         xml.append("      TotalDeducciones=\"").append(period.getTotalDeductions()).append("\"\n");
         xml.append("      TotalOtrosPagos=\"0.00\">\n");

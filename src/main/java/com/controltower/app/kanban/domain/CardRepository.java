@@ -23,7 +23,7 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
           AND b.deletedAt IS NULL
           AND b.tenantId = :tenantId
           AND (:boardId IS NULL OR b.id = :boardId)
-          AND (:assigneeId IS NULL OR c.assigneeIds IS NOT NULL AND EXISTS (SELECT a FROM c.assigneeIds a WHERE a = :assigneeId))
+          AND (:assigneeId IS NULL OR EXISTS (SELECT a FROM c.assigneeIds a WHERE a = :assigneeId))
           AND (:columnKind IS NULL OR col.columnKind = :columnKind)
         ORDER BY b.name ASC, col.position ASC, c.position ASC
         """)
@@ -41,10 +41,10 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
           AND b.deletedAt IS NULL
           AND (:tenantId IS NULL OR b.tenantId = :tenantId)
           AND (:boardId IS NULL OR b.id = :boardId)
-          AND (:assigneeId IS NULL OR c.assigneeIds IS NOT NULL AND EXISTS (SELECT a FROM c.assigneeIds a WHERE a = :assigneeId))
+          AND (:assigneeId IS NULL OR EXISTS (SELECT a FROM c.assigneeIds a WHERE a = :assigneeId))
           AND (:dueDateFrom IS NULL OR c.dueDate >= :dueDateFrom)
           AND (:dueDateTo IS NULL OR c.dueDate <= :dueDateTo)
-          AND (:label IS NULL OR c.labels IS NOT NULL AND EXISTS (SELECT l FROM c.labels l WHERE l = :label))
+          AND (:label IS NULL OR EXISTS (SELECT l FROM c.labels l WHERE l = :label))
         ORDER BY b.name ASC, col.position ASC, c.position ASC
         """)
     List<Card> findAllForSupervisorBase(
