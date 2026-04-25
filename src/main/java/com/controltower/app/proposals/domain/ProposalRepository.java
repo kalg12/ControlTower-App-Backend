@@ -3,42 +3,26 @@ package com.controltower.app.proposals.domain;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ProposalRepository extends JpaRepository<Proposal, UUID> {
+public interface ProposalRepository extends JpaRepository<Proposal, UUID>,
+                                             JpaSpecificationExecutor<Proposal> {
 
     Optional<Proposal> findByIdAndDeletedAtIsNull(UUID id);
 
     Optional<Proposal> findByEmailTrackingToken(UUID emailTrackingToken);
 
     Optional<Proposal> findByIdAndTenantIdAndDeletedAtIsNull(UUID id, UUID tenantId);
-
-    @Query("""
-        SELECT p FROM Proposal p
-        WHERE p.tenantId = :tenantId
-          AND p.deletedAt IS NULL
-          AND (:status IS NULL OR p.status = :status)
-          AND (:clientId IS NULL OR p.clientId = :clientId)
-          AND (:from IS NULL OR p.createdAt >= :from)
-          AND (:to IS NULL OR p.createdAt <= :to)
-        """)
-    Page<Proposal> findFiltered(
-            @Param("tenantId") UUID tenantId,
-            @Param("status") ProposalStatus status,
-            @Param("clientId") UUID clientId,
-            @Param("from") Instant from,
-            @Param("to") Instant to,
-            Pageable pageable);
 
     @Query("""
         SELECT p FROM Proposal p

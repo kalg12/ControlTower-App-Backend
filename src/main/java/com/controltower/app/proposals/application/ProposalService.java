@@ -18,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -127,7 +128,14 @@ public class ProposalService {
     public Page<ProposalResponse> listProposals(ProposalStatus status, UUID clientId,
                                                  Instant from, Instant to, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        Page<Proposal> page = proposalRepository.findFiltered(tenantId, status, clientId, from, to, pageable);
+        Specification<Proposal> spec = Specification
+                .<Proposal>where((r, q, cb) -> cb.equal(r.get("tenantId"), tenantId))
+                .and((r, q, cb) -> cb.isNull(r.get("deletedAt")));
+        if (status   != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("status"), status));
+        if (clientId != null) spec = spec.and((r, q, cb) -> cb.equal(r.get("clientId"), clientId));
+        if (from     != null) spec = spec.and((r, q, cb) -> cb.greaterThanOrEqualTo(r.get("createdAt"), from));
+        if (to       != null) spec = spec.and((r, q, cb) -> cb.lessThanOrEqualTo(r.get("createdAt"), to));
+        Page<Proposal> page = proposalRepository.findAll(spec, pageable);
         Map<UUID, Client> clients = loadClients(page.stream()
                 .map(Proposal::getClientId).collect(Collectors.toList()));
         return page.map(p -> toResponse(p, clients.get(p.getClientId())));
@@ -310,33 +318,33 @@ public class ProposalService {
                         li.getPosition(), li.getCreatedAt()))
                 .collect(Collectors.toList());
 
-        return ProposalResponse.builder()
-                .id(p.getId())
-                .tenantId(p.getTenantId())
-                .clientId(p.getClientId())
-                .clientName(client != null ? client.getName() : null)
-                .clientEmail(client != null ? client.getPrimaryEmail() : null)
-                .number(p.getNumber())
-                .title(p.getTitle())
-                .description(p.getDescription())
-                .status(p.getStatus())
-                .subtotal(p.getSubtotal())
-                .taxRate(p.getTaxRate())
-                .taxAmount(p.getTaxAmount())
-                .total(p.getTotal())
-                .currency(p.getCurrency())
-                .validityDate(p.getValidityDate())
-                .notes(p.getNotes())
-                .terms(p.getTerms())
-                .sentAt(p.getSentAt())
-                .viewedAt(p.getViewedAt())
-                .acceptedAt(p.getAcceptedAt())
-                .rejectedAt(p.getRejectedAt())
-                .sentById(p.getSentById())
-                .emailViewedAt(p.getEmailViewedAt())
-                .lineItems(items)
-                .createdAt(p.getCreatedAt())
-                .updatedAt(p.getUpdatedAt())
-                .build();
+        return new ProposalResponse(
+                p.getId(),
+                p.getTenantId(),
+                p.getClientId(),
+                client != null ? client.getName() : null,
+                client != null ? client.getPrimaryEmail() : null,
+                p.getNumber(),
+                p.getTitle(),
+                p.getDescription(),
+                p.getStatus(),
+                p.getSubtotal(),
+                p.getTaxRate(),
+                p.getTaxAmount(),
+                p.getTotal(),
+                p.getCurrency(),
+                p.getValidityDate(),
+                p.getNotes(),
+                p.getTerms(),
+                p.getSentAt(),
+                p.getViewedAt(),
+                p.getAcceptedAt(),
+                p.getRejectedAt(),
+                p.getSentById(),
+                p.getEmailViewedAt(),
+                items,
+                p.getCreatedAt(),
+                p.getUpdatedAt()
+        );
     }
 }
