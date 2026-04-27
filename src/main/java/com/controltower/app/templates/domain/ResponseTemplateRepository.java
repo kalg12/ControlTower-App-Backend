@@ -18,7 +18,7 @@ public interface ResponseTemplateRepository extends JpaRepository<ResponseTempla
         WHERE t.tenantId = :tenantId
           AND t.deletedAt IS NULL
           AND (:category IS NULL OR t.category = :category)
-          AND (:q IS NULL
+          AND (:q = ''
                OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
                OR LOWER(t.body) LIKE LOWER(CONCAT('%', :q, '%'))
                OR LOWER(t.shortcut) LIKE LOWER(CONCAT('%', :q, '%')))

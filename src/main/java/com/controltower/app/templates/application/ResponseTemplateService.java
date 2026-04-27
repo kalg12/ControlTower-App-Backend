@@ -21,9 +21,10 @@ public class ResponseTemplateService {
 
     @Transactional(readOnly = true)
     public Page<ResponseTemplate> list(String q, String category, Pageable pageable) {
-        UUID tenantId = TenantContext.getTenantId();
-        String qParam = (q != null && !q.isBlank()) ? q.trim() : null;
-        return repo.findFiltered(tenantId, category, qParam, pageable);
+        UUID tenantId  = TenantContext.getTenantId();
+        String qParam   = (q        != null && !q.isBlank())        ? q.trim()        : "";
+        String catParam = (category != null && !category.isBlank()) ? category.trim() : null;
+        return repo.findFiltered(tenantId, catParam, qParam, pageable);
     }
 
     @Transactional
