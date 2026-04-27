@@ -132,6 +132,7 @@ public class IntegrationService {
                 .clientId(branch != null ? branch.getClient().getId() : null)
                 .clientName(branch != null ? branch.getClient().getName() : null)
                 .branchName(branch != null ? branch.getName() : null)
+                .branchSlug(branch != null ? branch.getSlug() : null)
                 .name(ep.getName())
                 .type(ep.getType())
                 .pullUrl(ep.getPullUrl())

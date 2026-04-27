@@ -17,6 +17,7 @@ public class IntegrationEndpointResponse {
     private UUID   clientId;
     private String clientName;
     private String branchName;
+    private String branchSlug;
     private String name;
     private IntegrationEndpoint.EndpointType type;
     private String pullUrl;
