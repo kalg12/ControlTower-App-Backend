@@ -194,8 +194,14 @@ public class TicketService {
     /** Returns a status summary for the CT ticket linked to a given POS ticket ID. */
     @Transactional(readOnly = true)
     public PosTicketStatusResponse getStatusForPosTicket(String posTicketId, UUID tenantId) {
-        Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdAndDeletedAtIsNull(posTicketId, tenantId)
+        Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdIncludingDeleted(posTicketId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket", posTicketId));
+        // Soft-deleted ticket: tell POS it is closed so polling stops.
+        if (ticket.getDeletedAt() != null) {
+            return new PosTicketStatusResponse(
+                    ticket.getId(), "CLOSED", ticket.getPriority().name(),
+                    ticket.getAssigneeId(), null, 0);
+        }
         List<TicketComment> publicComments = ticket.getComments().stream()
                 .filter(c -> !c.isInternal())
                 .toList();
@@ -219,8 +225,10 @@ public class TicketService {
     /** Returns public comments on the CT ticket linked to a given POS ticket ID, optionally filtered by `since`. */
     @Transactional(readOnly = true)
     public List<PosTicketCommentDto> getPublicCommentsSince(String posTicketId, UUID tenantId, Instant since) {
-        Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdAndDeletedAtIsNull(posTicketId, tenantId)
+        Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdIncludingDeleted(posTicketId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket", posTicketId));
+        // Soft-deleted ticket: return empty — stops POS polling gracefully.
+        if (ticket.getDeletedAt() != null) return java.util.List.of();
         return ticket.getComments().stream()
                 .filter(c -> !c.isInternal())
                 .filter(c -> since == null || c.getCreatedAt().isAfter(since))
@@ -237,8 +245,10 @@ public class TicketService {
     /** Adds a public comment on the CT ticket linked to a POS ticket (authorId=null marks POS origin). */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void addExternalComment(String posTicketId, UUID tenantId, String content) {
-        Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdAndDeletedAtIsNull(posTicketId, tenantId)
+        Ticket ticket = ticketRepository.findBySourceRefIdAndTenantIdIncludingDeleted(posTicketId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket", posTicketId));
+        // Skip silently if ticket was soft-deleted in CT.
+        if (ticket.getDeletedAt() != null) return;
         TicketComment comment = new TicketComment();
         comment.setTicket(ticket);
         comment.setAuthorId(null);  // null = POS/external origin

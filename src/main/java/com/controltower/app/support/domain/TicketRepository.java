@@ -89,6 +89,12 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
 
     Optional<Ticket> findBySourceRefIdAndTenantIdAndDeletedAtIsNull(String sourceRefId, UUID tenantId);
 
+    /** Includes soft-deleted tickets — used by POS integration status/comment lookups. */
+    @Query("SELECT t FROM Ticket t WHERE t.sourceRefId = :sourceRefId AND t.tenantId = :tenantId")
+    Optional<Ticket> findBySourceRefIdAndTenantIdIncludingDeleted(
+        @Param("sourceRefId") String sourceRefId,
+        @Param("tenantId") UUID tenantId);
+
     long countByTenantIdAndSourceAndDeletedAtIsNull(UUID tenantId, Ticket.TicketSource source);
 
     @Query("""
