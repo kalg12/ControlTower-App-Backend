@@ -39,11 +39,27 @@ public class HealthIncidentService {
         String description = "";
 
         if (rules.isEmpty()) {
-            // No rules configured — apply built-in default:
-            // open a MEDIUM incident on the very first DOWN check.
+            // No rules configured — built-in default: require 3 consecutive DOWN checks
+            // before opening an incident, to avoid false positives from transient issues.
             if (latestCheck.getStatus() == HealthCheck.HealthStatus.DOWN) {
-                shouldOpenIncident = true;
-                description = buildDescription(latestCheck);
+                List<HealthCheck> recent = checkRepository.findTop10ByBranchIdOrderByCheckedAtDesc(branch.getId());
+                long consecutiveDown = 0;
+                for (HealthCheck c : recent) {
+                    if (c.getStatus() == HealthCheck.HealthStatus.DOWN ||
+                        c.getStatus() == HealthCheck.HealthStatus.UNKNOWN) {
+                        consecutiveDown++;
+                    } else {
+                        break;
+                    }
+                }
+                if (consecutiveDown >= 3) {
+                    shouldOpenIncident = true;
+                    description = String.format(
+                        "Branch unreachable — %d consecutive failed health checks. Last error: %s",
+                        consecutiveDown,
+                        latestCheck.getErrorMessage() != null ? latestCheck.getErrorMessage() : "unknown"
+                    );
+                }
             }
         } else {
             for (HealthRule rule : rules) {

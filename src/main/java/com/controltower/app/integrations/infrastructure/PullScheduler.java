@@ -13,6 +13,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.ResourceAccessException;
 
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
@@ -199,6 +202,19 @@ public class PullScheduler {
         }
 
         // Classify for better diagnostics
+        if (e instanceof HttpClientErrorException clientErr) {
+            int code = clientErr.getStatusCode().value();
+            if (code == 404) {
+                return "CONFIG_ERROR: Health endpoint not found (404) at configured URL. " +
+                       "Verify pullUrl in CT → POS settings.";
+            }
+            return "HTTP_" + code + ": " + msg;
+        }
+
+        if (e instanceof HttpServerErrorException serverErr) {
+            return "HTTP_" + serverErr.getStatusCode().value() + ": " + msg;
+        }
+
         if (e instanceof ResourceAccessException) {
             if (e.getCause() instanceof SocketTimeoutException) {
                 return "TIMEOUT: " + msg;
