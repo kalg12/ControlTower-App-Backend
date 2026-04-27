@@ -33,4 +33,5 @@ public class TicketResponse {
     private final Boolean      slaBreached;
     private final Instant      createdAt;
     private final Instant      updatedAt;
+    private final Instant      deletedAt;
 }

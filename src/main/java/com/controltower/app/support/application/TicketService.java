@@ -576,6 +576,7 @@ public class TicketService {
                 .slaBreached(sla != null ? sla.isBreached() : null)
                 .createdAt(t.getCreatedAt())
                 .updatedAt(t.getUpdatedAt())
+                .deletedAt(t.getDeletedAt())
                 .build();
     }
 
