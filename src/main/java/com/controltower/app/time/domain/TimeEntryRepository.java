@@ -27,6 +27,16 @@ public interface TimeEntryRepository extends JpaRepository<TimeEntry, UUID> {
             @Param("tenantId") UUID tenantId,
             @Param("userId")   UUID userId);
 
+    /** All running (not yet stopped) time entries for a specific ticket. Used to auto-stop on resolve/close. */
+    @Query("""
+        SELECT t FROM TimeEntry t
+        WHERE t.entityType = com.controltower.app.time.domain.TimeEntry.EntityType.TICKET
+          AND t.entityId   = :ticketId
+          AND t.endedAt    IS NULL
+          AND t.deletedAt  IS NULL
+        """)
+    List<TimeEntry> findActiveByTicket(@Param("ticketId") UUID ticketId);
+
     /** All non-deleted entries for a specific entity (ticket or card). */
     @Query("""
         SELECT t FROM TimeEntry t

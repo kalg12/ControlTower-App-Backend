@@ -11,8 +11,15 @@ import java.util.UUID;
 @Repository
 public interface TicketSlaRepository extends JpaRepository<TicketSla, UUID> {
 
-    /** Returns all unbreached SLAs that are now past due (for scheduler). */
-    @Query("SELECT s FROM TicketSla s WHERE s.breached = false AND s.dueAt <= :now")
+    /** Returns all unbreached SLAs that are now past due, only for open tickets (for scheduler).
+     *  Excludes RESOLVED/CLOSED tickets — a ticket resolved before the deadline must not be marked breached. */
+    @Query("""
+        SELECT s FROM TicketSla s
+        WHERE s.breached = false
+          AND s.dueAt <= :now
+          AND s.ticket.deletedAt IS NULL
+          AND s.ticket.status NOT IN ('RESOLVED', 'CLOSED')
+        """)
     List<TicketSla> findBreachedUnmarked(Instant now);
 
     /** Returns all active SLAs for non-resolved, non-closed tickets (used by SLA warning scheduler). */

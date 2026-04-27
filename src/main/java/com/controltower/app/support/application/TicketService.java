@@ -298,6 +298,15 @@ public class TicketService {
         validateTransition(ticket.getStatus(), newStatus);
         ticket.setStatus(newStatus);
         Ticket saved = ticketRepository.save(ticket);
+
+        // Auto-stop any running time entries so SLA and logged time freeze at resolution
+        if (newStatus == Ticket.TicketStatus.RESOLVED || newStatus == Ticket.TicketStatus.CLOSED) {
+            timeEntryRepository.findActiveByTicket(ticketId).forEach(entry -> {
+                entry.stop();
+                timeEntryRepository.save(entry);
+            });
+        }
+
         // Notify POS Backend so its ctStatus updates immediately (no wait for cron)
         if (saved.getSource() == Ticket.TicketSource.POS && saved.getSourceRefId() != null) {
             String callbackUrl = saved.getPosContext() != null
