@@ -1,6 +1,7 @@
 package com.controltower.app.shared.exception;
 
 import com.controltower.app.shared.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,8 +27,15 @@ import java.util.List;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ApiResponse<Void>> handleResourceNotFound(ResourceNotFoundException ex) {
-        log.warn("Resource not found: {}", ex.getMessage());
+    public ResponseEntity<ApiResponse<Void>> handleResourceNotFound(
+            ResourceNotFoundException ex, HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        // POS integration polling produces expected 404s for orphaned/deleted tickets — noise at WARN level.
+        if (uri != null && uri.contains("/pos-tickets/")) {
+            log.debug("POS integration 404 (expected): {}", ex.getMessage());
+        } else {
+            log.warn("Resource not found: {}", ex.getMessage());
+        }
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(ex.getMessage()));
     }
