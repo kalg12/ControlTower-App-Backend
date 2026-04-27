@@ -224,6 +224,23 @@ public class TicketController {
     @PreAuthorize("hasAuthority('ticket:write')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
         ticketService.deleteTicket(id);
-        return ResponseEntity.ok(ApiResponse.ok("Ticket closed"));
+        return ResponseEntity.ok(ApiResponse.ok("Ticket deleted"));
+    }
+
+    @Operation(summary = "List deleted tickets (trash)", description = "Returns soft-deleted tickets for the current tenant. Requires 'ticket:read'.")
+    @GetMapping("/trash")
+    @PreAuthorize("hasAuthority('ticket:read')")
+    public ResponseEntity<ApiResponse<PageResponse<TicketResponse>>> listTrash(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "50") int size) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by("deletedAt").descending());
+        return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(ticketService.listDeleted(pageable))));
+    }
+
+    @Operation(summary = "Restore ticket from trash", description = "Restores a soft-deleted ticket back to OPEN status. Requires 'ticket:write'.")
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasAuthority('ticket:write')")
+    public ResponseEntity<ApiResponse<TicketResponse>> restore(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok("Ticket restored", ticketService.restoreTicket(id)));
     }
 }

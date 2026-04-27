@@ -414,6 +414,23 @@ public class TicketService {
         ticketRepository.save(ticket);
     }
 
+    @Transactional(readOnly = true)
+    public Page<TicketResponse> listDeleted(Pageable pageable) {
+        UUID tenantId = TenantContext.getTenantId();
+        return ticketRepository.findDeletedByTenantId(tenantId, pageable).map(this::toResponse);
+    }
+
+    @Transactional
+    @Audited(action = "TICKET_RESTORED", resource = "Ticket")
+    public TicketResponse restoreTicket(UUID ticketId) {
+        UUID tenantId = TenantContext.getTenantId();
+        Ticket ticket = ticketRepository.findDeletedById(ticketId, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket", ticketId));
+        ticket.setDeletedAt(null);
+        ticket.setStatus(Ticket.TicketStatus.OPEN);
+        return toResponse(ticketRepository.save(ticket));
+    }
+
     /**
      * Merges {@code sourceId} into {@code targetId}.
      * Moves all comments, notes, and time entries from source → target, then soft-deletes source.
@@ -526,7 +543,7 @@ public class TicketService {
             case IN_PROGRESS -> to == Ticket.TicketStatus.WAITING || to == Ticket.TicketStatus.RESOLVED || to == Ticket.TicketStatus.CLOSED;
             case WAITING     -> to == Ticket.TicketStatus.IN_PROGRESS || to == Ticket.TicketStatus.RESOLVED;
             case RESOLVED    -> to == Ticket.TicketStatus.CLOSED || to == Ticket.TicketStatus.OPEN;
-            case CLOSED      -> to == Ticket.TicketStatus.OPEN;
+            case CLOSED      -> to == Ticket.TicketStatus.OPEN || to == Ticket.TicketStatus.IN_PROGRESS || to == Ticket.TicketStatus.RESOLVED;
         };
         if (!valid) {
             throw new ControlTowerException(

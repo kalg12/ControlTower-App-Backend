@@ -18,6 +18,12 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID>, JpaSpecif
 
     Page<Ticket> findByTenantIdAndDeletedAtIsNull(UUID tenantId, Pageable pageable);
 
+    @Query("SELECT t FROM Ticket t WHERE t.tenantId = :tenantId AND t.deletedAt IS NOT NULL ORDER BY t.deletedAt DESC")
+    Page<Ticket> findDeletedByTenantId(@Param("tenantId") UUID tenantId, Pageable pageable);
+
+    @Query("SELECT t FROM Ticket t WHERE t.id = :id AND t.tenantId = :tenantId AND t.deletedAt IS NOT NULL")
+    Optional<Ticket> findDeletedById(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
+
     long countByTenantIdAndStatusAndDeletedAtIsNull(UUID tenantId, Ticket.TicketStatus status);
 
     long countByTenantIdAndDeletedAtIsNull(UUID tenantId);
