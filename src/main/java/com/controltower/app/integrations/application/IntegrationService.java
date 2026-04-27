@@ -67,7 +67,7 @@ public class IntegrationService {
         endpoint.setClientBranchId(request.getClientBranchId());
         endpoint.setName(request.getName());
         endpoint.setType(request.getType());
-        endpoint.setPullUrl(request.getPullUrl());
+        endpoint.setPullUrl(normalizeHealthUrl(request.getPullUrl()));
         endpoint.setApiKey(aesEncryptor.encrypt(plainKey));
         endpoint.setHeartbeatIntervalSeconds(request.getHeartbeatIntervalSeconds());
         endpoint.setContractVersion(request.getContractVersion());
@@ -80,7 +80,7 @@ public class IntegrationService {
         IntegrationEndpoint endpoint = resolve(endpointId);
         endpoint.setName(request.getName());
         endpoint.setClientBranchId(request.getClientBranchId());
-        endpoint.setPullUrl(request.getPullUrl());
+        endpoint.setPullUrl(normalizeHealthUrl(request.getPullUrl()));
         if (request.getApiKey() != null && !request.getApiKey().isBlank()) {
             endpoint.setApiKey(aesEncryptor.encrypt(request.getApiKey()));
         }
@@ -326,5 +326,32 @@ public class IntegrationService {
         return endpointRepository.findByIdAndTenantIdAndDeletedAtIsNull(
                         endpointId, TenantContext.getTenantId())
                 .orElseThrow(() -> new ResourceNotFoundException("IntegrationEndpoint", endpointId));
+    }
+
+    /**
+     * Normalizes a health endpoint URL so it always ends with /health.
+     * Strips the /api prefix that NestJS doesn't apply to the health route.
+     * Examples:
+     *   https://api.example.com/api/health → https://api.example.com/health
+     *   https://api.example.com/api/health/check → https://api.example.com/health
+     *   https://api.example.com/health → https://api.example.com/health (unchanged)
+     *   https://api.example.com → https://api.example.com/health
+     */
+    public static String normalizeHealthUrl(String url) {
+        if (url == null || url.isBlank()) return url;
+        String trimmed = url.trim().replaceAll("/+$", "");
+        // Replace /api/health[/check] with /health
+        if (trimmed.matches("(?i).*/api/health(/check)?")) {
+            return trimmed.replaceAll("(?i)/api/health(/check)?$", "/health");
+        }
+        // Keep /health or /health/check as-is (normalize /health/check → /health)
+        if (trimmed.matches("(?i).*/health/check")) {
+            return trimmed.replaceAll("(?i)/health/check$", "/health");
+        }
+        if (trimmed.matches("(?i).*/health")) {
+            return trimmed;
+        }
+        // No health suffix at all — append /health
+        return trimmed + "/health";
     }
 }

@@ -2,6 +2,7 @@ package com.controltower.app.integrations.infrastructure;
 
 import com.controltower.app.health.application.HeartbeatService;
 import com.controltower.app.health.domain.HealthCheck;
+import com.controltower.app.integrations.application.IntegrationService;
 import com.controltower.app.integrations.domain.IntegrationEndpoint;
 import com.controltower.app.integrations.domain.IntegrationEndpointRepository;
 import lombok.RequiredArgsConstructor;
@@ -114,13 +115,22 @@ public class PullScheduler {
     private void pullOne(IntegrationEndpoint endpoint) {
         if (endpoint.getClientBranchId() == null) return;
 
+        // Normalize the URL before every call. Handles legacy records saved with /api/health.
+        String effectiveUrl = IntegrationService.normalizeHealthUrl(endpoint.getPullUrl());
+        if (!effectiveUrl.equals(endpoint.getPullUrl())) {
+            log.info("Auto-correcting pullUrl for endpoint {} — {} → {}",
+                    endpoint.getId(), endpoint.getPullUrl(), effectiveUrl);
+            endpoint.setPullUrl(effectiveUrl);
+            endpointRepository.save(endpoint);
+        }
+
         long start = System.currentTimeMillis();
         Exception lastException = null;
 
         // Retry loop with exponential backoff
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                var requestSpec = restClient.get().uri(endpoint.getPullUrl());
+                var requestSpec = restClient.get().uri(effectiveUrl);
                 if (endpoint.getApiKey() != null && !endpoint.getApiKey().isBlank()) {
                     requestSpec = requestSpec.header("Authorization", "Bearer " + endpoint.getApiKey());
                 }
@@ -167,7 +177,7 @@ public class PullScheduler {
                 if (attempt < MAX_RETRIES) {
                     long backoff = Math.min(INITIAL_BACKOFF_MS * (long) Math.pow(2, attempt - 1), MAX_BACKOFF_MS);
                     log.warn("Pull check attempt {} failed for endpoint {} ({}): {} — retrying in {}ms",
-                            attempt, endpoint.getId(), endpoint.getPullUrl(), e.getMessage(), backoff);
+                            attempt, endpoint.getId(), effectiveUrl, e.getMessage(), backoff);
                     try {
                         Thread.sleep(backoff);
                     } catch (InterruptedException ie) {
@@ -182,7 +192,7 @@ public class PullScheduler {
         // All retries exhausted — classify the error and record failure
         String errorMessage = classifyError(lastException);
         log.error("Pull check FAILED for endpoint {} ({}) after {} attempts: {}",
-                endpoint.getId(), endpoint.getPullUrl(), MAX_RETRIES, errorMessage);
+                endpoint.getId(), effectiveUrl, MAX_RETRIES, errorMessage);
         heartbeatService.processFailedPull(endpoint.getClientBranchId(), errorMessage);
     }
 
