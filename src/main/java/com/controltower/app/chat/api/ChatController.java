@@ -141,6 +141,27 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.ok(msg));
     }
 
+    @Operation(summary = "Get current agent presence state")
+    @GetMapping("/presence")
+    @PreAuthorize("hasAuthority('chat:read')")
+    public ResponseEntity<ApiResponse<Map<String, Boolean>>> getMyPresence(Authentication auth) {
+        UUID userId = UUID.fromString(auth.getName());
+        boolean online = chatService.getMyPresence(userId);
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("online", online)));
+    }
+
+    @Operation(summary = "Set agent presence (online/offline for live chat)")
+    @PostMapping("/presence")
+    @PreAuthorize("hasAuthority('chat:read')")
+    public ResponseEntity<ApiResponse<Void>> setPresence(
+            Authentication auth,
+            @RequestBody Map<String, Boolean> body) {
+        UUID userId = UUID.fromString(auth.getName());
+        boolean online = Boolean.TRUE.equals(body.get("online"));
+        chatService.setPresence(userId, online);
+        return ResponseEntity.ok(ApiResponse.ok("Presence updated", null));
+    }
+
     @Operation(summary = "Serve chat attachment file")
     @GetMapping("/attachments/**")
     @PreAuthorize("hasAuthority('chat:read')")

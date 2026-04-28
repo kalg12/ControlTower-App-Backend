@@ -74,6 +74,10 @@ public class User extends BaseEntity {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
+    /** True while the agent has the chat panel open and is available for live chat. */
+    @Column(name = "chat_online", nullable = false)
+    private boolean chatOnline = false;
+
     /** Returns all permission codes from assigned roles. */
     public Set<String> getAllPermissions() {
         Set<String> perms = new HashSet<>();

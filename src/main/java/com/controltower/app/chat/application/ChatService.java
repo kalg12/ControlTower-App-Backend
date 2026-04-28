@@ -340,6 +340,24 @@ public class ChatService {
         return quickReplyRepository.findByTenantIdOrderByShortcutAsc(tenantId);
     }
 
+    // ── Agent presence ───────────────────────────────────────────────────────
+
+    @Transactional
+    public void setPresence(UUID userId, boolean online) {
+        userRepository.updateChatOnline(userId, online);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean getMyPresence(UUID userId) {
+        return userRepository.findChatOnlineById(userId).orElse(false);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Object> getAvailability(UUID tenantId) {
+        long count = userRepository.countChatOnlineByTenantId(tenantId);
+        return java.util.Map.of("available", count > 0, "agentCount", count);
+    }
+
     // ── Scheduler: auto-archive CLOSED > 90 days ─────────────────────────────
 
     @Scheduled(cron = "0 30 2 * * *")

@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Tag(name = "Public Chat", description = "Public endpoints for POS chat widget (no auth required)")
@@ -24,6 +25,13 @@ import java.util.UUID;
 public class PublicChatController {
 
     private final ChatService chatService;
+
+    @Operation(summary = "Check agent availability for a tenant")
+    @GetMapping("/availability")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAvailability(
+            @RequestParam UUID tenantId) {
+        return ResponseEntity.ok(ApiResponse.ok(chatService.getAvailability(tenantId)));
+    }
 
     @Operation(summary = "Start a chat conversation (visitor)")
     @PostMapping("/start")
