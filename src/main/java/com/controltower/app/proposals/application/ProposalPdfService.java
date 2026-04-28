@@ -156,6 +156,24 @@ public class ProposalPdfService {
         table.setSpacingBefore(4);
 
         addTotalRow(table, "Subtotal:", fmt(p.subtotal(), p.currency()), false);
+
+        if (p.discountAmount() != null && p.discountAmount().compareTo(BigDecimal.ZERO) > 0) {
+            String discLabel = "PERCENTAGE".equals(p.discountType())
+                    ? "Descuento (" + p.discountValue().stripTrailingZeros().toPlainString() + "%):"
+                    : "Descuento:";
+            Font discFont = FontFactory.getFont(FontFactory.HELVETICA, 10, new Color(220, 38, 38));
+            PdfPCell lc = new PdfPCell(new Phrase(discLabel, discFont));
+            lc.setBorder(Rectangle.NO_BORDER);
+            lc.setPadding(4);
+            lc.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            table.addCell(lc);
+            PdfPCell vc = new PdfPCell(new Phrase("-" + fmt(p.discountAmount(), p.currency()), discFont));
+            vc.setBorder(Rectangle.NO_BORDER);
+            vc.setPadding(4);
+            vc.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            table.addCell(vc);
+        }
+
         addTotalRow(table, "IVA (" + p.taxRate() + "%):", fmt(p.taxAmount(), p.currency()), false);
 
         PdfPCell labelCell = new PdfPCell(new Phrase("TOTAL:", FONT_TOTAL));

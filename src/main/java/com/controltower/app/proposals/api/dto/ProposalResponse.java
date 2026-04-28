@@ -34,5 +34,8 @@ public record ProposalResponse(
     Instant emailViewedAt,
     List<ProposalLineItemResponse> lineItems,
     Instant createdAt,
-    Instant updatedAt
+    Instant updatedAt,
+    String discountType,
+    BigDecimal discountValue,
+    BigDecimal discountAmount
 ) {}

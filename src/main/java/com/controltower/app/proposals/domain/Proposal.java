@@ -83,13 +83,39 @@ public class Proposal extends BaseEntity {
     @Column(name = "email_viewed_at")
     private Instant emailViewedAt;
 
+    /** "PERCENTAGE" or "AMOUNT". Null means no discount. */
+    @Column(name = "discount_type", length = 20)
+    private String discountType;
+
+    @Column(name = "discount_value", nullable = false, precision = 12, scale = 2)
+    private BigDecimal discountValue = BigDecimal.ZERO;
+
+    @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
     @OneToMany(mappedBy = "proposal", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("position ASC")
     private List<ProposalLineItem> lineItems = new ArrayList<>();
 
     public void recalculate() {
-        this.subtotal  = lineItems.stream().map(ProposalLineItem::getSubtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
-        this.taxAmount = subtotal.multiply(taxRate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
-        this.total     = subtotal.add(taxAmount);
+        this.subtotal = lineItems.stream()
+                .map(ProposalLineItem::getSubtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal disc = BigDecimal.ZERO;
+        if (discountValue != null && discountValue.compareTo(BigDecimal.ZERO) > 0) {
+            if ("PERCENTAGE".equals(discountType)) {
+                disc = this.subtotal.multiply(discountValue)
+                        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            } else {
+                disc = discountValue.min(this.subtotal);
+            }
+        }
+        this.discountAmount = disc;
+
+        BigDecimal taxableBase = this.subtotal.subtract(disc);
+        this.taxAmount = taxableBase.multiply(taxRate)
+                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        this.total = taxableBase.add(taxAmount);
     }
 }

@@ -20,5 +20,7 @@ public record ProposalRequest(
         BigDecimal taxRate,
         String notes,
         String terms,
-        @NotEmpty @Valid List<ProposalLineItemRequest> lineItems
+        @NotEmpty @Valid List<ProposalLineItemRequest> lineItems,
+        @Size(max = 20) String discountType,
+        BigDecimal discountValue
 ) {}

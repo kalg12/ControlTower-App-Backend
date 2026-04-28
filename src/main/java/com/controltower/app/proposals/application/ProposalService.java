@@ -62,6 +62,8 @@ public class ProposalService {
         proposal.setValidityDate(req.validityDate());
         proposal.setNotes(req.notes());
         proposal.setTerms(req.terms());
+        proposal.setDiscountType(req.discountType());
+        proposal.setDiscountValue(req.discountValue() != null ? req.discountValue() : java.math.BigDecimal.ZERO);
 
         setLineItems(proposal, req.lineItems());
         proposal.recalculate();
@@ -91,6 +93,8 @@ public class ProposalService {
         proposal.setValidityDate(req.validityDate());
         proposal.setNotes(req.notes());
         proposal.setTerms(req.terms());
+        proposal.setDiscountType(req.discountType());
+        proposal.setDiscountValue(req.discountValue() != null ? req.discountValue() : java.math.BigDecimal.ZERO);
 
         setLineItems(proposal, req.lineItems());
         proposal.recalculate();
@@ -344,7 +348,10 @@ public class ProposalService {
                 p.getEmailViewedAt(),
                 items,
                 p.getCreatedAt(),
-                p.getUpdatedAt()
+                p.getUpdatedAt(),
+                p.getDiscountType(),
+                p.getDiscountValue(),
+                p.getDiscountAmount()
         );
     }
 }
