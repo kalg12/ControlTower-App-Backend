@@ -162,6 +162,28 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.ok("Presence updated", null));
     }
 
+    @Operation(summary = "Unarchive conversation (ARCHIVED → CLOSED)")
+    @PostMapping("/conversations/{id}/unarchive")
+    @PreAuthorize("hasAuthority('chat:manage')")
+    public ResponseEntity<ApiResponse<ChatConversationResponse>> unarchiveConversation(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(chatService.unarchiveConversation(id)));
+    }
+
+    @Operation(summary = "List agents currently online for live chat")
+    @GetMapping("/agents/online")
+    @PreAuthorize("hasAuthority('chat:read')")
+    public ResponseEntity<ApiResponse<List<com.controltower.app.chat.api.dto.OnlineAgentResponse>>> listOnlineAgents() {
+        UUID tenantId = com.controltower.app.tenancy.domain.TenantContext.getTenantId();
+        return ResponseEntity.ok(ApiResponse.ok(chatService.listOnlineAgents(tenantId)));
+    }
+
+    @Operation(summary = "Get visitor rating for a conversation")
+    @GetMapping("/conversations/{id}/rating")
+    @PreAuthorize("hasAuthority('chat:read')")
+    public ResponseEntity<ApiResponse<com.controltower.app.chat.domain.ChatRating>> getConversationRating(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(chatService.getRating(id).orElse(null)));
+    }
+
     @Operation(summary = "Serve chat attachment file")
     @GetMapping("/attachments/**")
     @PreAuthorize("hasAuthority('chat:read')")

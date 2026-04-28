@@ -47,4 +47,12 @@ public interface ChatConversationRepository extends JpaRepository<ChatConversati
           AND c.closedAt < :cutoff
         """)
     List<ChatConversation> findClosedOlderThan(@Param("cutoff") Instant cutoff);
+
+    @Query("""
+        SELECT COUNT(c) FROM ChatConversation c
+        WHERE c.agentId = :agentId
+          AND c.status = com.controltower.app.chat.domain.ConversationStatus.ACTIVE
+          AND c.deletedAt IS NULL
+        """)
+    long countActiveByAgent(@Param("agentId") UUID agentId);
 }

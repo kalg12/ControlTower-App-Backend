@@ -4,6 +4,8 @@ import com.controltower.app.audit.application.AuditService;
 import com.controltower.app.audit.domain.AuditAction;
 import com.controltower.app.chat.api.dto.*;
 import com.controltower.app.chat.domain.*;
+import com.controltower.app.chat.api.dto.OnlineAgentResponse;
+import com.controltower.app.chat.api.dto.PublicConversationResponse;
 import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
@@ -22,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -33,6 +36,7 @@ public class ChatService {
     private final ChatMessageRepository messageRepository;
     private final ChatTransferRepository transferRepository;
     private final ChatQuickReplyRepository quickReplyRepository;
+    private final ChatRatingRepository ratingRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
     private final SimpMessagingTemplate messagingTemplate;
@@ -356,6 +360,94 @@ public class ChatService {
     public java.util.Map<String, Object> getAvailability(UUID tenantId) {
         long count = userRepository.countChatOnlineByTenantId(tenantId);
         return java.util.Map.of("available", count > 0, "agentCount", count);
+    }
+
+    // ── Agent: unarchive ─────────────────────────────────────────────────────
+
+    @Transactional
+    public ChatConversationResponse unarchiveConversation(UUID id) {
+        UUID agentId = currentUserId();
+        UUID tenantId = TenantContext.getTenantId();
+
+        ChatConversation conv = requireConversation(id);
+        if (conv.getStatus() != ConversationStatus.ARCHIVED) {
+            throw new IllegalStateException("Only ARCHIVED conversations can be unarchived");
+        }
+
+        conv.setStatus(ConversationStatus.CLOSED);
+        conv.setArchivedAt(null);
+        conversationRepository.save(conv);
+
+        auditService.log(AuditAction.CHAT_UNARCHIVED, tenantId, agentId,
+                "ChatConversation", id.toString());
+
+        return toResponse(conv, null, 0);
+    }
+
+    // ── Visitor: rate conversation ────────────────────────────────────────────
+
+    @Transactional
+    public void rateConversation(UUID conversationId, UUID visitorToken, int rating, String comment) {
+        ChatConversation conv = requireConversationByToken(visitorToken);
+        if (!conv.getId().equals(conversationId)) {
+            throw new IllegalStateException("Token does not match conversation");
+        }
+        if (conv.getStatus() != ConversationStatus.CLOSED && conv.getStatus() != ConversationStatus.ARCHIVED) {
+            throw new IllegalStateException("Conversation must be closed to rate");
+        }
+        if (ratingRepository.existsByConversationId(conversationId)) {
+            throw new IllegalStateException("Conversation already rated");
+        }
+
+        ChatRating r = new ChatRating();
+        r.setConversationId(conversationId);
+        r.setTenantId(conv.getTenantId());
+        r.setRating(rating);
+        r.setComment(comment);
+        ratingRepository.save(r);
+
+        auditService.log(AuditAction.CHAT_RATED, conv.getTenantId(), null,
+                "ChatConversation", conversationId.toString());
+    }
+
+    // ── Agent: read rating ────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public Optional<ChatRating> getRating(UUID conversationId) {
+        return ratingRepository.findByConversationId(conversationId);
+    }
+
+    // ── Public: get conversation status (visitor re-sync after STOMP reconnect)
+
+    @Transactional(readOnly = true)
+    public PublicConversationResponse getPublicConversation(UUID conversationId, UUID visitorToken) {
+        ChatConversation conv = requireConversationByToken(visitorToken);
+        if (!conv.getId().equals(conversationId)) {
+            throw new IllegalStateException("Token does not match conversation");
+        }
+        User agent = (conv.getAgentId() != null)
+                ? userRepository.findByIdAndDeletedAtIsNull(conv.getAgentId()).orElse(null)
+                : null;
+        return new PublicConversationResponse(
+                conv.getId(),
+                conv.getStatus().name(),
+                agent != null ? agent.getFullName() : null,
+                agent != null ? agent.getAvatarUrl() : null
+        );
+    }
+
+    // ── Agent: list online agents for this tenant ─────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<OnlineAgentResponse> listOnlineAgents(UUID tenantId) {
+        return userRepository.findChatOnlineAgentsByTenantId(tenantId).stream()
+                .map(u -> new OnlineAgentResponse(
+                        u.getId(),
+                        u.getFullName(),
+                        u.getAvatarUrl(),
+                        conversationRepository.countActiveByAgent(u.getId())
+                ))
+                .toList();
     }
 
     // ── Scheduler: auto-archive CLOSED > 90 days ─────────────────────────────

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.NoSuchElementException;
 
 @Tag(name = "Public Chat", description = "Public endpoints for POS chat widget (no auth required)")
 @RestController
@@ -59,5 +60,32 @@ public class PublicChatController {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").ascending());
         return ResponseEntity.ok(ApiResponse.ok(
                 PageResponse.from(chatService.getMessages(id, pageable))));
+    }
+
+    @Operation(summary = "Get conversation status for visitor (re-sync after STOMP reconnect)")
+    @GetMapping("/conversations/{id}")
+    public ResponseEntity<ApiResponse<PublicConversationResponse>> getConversation(
+            @PathVariable UUID id,
+            @RequestParam UUID visitorToken) {
+        try {
+            PublicConversationResponse resp = chatService.getPublicConversation(id, visitorToken);
+            return ResponseEntity.ok(ApiResponse.ok(resp));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Invalid visitor token for this conversation"));
+        }
+    }
+
+    @Operation(summary = "Submit visitor rating after conversation closes")
+    @PostMapping("/conversations/{id}/rate")
+    public ResponseEntity<ApiResponse<Void>> rateConversation(
+            @PathVariable UUID id,
+            @Valid @RequestBody RateConversationRequest req) {
+        try {
+            chatService.rateConversation(id, req.visitorToken(), req.rating(), req.comment());
+            return ResponseEntity.ok(ApiResponse.ok(null));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 }

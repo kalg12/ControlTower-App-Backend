@@ -49,4 +49,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Modifying
     @Query("UPDATE User u SET u.chatOnline = :online WHERE u.id = :userId")
     void updateChatOnline(@Param("userId") UUID userId, @Param("online") boolean online);
+
+    @Query("SELECT u FROM User u WHERE u.tenant.id = :tenantId AND u.chatOnline = true AND u.deletedAt IS NULL")
+    java.util.List<User> findChatOnlineAgentsByTenantId(@Param("tenantId") UUID tenantId);
 }

@@ -139,6 +139,8 @@ public enum AuditAction {
     CHAT_TRANSFERRED,
     CHAT_CLOSED,
     CHAT_ARCHIVED,
+    CHAT_UNARCHIVED,
+    CHAT_RATED,
     CHAT_DELETED,
 
     // Generic
