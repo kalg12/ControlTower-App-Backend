@@ -1,16 +1,39 @@
 name: CI/CD
 
+# ── Branch strategy ──────────────────────────────────────────────────────────
+#
+#  feature/* ──PR──► develop ──PR──► master ──► (image pushed) ──► VPS auto-updates
+#
+#  • Tests run on every push to develop/master and on every PR.
+#  • Docker image is only pushed to GHCR on a direct push to master.
+#  • The VPS is never contacted by CI — Watchtower polls GHCR and deploys
+#    automatically, so NO SSH secrets are needed in this repository.
+#
+# ── What you need to configure once ─────────────────────────────────────────
+#
+#  1. Make the GHCR package public (free, no auth needed anywhere):
+#       GitHub → Packages → controltower-app → Package settings → Make Public
+#
+#  2. Set branch-protection rules on master (GitHub → repo → Settings → Branches):
+#       • Require status check "Build & Test" to pass before merging
+#       • Require pull request reviews
+#
+#  3. On the VPS: add Watchtower to docker-compose.prod.yml and restart.
+#     Watchtower will pull the new :latest image automatically within 5 min
+#     of every successful master push.
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master, main, develop ]
   pull_request:
-    branches: [ master, main ]
+    branches: [ master, main, develop ]
 
 jobs:
 
   # ── Job 1: Build & Test ───────────────────────────────────────────────────
-  # Runs on every push and PR. Acts as the hard gate for deployment.
-  # If any test fails, Jobs 2 and 3 are skipped entirely.
+  # Runs on every push and every PR — this is the quality gate.
+  # Pull requests to master CANNOT be merged if this job is red (branch protection).
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
@@ -50,13 +73,15 @@ jobs:
           reporter: java-junit
 
   # ── Job 2: Push Docker image to GHCR ─────────────────────────────────────
-  # Only runs on master push AND only if Job 1 passed.
-  # Uses the auto-provided GITHUB_TOKEN — no extra secret needed for pushing.
+  # Runs only on master/main push AND only after Job 1 passes.
+  # Uses the auto-provided GITHUB_TOKEN — no extra secrets needed.
+  # After this job completes, Watchtower on the VPS detects the new :latest
+  # tag and redeploys automatically (within the configured poll interval).
   push-image:
     name: Push Docker Image
     runs-on: ubuntu-latest
     needs: build-and-test
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && github.event_name == 'push'
     permissions:
       contents: read
       packages: write
@@ -90,47 +115,3 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
         continue-on-error: true
-
-  # ── Job 3: Deploy to VPS ──────────────────────────────────────────────────
-  # Only runs after Job 2 succeeds. SSHs into the VPS, pulls the new image
-  # (which already passed all tests), and restarts only the app container.
-  # postgres, redis, and nginx are left untouched.
-  #
-  # Required GitHub Secrets:
-  #   SSH_HOST        — VPS IP or hostname
-  #   SSH_USER        — SSH login user (e.g. ubuntu)
-  #   SSH_PRIVATE_KEY — Private key content (ed25519 or RSA)
-  #   SSH_PORT        — SSH port (usually 22)
-  #   DEPLOY_PATH     — Path on VPS where docker-compose.prod.yml lives
-  #   GHCR_TOKEN      — GitHub PAT with read:packages scope (for VPS to pull)
-  deploy:
-    name: Deploy to VPS
-    runs-on: ubuntu-latest
-    needs: push-image
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          REPO_OWNER: ${{ github.repository_owner }}
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          envs: GHCR_TOKEN,REPO_OWNER
-          script: |
-            # Authenticate against GHCR so docker can pull the private image
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$REPO_OWNER" --password-stdin
-
-            # Pull the new image (already verified by tests)
-            cd ${{ secrets.DEPLOY_PATH }}
-            docker compose -f docker-compose.prod.yml pull app
-
-            # Restart only the app container; postgres/redis/nginx stay up
-            docker compose -f docker-compose.prod.yml up -d --no-build app
-
-            # Clean up dangling images to save disk space
-            docker image prune -f

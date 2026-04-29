@@ -154,6 +154,32 @@ services:
           cpus: "0.5"
           memory: 128M
 
+  # ── Watchtower (auto-deploy) ───────────────────────────────────────────────
+  # Polls GHCR every 5 minutes. When GitHub Actions pushes a new :latest image,
+  # Watchtower pulls it and restarts controltower-app with zero downtime.
+  # No SSH secrets needed in GitHub — all deployment happens from the VPS side.
+  #
+  # Requires the GHCR package to be PUBLIC (GitHub → Packages → Make Public).
+  # If the package is private, add to .env:
+  #   GHCR_TOKEN=<github-pat-with-read:packages>
+  # and uncomment the environment block below.
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: controltower-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_POLL_INTERVAL: "300"      # check every 5 minutes
+      WATCHTOWER_CLEANUP: "true"           # delete old images after update
+      WATCHTOWER_INCLUDE_RESTARTING: "false"
+      # Uncomment if GHCR image is private:
+      # REPO_USER: kalg12
+      # REPO_PASS: ${GHCR_TOKEN}
+    command: controltower-app              # only watch the app container
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge
