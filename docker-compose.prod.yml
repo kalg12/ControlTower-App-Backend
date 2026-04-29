@@ -76,11 +76,10 @@ services:
           memory: 256M
 
   # ── Control Tower App ──────────────────────────────────────────────────────
+  # Image is built and pushed by GitHub Actions (ci.yml) after all tests pass.
+  # On the VPS: docker compose pull app && docker compose up -d app
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: controltower-app:latest
+    image: ghcr.io/kalg12/controltower-app:latest
     container_name: controltower-app
     restart: always
     # Port NOT exposed to host — only reachable through Nginx on the internal network

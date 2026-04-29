@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -7,19 +7,18 @@ on:
     branches: [ master, main ]
 
 jobs:
+
+  # ── Job 1: Build & Test ───────────────────────────────────────────────────
+  # Runs on every push and PR. Acts as the hard gate for deployment.
+  # If any test fails, Jobs 2 and 3 are skipped entirely.
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
 
-    # Testcontainers needs Docker; ubuntu-latest includes Docker out of the box
-    # on GitHub-hosted runners.
-
     steps:
-      # ── Checkout ─────────────────────────────────────────────────────
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # ── Java 21 ──────────────────────────────────────────────────────
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -27,25 +26,20 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      # ── Gradle wrapper permissions ────────────────────────────────────
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      # ── Build (compile + unit test) ───────────────────────────────────
       - name: Build with Gradle
         run: ./gradlew build -x test --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g"
 
-      # ── Integration tests (Testcontainers / Docker-in-Docker) ─────────
       - name: Run integration tests
         run: ./gradlew test --no-daemon
         env:
-          GRADLE_OPTS:   "-Dorg.gradle.jvmargs=-Xmx2g"
-          # Testcontainers auto-detects Docker socket — no extra env needed
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2g"
           TESTCONTAINERS_RYUK_DISABLED: "true"
 
-      # ── Test report ───────────────────────────────────────────────────
       - name: Publish test results
         uses: dorny/test-reporter@v1
         if: always()
@@ -55,18 +49,88 @@ jobs:
           path: build/test-results/test/*.xml
           reporter: java-junit
 
-      # ── Build Docker image ────────────────────────────────────────────
-      - name: Build Docker image
-        run: docker build -t controltower-app:${{ github.sha }} .
+  # ── Job 2: Push Docker image to GHCR ─────────────────────────────────────
+  # Only runs on master push AND only if Job 1 passed.
+  # Uses the auto-provided GITHUB_TOKEN — no extra secret needed for pushing.
+  push-image:
+    name: Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
 
-      # ── Security scan (optional, non-blocking) ────────────────────────
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/controltower-app:latest
+            ghcr.io/${{ github.repository_owner }}/controltower-app:sha-${{ github.sha }}
+
       - name: Run Trivy vulnerability scan
         uses: aquasecurity/trivy-action@master
-        if: github.ref == 'refs/heads/master'
         with:
-          image-ref: controltower-app:${{ github.sha }}
+          image-ref: ghcr.io/${{ github.repository_owner }}/controltower-app:latest
           format: table
-          exit-code: '0'          # non-blocking — report only
+          exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
         continue-on-error: true
+
+  # ── Job 3: Deploy to VPS ──────────────────────────────────────────────────
+  # Only runs after Job 2 succeeds. SSHs into the VPS, pulls the new image
+  # (which already passed all tests), and restarts only the app container.
+  # postgres, redis, and nginx are left untouched.
+  #
+  # Required GitHub Secrets:
+  #   SSH_HOST        — VPS IP or hostname
+  #   SSH_USER        — SSH login user (e.g. ubuntu)
+  #   SSH_PRIVATE_KEY — Private key content (ed25519 or RSA)
+  #   SSH_PORT        — SSH port (usually 22)
+  #   DEPLOY_PATH     — Path on VPS where docker-compose.prod.yml lives
+  #   GHCR_TOKEN      — GitHub PAT with read:packages scope (for VPS to pull)
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: push-image
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          envs: GHCR_TOKEN,REPO_OWNER
+          script: |
+            # Authenticate against GHCR so docker can pull the private image
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$REPO_OWNER" --password-stdin
+
+            # Pull the new image (already verified by tests)
+            cd ${{ secrets.DEPLOY_PATH }}
+            docker compose -f docker-compose.prod.yml pull app
+
+            # Restart only the app container; postgres/redis/nginx stay up
+            docker compose -f docker-compose.prod.yml up -d --no-build app
+
+            # Clean up dangling images to save disk space
+            docker image prune -f

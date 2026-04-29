@@ -24,7 +24,7 @@ public class ChatRating {
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
 
-    @Column(name = "rating", nullable = false)
+    @Column(name = "rating", nullable = false, columnDefinition = "smallint")
     private int rating;
 
     @Column(name = "comment", length = 1000)
