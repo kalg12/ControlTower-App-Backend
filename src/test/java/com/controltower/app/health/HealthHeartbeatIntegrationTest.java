@@ -3,10 +3,12 @@ package com.controltower.app.health;
 import com.controltower.app.BaseIntegrationTest;
 import com.controltower.app.util.TestDataFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
@@ -136,18 +138,18 @@ class HealthHeartbeatIntegrationTest extends BaseIntegrationTest {
                     .andExpect(status().isOk());
         }
 
-        // Check incidents endpoint — should have at least one open incident
-        MvcResult result = mvc.perform(get("/api/v1/health/incidents")
-                .header("Authorization", TestDataFactory.bearer(token)))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        String body = result.getResponse().getContentAsString();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> page = (Map<String, Object>)
-                mapper.readValue(body, Map.class).get("data");
-        long totalElements = ((Number) page.get("totalElements")).longValue();
-
-        assertTrue(totalElements >= 1, "Expected at least one incident after repeated DOWN heartbeats");
+        // evaluateAfterCheck is @Async — poll until the incident appears (up to 5 s)
+        Awaitility.await()
+                .atMost(5, TimeUnit.SECONDS)
+                .pollInterval(500, TimeUnit.MILLISECONDS)
+                .until(() -> {
+                    MvcResult r = mvc.perform(get("/api/v1/health/incidents")
+                                    .header("Authorization", TestDataFactory.bearer(token)))
+                            .andReturn();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> page = (Map<String, Object>)
+                            mapper.readValue(r.getResponse().getContentAsString(), Map.class).get("data");
+                    return ((Number) page.get("totalElements")).longValue() >= 1;
+                });
     }
 }
