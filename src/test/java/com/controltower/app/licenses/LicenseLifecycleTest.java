@@ -5,7 +5,10 @@ import com.controltower.app.util.TestDataFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
@@ -24,6 +27,7 @@ import static org.hamcrest.Matchers.*;
  *   - Plan catalog is accessible
  */
 @DirtiesContext
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class LicenseLifecycleTest extends BaseIntegrationTest {
 
     @Autowired ObjectMapper mapper;
@@ -36,6 +40,7 @@ class LicenseLifecycleTest extends BaseIntegrationTest {
     }
 
     @Test
+    @Order(1)
     @DisplayName("Onboarding creates a TRIAL license")
     void onboarding_createsTrial() throws Exception {
         // Onboarding was done in setUp — list licenses and expect TRIAL
@@ -46,6 +51,7 @@ class LicenseLifecycleTest extends BaseIntegrationTest {
     }
 
     @Test
+    @Order(2)
     @DisplayName("GET /licenses/plans → returns non-empty plan catalog")
     void listPlans_returnsPlans() throws Exception {
         mvc.perform(get("/api/v1/licenses/plans")
@@ -55,6 +61,7 @@ class LicenseLifecycleTest extends BaseIntegrationTest {
     }
 
     @Test
+    @Order(4)
     @DisplayName("License suspend and reactivate flow")
     void suspendAndReactivate() throws Exception {
         // Get the trial license ID
@@ -84,6 +91,7 @@ class LicenseLifecycleTest extends BaseIntegrationTest {
     }
 
     @Test
+    @Order(3)
     @DisplayName("GET /licenses/{id}/features → returns feature list")
     void getFeatures_returnsList() throws Exception {
         MvcResult listResult = mvc.perform(get("/api/v1/licenses")

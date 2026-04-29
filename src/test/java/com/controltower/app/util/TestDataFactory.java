@@ -8,7 +8,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Helper utilities shared across integration tests.
@@ -61,8 +60,15 @@ public final class TestDataFactory {
                     "email",    email,
                     "password", password
                 ))))
-                .andExpect(status().isOk())
                 .andReturn();
+
+        int loginStatus = result.getResponse().getStatus();
+        if (loginStatus != 200) {
+            throw new AssertionError(
+                "Login failed for email='" + email + "' with status " + loginStatus
+                + ". Body: " + result.getResponse().getContentAsString()
+            );
+        }
 
         String body = result.getResponse().getContentAsString();
         @SuppressWarnings("unchecked")
