@@ -28,7 +28,7 @@ public final class TestDataFactory {
             throws Exception {
 
         // 1. Onboard (idempotent: if tenant already exists, skip and proceed to login)
-        int onboardStatus = mvc.perform(post("/api/v1/tenants/onboard")
+        MvcResult onboardResult = mvc.perform(post("/api/v1/tenants/onboard")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(MAPPER.writeValueAsString(Map.of(
                     "tenantName",     "Test Tenant " + slug,
@@ -37,10 +37,14 @@ public final class TestDataFactory {
                     "adminPassword",  password,
                     "adminFullName",  "Admin " + slug
                 ))))
-                .andReturn().getResponse().getStatus();
+                .andReturn();
+        int onboardStatus = onboardResult.getResponse().getStatus();
 
-        if (onboardStatus != 201 && onboardStatus != 200) {
-            // Tenant already exists from a previous @BeforeEach call — just login
+        if (onboardStatus != 201 && onboardStatus != 200 && onboardStatus != 409) {
+            throw new AssertionError(
+                "Onboarding failed for slug='" + slug + "' with status " + onboardStatus
+                + ". Body: " + onboardResult.getResponse().getContentAsString()
+            );
         }
 
         // 2. Login and return access token

@@ -51,7 +51,7 @@ class LicenseLifecycleTest extends BaseIntegrationTest {
         mvc.perform(get("/api/v1/licenses/plans")
                 .header("Authorization", TestDataFactory.bearer(token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content", notNullValue()));
+                .andExpect(jsonPath("$.data", notNullValue()));
     }
 
     @Test

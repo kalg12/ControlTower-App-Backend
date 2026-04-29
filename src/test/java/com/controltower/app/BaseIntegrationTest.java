@@ -1,5 +1,7 @@
 package com.controltower.app;
 
+import com.controltower.app.shared.config.CorrelationIdFilter;
+import com.controltower.app.shared.config.RateLimitFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -47,6 +49,12 @@ public abstract class BaseIntegrationTest {
     @Autowired
     private WebApplicationContext webApplicationContext;
 
+    @Autowired
+    private CorrelationIdFilter correlationIdFilter;
+
+    @Autowired
+    private RateLimitFilter rateLimitFilter;
+
     /** Shared MockMvc instance available to all subclass tests. */
     protected MockMvc mvc;
 
@@ -54,6 +62,7 @@ public abstract class BaseIntegrationTest {
     void setUpMockMvc() {
         mvc = MockMvcBuilders
                 .webAppContextSetup(webApplicationContext)
+                .addFilters(correlationIdFilter, rateLimitFilter)
                 .apply(SecurityMockMvcConfigurers.springSecurity())
                 .build();
     }

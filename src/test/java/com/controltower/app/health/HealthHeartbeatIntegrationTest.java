@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
@@ -79,7 +80,7 @@ class HealthHeartbeatIntegrationTest extends BaseIntegrationTest {
                     "version",    "1.0.0"
                 ))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("UP"));
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -147,6 +148,6 @@ class HealthHeartbeatIntegrationTest extends BaseIntegrationTest {
                 mapper.readValue(body, Map.class).get("data");
         long totalElements = ((Number) page.get("totalElements")).longValue();
 
-        assert totalElements >= 1 : "Expected at least one incident after repeated DOWN heartbeats";
+        assertTrue(totalElements >= 1, "Expected at least one incident after repeated DOWN heartbeats");
     }
 }

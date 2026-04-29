@@ -142,12 +142,12 @@ class CampaignListIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("Campaign endpoints return 403 without token")
+    @DisplayName("Campaign endpoints return 401 without token")
     void campaignEndpoints_withoutToken_return403() throws Exception {
         String anyId = UUID.randomUUID().toString();
 
         mvc.perform(get("/api/v1/campaigns?page=0&size=20"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         mvc.perform(post("/api/v1/campaigns")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -157,18 +157,18 @@ class CampaignListIntegrationTest extends BaseIntegrationTest {
                         "subject", "Hello",
                         "body", "Campaign body"
                 ))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         mvc.perform(patch("/api/v1/campaigns/{id}", anyId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("name", "Updated"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         mvc.perform(post("/api/v1/campaigns/{id}/send", anyId))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         mvc.perform(delete("/api/v1/campaigns/{id}", anyId))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     private String createCampaign(String name) throws Exception {
