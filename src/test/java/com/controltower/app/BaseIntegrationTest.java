@@ -5,10 +5,15 @@ import com.controltower.app.shared.config.RateLimitFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.annotation.SchedulingConfigurer;
+import java.util.concurrent.Executors;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -17,6 +22,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -30,8 +36,20 @@ import org.testcontainers.utility.DockerImageName;
  * Spring Security filters are applied via SecurityMockMvcConfigurers.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
-@Testcontainers
-@Import(TestObjectMapperConfig.class)
+@Testcontainers(disabledWithoutDocker = true)
+@TestPropertySource(properties = {
+        "spring.task.scheduling.enabled=false",
+        "spring.autoconfigure.exclude=org.springframework.boot.websocket.servlet.WebSocketMessagingAutoConfiguration",
+        "spring.main.lazy-initialization=true",
+        "spring.datasource.hikari.maximum-pool-size=20",
+        "spring.datasource.hikari.minimum-idle=1",
+        "spring.datasource.hikari.connection-timeout=5000",
+        "spring.datasource.hikari.validation-timeout=1000",
+        "spring.datasource.hikari.idle-timeout=0",
+        "spring.datasource.hikari.max-lifetime=0",
+        "spring.datasource.hikari.keepalive-time=30000"
+})
+@Import({TestObjectMapperConfig.class, TestAsyncConfig.class, BaseIntegrationTest.NoOpSchedulingConfig.class})
 public abstract class BaseIntegrationTest {
 
     @Container
@@ -47,6 +65,10 @@ public abstract class BaseIntegrationTest {
             new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
                     .withExposedPorts(6379)
                     .waitingFor(Wait.forLogMessage(".*Ready to accept connections.*", 1));
+
+    static {
+        Startables.deepStart(POSTGRES, REDIS).join();
+    }
 
     @Autowired
     private WebApplicationContext webApplicationContext;
@@ -67,6 +89,24 @@ public abstract class BaseIntegrationTest {
                 .addFilters(correlationIdFilter, rateLimitFilter)
                 .apply(SecurityMockMvcConfigurers.springSecurity())
                 .build();
+    }
+
+    @TestConfiguration
+    static class NoOpSchedulingConfig {
+        @Bean(destroyMethod = "shutdownNow")
+        java.util.concurrent.ScheduledExecutorService disabledTestScheduler() {
+            return Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread thread = new Thread(r);
+                thread.setDaemon(true);
+                thread.setName("disabled-test-scheduler");
+                return thread;
+            });
+        }
+
+        @Bean
+        SchedulingConfigurer schedulingConfigurer(java.util.concurrent.ScheduledExecutorService disabledTestScheduler) {
+            return taskRegistrar -> taskRegistrar.setScheduler(disabledTestScheduler);
+        }
     }
 
     @DynamicPropertySource

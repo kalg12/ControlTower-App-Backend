@@ -64,7 +64,8 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
         // Verify credentials manually — UserDetailsServiceImpl uses UUID as username,
         // so the authenticationManager flow is used only for filter-based auth (JWT).
-        User user = userRepository.findByEmailAndDeletedAtIsNull(request.getEmail())
+        User user = userRepository.findAllByEmailAndDeletedAtIsNullOrderByCreatedAtDesc(request.getEmail()).stream()
+                .findFirst()
                 .orElseThrow(() -> new ControlTowerException("Invalid email or password", HttpStatus.UNAUTHORIZED));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
@@ -181,7 +182,7 @@ public class AuthService {
      */
     @Transactional
     public void forgotPassword(String email) {
-        userRepository.findByEmailAndDeletedAtIsNull(email).ifPresent(user -> {
+        userRepository.findAllByEmailAndDeletedAtIsNullOrderByCreatedAtDesc(email).stream().findFirst().ifPresent(user -> {
             String token = UUID.randomUUID().toString();
             PasswordResetToken resetToken = new PasswordResetToken();
             resetToken.setUserId(user.getId());

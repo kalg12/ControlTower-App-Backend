@@ -3,7 +3,6 @@ package com.controltower.app.support.infrastructure;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -29,7 +28,6 @@ public class PosWebhookService {
     private final RestClient restClient = RestClient.create();
 
     /** Called after a POS ticket status changes. */
-    @Async
     public void notifyStatusChange(String posTicketId, String callbackUrl, String newCtStatus) {
         if (callbackUrl == null || callbackUrl.isBlank()) return;
         send(callbackUrl, Map.of(
@@ -40,7 +38,6 @@ public class PosWebhookService {
     }
 
     /** Called after an operator adds a public comment on a POS ticket. */
-    @Async
     public void notifyNewComment(String posTicketId, String callbackUrl, String content, String senderName) {
         if (callbackUrl == null || callbackUrl.isBlank()) return;
         send(callbackUrl, Map.of(

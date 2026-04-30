@@ -1,6 +1,7 @@
 package com.controltower.app.health;
 
 import com.controltower.app.BaseIntegrationTest;
+import com.controltower.app.health.domain.HealthIncidentRepository;
 import com.controltower.app.util.TestDataFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.awaitility.Awaitility;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.*;
 class HealthHeartbeatIntegrationTest extends BaseIntegrationTest {
 
     @Autowired ObjectMapper mapper;
+    @Autowired HealthIncidentRepository incidentRepository;
 
     private String token;
     private String branchSlug;
@@ -138,18 +140,21 @@ class HealthHeartbeatIntegrationTest extends BaseIntegrationTest {
                     .andExpect(status().isOk());
         }
 
-        // evaluateAfterCheck is @Async — poll until the incident appears (up to 5 s)
+        mvc.perform(get("/api/v1/health/branches/" + branchId)
+                .header("Authorization", TestDataFactory.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].status").value("DOWN"));
+
         Awaitility.await()
                 .atMost(5, TimeUnit.SECONDS)
-                .pollInterval(500, TimeUnit.MILLISECONDS)
-                .until(() -> {
-                    MvcResult r = mvc.perform(get("/api/v1/health/incidents")
-                                    .header("Authorization", TestDataFactory.bearer(token)))
-                            .andReturn();
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> page = (Map<String, Object>)
-                            mapper.readValue(r.getResponse().getContentAsString(), Map.class).get("data");
-                    return ((Number) page.get("totalElements")).longValue() >= 1;
-                });
+                .pollInterval(250, TimeUnit.MILLISECONDS)
+                .untilAsserted(() -> assertTrue(
+                        incidentRepository.findByBranchIdAndResolvedAtIsNull(java.util.UUID.fromString(branchId)).isPresent()
+                ));
+
+        mvc.perform(get("/api/v1/health/incidents")
+                .header("Authorization", TestDataFactory.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(greaterThanOrEqualTo(1)));
     }
 }

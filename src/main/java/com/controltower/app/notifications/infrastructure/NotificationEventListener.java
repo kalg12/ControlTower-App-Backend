@@ -11,7 +11,6 @@ import com.controltower.app.support.domain.PosTicketReceivedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -32,7 +31,6 @@ public class NotificationEventListener {
                 .stream().map(u -> u.getId()).toList();
     }
 
-    @Async
     @EventListener
     public void onHealthIncident(HealthIncidentOpenedEvent event) {
         log.info("Sending notification for health incident {}", event.getIncidentId());
@@ -58,7 +56,6 @@ public class NotificationEventListener {
         );
     }
 
-    @Async
     @EventListener
     public void onHealthIncidentResolved(HealthIncidentResolvedEvent event) {
         log.info("Sending notification for resolved health incident {}", event.getIncidentId());
@@ -87,7 +84,6 @@ public class NotificationEventListener {
         );
     }
 
-    @Async
     @EventListener
     public void onPosTicketChat(PosTicketChatEvent event) {
         log.info("Sending chat notification for POS ticket {}", event.getPosTicketId());
@@ -107,7 +103,6 @@ public class NotificationEventListener {
         );
     }
 
-    @Async
     @EventListener
     public void onPosTicketReceived(PosTicketReceivedEvent event) {
         log.info("Sending notification for POS ticket {}", event.getPosTicketId());

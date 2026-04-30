@@ -19,8 +19,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByIdAndDeletedAtIsNull(UUID id);
 
-    /** Used during login: find by email across all tenants (email + tenant pair is unique). */
-    Optional<User> findByEmailAndDeletedAtIsNull(String email);
+    /** Used during login/forgot-password in tests and single-tenant flows. */
+    List<User> findAllByEmailAndDeletedAtIsNullOrderByCreatedAtDesc(String email);
 
     Page<User> findByTenantIdAndDeletedAtIsNull(UUID tenantId, Pageable pageable);
 

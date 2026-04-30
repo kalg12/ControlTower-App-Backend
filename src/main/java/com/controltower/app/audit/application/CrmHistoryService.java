@@ -102,23 +102,23 @@ public class CrmHistoryService {
         Map<String, Object> changes = new LinkedHashMap<>();
         
         if (oldClient == null || !Objects.equals(oldClient.getStatus(), newClient.getStatus())) {
-            changes.put("status", Map.of(
-                "old", oldClient != null ? oldClient.getStatus() : null,
-                "new", newClient.getStatus()
+            changes.put("status", changeMap(
+                oldClient != null ? oldClient.getStatus() : null,
+                newClient.getStatus()
             ));
         }
         
         if (oldClient == null || !Objects.equals(oldClient.getAccountOwnerId(), newClient.getAccountOwnerId())) {
-            changes.put("accountOwnerId", Map.of(
-                "old", oldClient != null ? oldClient.getAccountOwnerId() : null,
-                "new", newClient.getAccountOwnerId()
+            changes.put("accountOwnerId", changeMap(
+                oldClient != null ? oldClient.getAccountOwnerId() : null,
+                newClient.getAccountOwnerId()
             ));
         }
         
         if (oldClient == null || !Objects.equals(oldClient.getSegment(), newClient.getSegment())) {
-            changes.put("segment", Map.of(
-                "old", oldClient != null ? oldClient.getSegment() : null,
-                "new", newClient.getSegment()
+            changes.put("segment", changeMap(
+                oldClient != null ? oldClient.getSegment() : null,
+                newClient.getSegment()
             ));
         }
 
@@ -129,9 +129,9 @@ public class CrmHistoryService {
         Map<String, Object> changes = new LinkedHashMap<>();
         
         if (oldBranch == null || !Objects.equals(oldBranch.getStatus(), newBranch.getStatus())) {
-            changes.put("status", Map.of(
-                "old", oldBranch != null ? oldBranch.getStatus() : null,
-                "new", newBranch.getStatus()
+            changes.put("status", changeMap(
+                oldBranch != null ? oldBranch.getStatus() : null,
+                newBranch.getStatus()
             ));
         }
 
@@ -142,23 +142,23 @@ public class CrmHistoryService {
         Map<String, Object> changes = new LinkedHashMap<>();
         
         if (oldOpp == null || !Objects.equals(oldOpp.getStage(), newOpp.getStage())) {
-            changes.put("stage", Map.of(
-                "old", oldOpp != null ? oldOpp.getStage() : null,
-                "new", newOpp.getStage()
+            changes.put("stage", changeMap(
+                oldOpp != null ? oldOpp.getStage() : null,
+                newOpp.getStage()
             ));
         }
         
         if (oldOpp == null || !Objects.equals(oldOpp.getValue(), newOpp.getValue())) {
-            changes.put("value", Map.of(
-                "old", oldOpp != null ? oldOpp.getValue() : null,
-                "new", newOpp.getValue()
+            changes.put("value", changeMap(
+                oldOpp != null ? oldOpp.getValue() : null,
+                newOpp.getValue()
             ));
         }
         
         if (oldOpp == null || !Objects.equals(oldOpp.getOwnerId(), newOpp.getOwnerId())) {
-            changes.put("ownerId", Map.of(
-                "old", oldOpp != null ? oldOpp.getOwnerId() : null,
-                "new", newOpp.getOwnerId()
+            changes.put("ownerId", changeMap(
+                oldOpp != null ? oldOpp.getOwnerId() : null,
+                newOpp.getOwnerId()
             ));
         }
 
@@ -168,6 +168,13 @@ public class CrmHistoryService {
     private Map<String, Object> detectContactChanges(ClientContact oldContact, ClientContact newContact) {
         Map<String, Object> changes = new LinkedHashMap<>();
         return changes;
+    }
+
+    private Map<String, Object> changeMap(Object oldValue, Object newValue) {
+        Map<String, Object> change = new LinkedHashMap<>();
+        change.put("old", oldValue);
+        change.put("new", newValue);
+        return change;
     }
 
     private void notifyClientChange(UUID tenantId, UUID userId, AuditAction action, 

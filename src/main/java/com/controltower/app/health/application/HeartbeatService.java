@@ -34,7 +34,7 @@ public class HeartbeatService {
         HealthCheck check = new HealthCheck();
         check.setTenantId(branch.getTenant().getId());
         check.setBranchId(branch.getId());
-        check.setStatus(HealthCheck.HealthStatus.UP);
+        check.setStatus(resolveHeartbeatStatus(request));
         check.setLatencyMs(request.getLatencyMs());
         check.setVersion(request.getVersion());
         check.setSource(HealthCheck.CheckSource.HEARTBEAT);
@@ -42,11 +42,32 @@ public class HeartbeatService {
             check.setMetadata(request.getMetadata());
         }
 
-        healthCheckRepository.save(check);
+        check = healthCheckRepository.saveAndFlush(check);
         log.debug("Heartbeat received from branch {} (slug: {})", branch.getId(), branchSlug);
 
-        // Evaluate incident rules asynchronously
         incidentService.evaluateAfterCheck(branch, check);
+    }
+
+    private HealthCheck.HealthStatus resolveHeartbeatStatus(HeartbeatRequest request) {
+        if (request == null) {
+            return HealthCheck.HealthStatus.UP;
+        }
+
+        String rawStatus = request.getStatus();
+        if ((rawStatus == null || rawStatus.isBlank()) && request.getMetadata() != null) {
+            rawStatus = request.getMetadata();
+        }
+        if (rawStatus == null || rawStatus.isBlank()) {
+            return HealthCheck.HealthStatus.UP;
+        }
+
+        String normalized = rawStatus.trim().toUpperCase();
+        try {
+            return HealthCheck.HealthStatus.valueOf(normalized);
+        } catch (IllegalArgumentException ex) {
+            log.debug("Unknown heartbeat status payload '{}', defaulting to UP", rawStatus);
+            return HealthCheck.HealthStatus.UP;
+        }
     }
 
     /** Called by PullScheduler — resolves branch directly by UUID. */
@@ -63,7 +84,7 @@ public class HeartbeatService {
         check.setLatencyMs(request.getLatencyMs());
         check.setVersion(request.getVersion());
         check.setSource(HealthCheck.CheckSource.PULL);
-        healthCheckRepository.save(check);
+        check = healthCheckRepository.saveAndFlush(check);
         incidentService.evaluateAfterCheck(branch, check);
     }
 
@@ -100,7 +121,7 @@ public class HeartbeatService {
         if (detail != null && !detail.isBlank()) {
             check.setErrorMessage(detail);
         }
-        healthCheckRepository.save(check);
+        check = healthCheckRepository.saveAndFlush(check);
         incidentService.evaluateAfterCheck(branch, check);
     }
 
@@ -129,7 +150,7 @@ public class HeartbeatService {
             errorMessage = errorMessage.substring(0, 500);
         }
         check.setErrorMessage(errorMessage);
-        healthCheckRepository.save(check);
+        check = healthCheckRepository.saveAndFlush(check);
 
         log.warn("DOWN check recorded for branch {} — pull failed: {}", branchId, errorMessage);
         incidentService.evaluateAfterCheck(branch, check);

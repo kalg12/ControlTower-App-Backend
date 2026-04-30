@@ -74,7 +74,9 @@ public class ClientService {
         if (request.getPrimaryEmail() != null) client.setPrimaryEmail(request.getPrimaryEmail());
         if (request.getPrimaryContactName() != null) client.setPrimaryContactName(request.getPrimaryContactName());
 
-        return toClientResponse(clientRepository.save(client));
+        Client saved = clientRepository.save(client);
+        crmHistoryService.logClientChange(tenantId, null, null, saved, AuditAction.CLIENT_CREATED, saved.getAccountOwnerId());
+        return toClientResponse(saved);
     }
 
     @Transactional

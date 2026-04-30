@@ -238,7 +238,7 @@ class AuthIntegrationTest extends BaseIntegrationTest {
 
     private synchronized void ensureOnboarded() throws Exception {
         if (!onboarded) {
-            mvc.perform(post("/api/v1/tenants/onboard")
+            int status = mvc.perform(post("/api/v1/tenants/onboard")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(mapper.writeValueAsString(Map.of(
                         "tenantName",    "Auth Test Tenant",
@@ -247,7 +247,12 @@ class AuthIntegrationTest extends BaseIntegrationTest {
                         "adminPassword", PASSWORD,
                         "adminFullName", "Auth Admin"
                     ))))
-                    .andReturn();
+                    .andReturn()
+                    .getResponse()
+                    .getStatus();
+            if (status != 201 && status != 200 && status != 409) {
+                throw new AssertionError("Auth test onboarding failed with status " + status);
+            }
             onboarded = true;
         }
     }
