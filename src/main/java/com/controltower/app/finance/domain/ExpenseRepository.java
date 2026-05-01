@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -74,4 +75,13 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
             @Param("tenantId") UUID tenantId,
             @Param("from") Instant from,
             @Param("to") Instant to);
+
+    @Query("""
+        SELECT e FROM Expense e
+        WHERE e.isRecurring = true
+          AND e.deletedAt IS NULL
+          AND e.nextOccurrenceDate <= :today
+          AND (e.recurrenceEndDate IS NULL OR e.recurrenceEndDate >= :today)
+        """)
+    List<Expense> findDueForRecurrence(@Param("today") LocalDate today);
 }
