@@ -1,6 +1,7 @@
 package com.controltower.app.finance.api.dto;
 
 import com.controltower.app.finance.domain.Invoice.InvoiceStatus;
+import com.controltower.app.finance.domain.RecurrenceType;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -27,5 +28,10 @@ public record InvoiceResponse(
         Instant paidAt,
         List<InvoiceLineItemResponse> lineItems,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        boolean isRecurring,
+        RecurrenceType recurrenceType,
+        LocalDate recurrenceEndDate,
+        LocalDate nextOccurrenceDate,
+        UUID parentRecurringId
 ) {}

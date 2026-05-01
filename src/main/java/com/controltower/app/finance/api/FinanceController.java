@@ -4,6 +4,7 @@ import com.controltower.app.finance.api.dto.*;
 import com.controltower.app.finance.application.FinanceService;
 import com.controltower.app.finance.domain.Expense.ExpenseCategory;
 import com.controltower.app.finance.domain.Invoice.InvoiceStatus;
+import com.controltower.app.finance.domain.PurchaseRecord.PurchaseSource;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -220,5 +221,67 @@ public class FinanceController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return ResponseEntity.ok(ApiResponse.ok(financeService.getCashFlow(from, to)));
+    }
+
+    // ── PURCHASES ────────────────────────────────────────────────────────────
+
+    @Operation(summary = "List purchases")
+    @GetMapping("/purchases")
+    @PreAuthorize("hasAuthority('finance:read')")
+    public ResponseEntity<ApiResponse<PageResponse<PurchaseResponse>>> listPurchases(
+            @RequestParam(required = false) PurchaseSource source,
+            @RequestParam(required = false) ExpenseCategory category,
+            @RequestParam(required = false) String vendor,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by("purchasedAt").descending());
+        return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(
+                financeService.listPurchases(source, category, vendor, from, to, pageable))));
+    }
+
+    @Operation(summary = "Get purchase")
+    @GetMapping("/purchases/{id}")
+    @PreAuthorize("hasAuthority('finance:read')")
+    public ResponseEntity<ApiResponse<PurchaseResponse>> getPurchase(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(financeService.getPurchase(id)));
+    }
+
+    @Operation(summary = "Create purchase")
+    @PostMapping("/purchases")
+    @PreAuthorize("hasAuthority('finance:write')")
+    public ResponseEntity<ApiResponse<PurchaseResponse>> createPurchase(
+            @Valid @RequestBody PurchaseRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok(financeService.createPurchase(request)));
+    }
+
+    @Operation(summary = "Update purchase")
+    @PutMapping("/purchases/{id}")
+    @PreAuthorize("hasAuthority('finance:write')")
+    public ResponseEntity<ApiResponse<PurchaseResponse>> updatePurchase(
+            @PathVariable UUID id,
+            @Valid @RequestBody PurchaseRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(financeService.updatePurchase(id, request)));
+    }
+
+    @Operation(summary = "Delete purchase")
+    @DeleteMapping("/purchases/{id}")
+    @PreAuthorize("hasAuthority('finance:write')")
+    public ResponseEntity<Void> deletePurchase(@PathVariable UUID id) {
+        financeService.deletePurchase(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── P&L REPORT ────────────────────────────────────────────────────────────
+
+    @Operation(summary = "Get P&L report")
+    @GetMapping("/reports/pnl")
+    @PreAuthorize("hasAuthority('finance:read')")
+    public ResponseEntity<ApiResponse<PnlReportResponse>> getPnlReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return ResponseEntity.ok(ApiResponse.ok(financeService.getPnlReport(from, to)));
     }
 }

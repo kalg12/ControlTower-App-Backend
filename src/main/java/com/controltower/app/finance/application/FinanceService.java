@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -37,6 +38,7 @@ public class FinanceService {
     private final InvoiceRepository invoiceRepository;
     private final PaymentRepository paymentRepository;
     private final ExpenseRepository expenseRepository;
+    private final PurchaseRecordRepository purchaseRecordRepository;
     private final ClientRepository clientRepository;
     private final AuditService auditService;
     private final EmailService emailService;
@@ -56,6 +58,7 @@ public class FinanceService {
         invoice.setNotes(req.notes());
         invoice.setIssuedAt(req.issuedAt() != null ? req.issuedAt() : LocalDate.now());
         invoice.setDueDate(req.dueDate());
+        applyRecurring(invoice, req.isRecurring(), req.recurrenceType(), req.recurrenceEndDate());
 
         setLineItems(invoice, req.lineItems());
         invoice.recalculate();
@@ -79,6 +82,7 @@ public class FinanceService {
         invoice.setNotes(req.notes());
         if (req.issuedAt() != null) invoice.setIssuedAt(req.issuedAt());
         invoice.setDueDate(req.dueDate());
+        applyRecurring(invoice, req.isRecurring(), req.recurrenceType(), req.recurrenceEndDate());
 
         setLineItems(invoice, req.lineItems());
         invoice.recalculate();
@@ -175,10 +179,12 @@ public class FinanceService {
         payment.setReference(req.reference());
         payment.setNotes(req.notes());
         payment.setPaidAt(req.paidAt() != null ? req.paidAt() : Instant.now());
+        payment.setSource(req.source() != null ? req.source() : Payment.PaymentSource.MANUAL);
+        payment.setPosReference(req.posReference());
+        applyRecurring(payment, req.isRecurring(), req.recurrenceType(), req.recurrenceEndDate());
 
         Payment saved = paymentRepository.save(payment);
 
-        // Auto-mark linked invoice as PAID
         if (req.invoiceId() != null) {
             invoiceRepository.findByIdAndDeletedAtIsNull(req.invoiceId()).ifPresent(inv -> {
                 if (inv.getStatus() != InvoiceStatus.PAID && inv.getStatus() != InvoiceStatus.CANCELLED && inv.getStatus() != InvoiceStatus.VOIDED) {
@@ -228,6 +234,7 @@ public class FinanceService {
         expense.setReceiptUrl(req.receiptUrl());
         expense.setNotes(req.notes());
         expense.setPaidAt(req.paidAt() != null ? req.paidAt() : Instant.now());
+        applyRecurring(expense, req.isRecurring(), req.recurrenceType(), req.recurrenceEndDate());
 
         return toExpenseResponse(expenseRepository.save(expense), Map.of());
     }
@@ -246,6 +253,7 @@ public class FinanceService {
         expense.setReceiptUrl(req.receiptUrl());
         expense.setNotes(req.notes());
         if (req.paidAt() != null) expense.setPaidAt(req.paidAt());
+        applyRecurring(expense, req.isRecurring(), req.recurrenceType(), req.recurrenceEndDate());
 
         return toExpenseResponse(expenseRepository.save(expense), Map.of());
     }
@@ -300,7 +308,7 @@ public class FinanceService {
                             .map(Expense::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
                     double pct = grandTotal.compareTo(BigDecimal.ZERO) == 0 ? 0.0
                             : catTotal.multiply(new BigDecimal("100"))
-                              .divide(grandTotal, 2, java.math.RoundingMode.HALF_UP).doubleValue();
+                              .divide(grandTotal, 2, RoundingMode.HALF_UP).doubleValue();
                     return new ExpenseSummaryResponse.CategoryBreakdown(
                             entry.getKey(), catTotal, entry.getValue().size(), pct);
                 })
@@ -348,6 +356,141 @@ public class FinanceService {
         auditService.log(AuditAction.FINANCE_REPORT_SENT, tenantId, userId, "FinanceReport", toEmail);
     }
 
+    // ── PURCHASES ────────────────────────────────────────────────────────────
+
+    @Transactional
+    public PurchaseResponse createPurchase(PurchaseRequest req) {
+        UUID tenantId = TenantContext.getTenantId();
+
+        PurchaseRecord purchase = new PurchaseRecord();
+        purchase.setTenantId(tenantId);
+        purchase.setVendor(req.vendor());
+        purchase.setDescription(req.description());
+        purchase.setAmount(req.amount());
+        purchase.setCurrency(req.currency() != null ? req.currency() : "MXN");
+        purchase.setCategory(req.category() != null ? req.category() : Expense.ExpenseCategory.OTHER);
+        purchase.setQuantity(req.quantity() != null ? req.quantity() : BigDecimal.ONE);
+        purchase.setUnitPrice(req.unitPrice());
+        purchase.setReceiptUrl(req.receiptUrl());
+        purchase.setNotes(req.notes());
+        purchase.setPurchasedAt(req.purchasedAt() != null ? req.purchasedAt() : Instant.now());
+        purchase.setSource(req.source() != null ? req.source() : PurchaseRecord.PurchaseSource.MANUAL);
+        purchase.setPosReference(req.posReference());
+        applyRecurringPurchase(purchase, req.isRecurring(), req.recurrenceType(), req.recurrenceEndDate());
+
+        return toPurchaseResponse(purchaseRecordRepository.save(purchase));
+    }
+
+    @Transactional
+    public PurchaseResponse updatePurchase(UUID id, PurchaseRequest req) {
+        PurchaseRecord purchase = purchaseRecordRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Purchase not found: " + id));
+
+        purchase.setVendor(req.vendor());
+        purchase.setDescription(req.description());
+        purchase.setAmount(req.amount());
+        if (req.currency() != null) purchase.setCurrency(req.currency());
+        if (req.category() != null) purchase.setCategory(req.category());
+        if (req.quantity() != null) purchase.setQuantity(req.quantity());
+        purchase.setUnitPrice(req.unitPrice());
+        purchase.setReceiptUrl(req.receiptUrl());
+        purchase.setNotes(req.notes());
+        if (req.purchasedAt() != null) purchase.setPurchasedAt(req.purchasedAt());
+        if (req.source() != null) purchase.setSource(req.source());
+        purchase.setPosReference(req.posReference());
+        applyRecurringPurchase(purchase, req.isRecurring(), req.recurrenceType(), req.recurrenceEndDate());
+
+        return toPurchaseResponse(purchaseRecordRepository.save(purchase));
+    }
+
+    @Transactional
+    public void deletePurchase(UUID id) {
+        PurchaseRecord purchase = purchaseRecordRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Purchase not found: " + id));
+        purchase.softDelete();
+        purchaseRecordRepository.save(purchase);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PurchaseResponse> listPurchases(
+            PurchaseRecord.PurchaseSource source,
+            Expense.ExpenseCategory category,
+            String vendor,
+            Instant from,
+            Instant to,
+            Pageable pageable) {
+        UUID tenantId = TenantContext.getTenantId();
+        return purchaseRecordRepository
+                .findFiltered(tenantId, source, category, vendor, from, to, pageable)
+                .map(this::toPurchaseResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public PurchaseResponse getPurchase(UUID id) {
+        PurchaseRecord p = purchaseRecordRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Purchase not found: " + id));
+        return toPurchaseResponse(p);
+    }
+
+    // ── P&L REPORT ───────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public PnlReportResponse getPnlReport(Instant from, Instant to) {
+        UUID tenantId = TenantContext.getTenantId();
+
+        List<Payment> payments = paymentRepository.findByTenantIdAndPaidAtBetween(tenantId, from, to);
+        List<Expense> expenses = expenseRepository.findByTenantIdAndPaidAtBetween(tenantId, from, to);
+        List<PurchaseRecord> purchases = purchaseRecordRepository.findByTenantIdAndPurchasedAtBetween(tenantId, from, to);
+
+        BigDecimal totalIncome = payments.stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalExpenses = expenses.stream().map(Expense::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalPurchases = purchases.stream().map(PurchaseRecord::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalOutflows = totalExpenses.add(totalPurchases);
+        BigDecimal netProfit = totalIncome.subtract(totalOutflows);
+
+        double marginPct = totalIncome.compareTo(BigDecimal.ZERO) == 0 ? 0.0
+                : netProfit.multiply(new BigDecimal("100"))
+                  .divide(totalIncome, 2, RoundingMode.HALF_UP).doubleValue();
+
+        // Monthly breakdown
+        Map<YearMonth, BigDecimal[]> monthly = new TreeMap<>();
+        for (Payment p : payments) {
+            YearMonth ym = YearMonth.from(p.getPaidAt().atZone(ZoneOffset.UTC));
+            monthly.computeIfAbsent(ym, k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO})[0] =
+                    monthly.get(ym)[0].add(p.getAmount());
+        }
+        for (Expense e : expenses) {
+            YearMonth ym = YearMonth.from(e.getPaidAt().atZone(ZoneOffset.UTC));
+            monthly.computeIfAbsent(ym, k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO})[1] =
+                    monthly.get(ym)[1].add(e.getAmount());
+        }
+        for (PurchaseRecord pr : purchases) {
+            YearMonth ym = YearMonth.from(pr.getPurchasedAt().atZone(ZoneOffset.UTC));
+            monthly.computeIfAbsent(ym, k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO})[2] =
+                    monthly.get(ym)[2].add(pr.getAmount());
+        }
+
+        List<PnlReportResponse.MonthlyPnl> byMonth = monthly.entrySet().stream()
+                .map(e -> new PnlReportResponse.MonthlyPnl(
+                        e.getKey().toString(),
+                        e.getValue()[0],
+                        e.getValue()[1],
+                        e.getValue()[2],
+                        e.getValue()[0].subtract(e.getValue()[1]).subtract(e.getValue()[2])
+                ))
+                .collect(Collectors.toList());
+
+        // Category breakdowns
+        Map<String, BigDecimal> incomeByCategory = Map.of("PAYMENTS", totalIncome);
+        Map<String, BigDecimal> expensesByCategory = expenses.stream()
+                .collect(Collectors.groupingBy(
+                        e -> e.getCategory().name(),
+                        Collectors.reducing(BigDecimal.ZERO, Expense::getAmount, BigDecimal::add)));
+
+        return new PnlReportResponse(from, to, totalIncome, totalOutflows, netProfit, marginPct,
+                byMonth, incomeByCategory, expensesByCategory);
+    }
+
     // ── CLIENT SUMMARY ───────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
@@ -389,7 +532,6 @@ public class FinanceService {
 
         BigDecimal netFlow = totalIncome.subtract(totalExpenses);
 
-        // Build monthly breakdown
         Map<YearMonth, BigDecimal[]> monthly = new TreeMap<>();
         for (Payment p : payments) {
             YearMonth ym = YearMonth.from(p.getPaidAt().atZone(ZoneOffset.UTC));
@@ -443,6 +585,81 @@ public class FinanceService {
         }
     }
 
+    private void applyRecurring(Invoice invoice, Boolean isRecurring, RecurrenceType type, LocalDate endDate) {
+        if (Boolean.TRUE.equals(isRecurring)) {
+            invoice.setRecurring(true);
+            invoice.setRecurrenceType(type);
+            invoice.setRecurrenceEndDate(endDate);
+            if (invoice.getNextOccurrenceDate() == null && type != null) {
+                invoice.setNextOccurrenceDate(nextOccurrence(invoice.getIssuedAt() != null ? invoice.getIssuedAt() : LocalDate.now(), type));
+            }
+        } else if (Boolean.FALSE.equals(isRecurring)) {
+            invoice.setRecurring(false);
+            invoice.setRecurrenceType(null);
+            invoice.setRecurrenceEndDate(null);
+            invoice.setNextOccurrenceDate(null);
+        }
+    }
+
+    private void applyRecurring(Payment payment, Boolean isRecurring, RecurrenceType type, LocalDate endDate) {
+        if (Boolean.TRUE.equals(isRecurring)) {
+            payment.setRecurring(true);
+            payment.setRecurrenceType(type);
+            payment.setRecurrenceEndDate(endDate);
+            if (payment.getNextOccurrenceDate() == null && type != null) {
+                payment.setNextOccurrenceDate(nextOccurrence(LocalDate.now(), type));
+            }
+        } else if (Boolean.FALSE.equals(isRecurring)) {
+            payment.setRecurring(false);
+            payment.setRecurrenceType(null);
+            payment.setRecurrenceEndDate(null);
+            payment.setNextOccurrenceDate(null);
+        }
+    }
+
+    private void applyRecurring(Expense expense, Boolean isRecurring, RecurrenceType type, LocalDate endDate) {
+        if (Boolean.TRUE.equals(isRecurring)) {
+            expense.setRecurring(true);
+            expense.setRecurrenceType(type);
+            expense.setRecurrenceEndDate(endDate);
+            if (expense.getNextOccurrenceDate() == null && type != null) {
+                expense.setNextOccurrenceDate(nextOccurrence(LocalDate.now(), type));
+            }
+        } else if (Boolean.FALSE.equals(isRecurring)) {
+            expense.setRecurring(false);
+            expense.setRecurrenceType(null);
+            expense.setRecurrenceEndDate(null);
+            expense.setNextOccurrenceDate(null);
+        }
+    }
+
+    private void applyRecurringPurchase(PurchaseRecord purchase, Boolean isRecurring, RecurrenceType type, LocalDate endDate) {
+        if (Boolean.TRUE.equals(isRecurring)) {
+            purchase.setRecurring(true);
+            purchase.setRecurrenceType(type);
+            purchase.setRecurrenceEndDate(endDate);
+            if (purchase.getNextOccurrenceDate() == null && type != null) {
+                purchase.setNextOccurrenceDate(nextOccurrence(LocalDate.now(), type));
+            }
+        } else if (Boolean.FALSE.equals(isRecurring)) {
+            purchase.setRecurring(false);
+            purchase.setRecurrenceType(null);
+            purchase.setRecurrenceEndDate(null);
+            purchase.setNextOccurrenceDate(null);
+        }
+    }
+
+    private LocalDate nextOccurrence(LocalDate base, RecurrenceType type) {
+        return switch (type) {
+            case DAILY     -> base.plusDays(1);
+            case WEEKLY    -> base.plusWeeks(1);
+            case BIWEEKLY  -> base.plusWeeks(2);
+            case MONTHLY   -> base.plusMonths(1);
+            case QUARTERLY -> base.plusMonths(3);
+            case YEARLY    -> base.plusYears(1);
+        };
+    }
+
     private Map<UUID, Client> loadClients(List<UUID> ids) {
         if (ids == null || ids.isEmpty()) return Map.of();
         return clientRepository.findAllById(ids).stream()
@@ -474,7 +691,9 @@ public class FinanceService {
                 i.getNumber(), i.getStatus(), i.getSubtotal(), i.getTaxRate(), i.getTaxAmount(),
                 i.getTotal(), i.getCurrency(), i.getNotes(),
                 i.getIssuedAt(), i.getDueDate(), i.getPaidAt(),
-                items, i.getCreatedAt(), i.getUpdatedAt());
+                items, i.getCreatedAt(), i.getUpdatedAt(),
+                i.isRecurring(), i.getRecurrenceType(), i.getRecurrenceEndDate(),
+                i.getNextOccurrenceDate(), i.getParentRecurringId());
     }
 
     private PaymentResponse toPaymentResponse(Payment p, Map<UUID, Client> clients) {
@@ -483,7 +702,10 @@ public class FinanceService {
                 p.getId(), p.getTenantId(), p.getClientId(),
                 client != null ? client.getName() : null,
                 p.getInvoiceId(), p.getAmount(), p.getCurrency(), p.getMethod(),
-                p.getReference(), p.getNotes(), p.getPaidAt(), p.getCreatedAt());
+                p.getReference(), p.getNotes(), p.getPaidAt(), p.getCreatedAt(),
+                p.getSource(), p.getPosReference(),
+                p.isRecurring(), p.getRecurrenceType(), p.getRecurrenceEndDate(),
+                p.getNextOccurrenceDate(), p.getParentRecurringId());
     }
 
     private ExpenseResponse toExpenseResponse(Expense e, Map<UUID, Client> clients) {
@@ -493,6 +715,18 @@ public class FinanceService {
                 client != null ? client.getName() : null,
                 e.getCategory(), e.getDescription(),
                 e.getAmount(), e.getCurrency(), e.getVendor(), e.getReceiptUrl(),
-                e.getNotes(), e.getPaidAt(), e.getCreatedAt(), e.getUpdatedAt());
+                e.getNotes(), e.getPaidAt(), e.getCreatedAt(), e.getUpdatedAt(),
+                e.isRecurring(), e.getRecurrenceType(), e.getRecurrenceEndDate(),
+                e.getNextOccurrenceDate(), e.getParentRecurringId());
+    }
+
+    private PurchaseResponse toPurchaseResponse(PurchaseRecord p) {
+        return new PurchaseResponse(
+                p.getId(), p.getTenantId(), p.getVendor(), p.getDescription(),
+                p.getAmount(), p.getCurrency(), p.getCategory(), p.getQuantity(), p.getUnitPrice(),
+                p.getReceiptUrl(), p.getNotes(), p.getPurchasedAt(), p.getSource(), p.getPosReference(),
+                p.isRecurring(), p.getRecurrenceType(), p.getRecurrenceEndDate(),
+                p.getNextOccurrenceDate(), p.getParentRecurringId(),
+                p.getCreatedAt(), p.getUpdatedAt());
     }
 }

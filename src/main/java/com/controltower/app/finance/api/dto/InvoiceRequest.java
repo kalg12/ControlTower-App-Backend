@@ -1,5 +1,6 @@
 package com.controltower.app.finance.api.dto;
 
+import com.controltower.app.finance.domain.RecurrenceType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
@@ -17,5 +18,8 @@ public record InvoiceRequest(
         @Size(max = 5000) String notes,
         LocalDate issuedAt,
         LocalDate dueDate,
-        @NotEmpty @Valid List<InvoiceLineItemRequest> lineItems
+        @NotEmpty @Valid List<InvoiceLineItemRequest> lineItems,
+        Boolean isRecurring,
+        RecurrenceType recurrenceType,
+        LocalDate recurrenceEndDate
 ) {}

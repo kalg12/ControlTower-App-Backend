@@ -1,6 +1,7 @@
 package com.controltower.app.finance.api.dto;
 
 import com.controltower.app.finance.domain.Expense.ExpenseCategory;
+import com.controltower.app.finance.domain.PurchaseRecord.PurchaseSource;
 import com.controltower.app.finance.domain.RecurrenceType;
 
 import java.math.BigDecimal;
@@ -8,24 +9,26 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-public record ExpenseResponse(
+public record PurchaseResponse(
         UUID id,
         UUID tenantId,
-        UUID clientId,
-        String clientName,
-        ExpenseCategory category,
+        String vendor,
         String description,
         BigDecimal amount,
         String currency,
-        String vendor,
+        ExpenseCategory category,
+        BigDecimal quantity,
+        BigDecimal unitPrice,
         String receiptUrl,
         String notes,
-        Instant paidAt,
-        Instant createdAt,
-        Instant updatedAt,
+        Instant purchasedAt,
+        PurchaseSource source,
+        String posReference,
         boolean isRecurring,
         RecurrenceType recurrenceType,
         LocalDate recurrenceEndDate,
         LocalDate nextOccurrenceDate,
-        UUID parentRecurringId
+        UUID parentRecurringId,
+        Instant createdAt,
+        Instant updatedAt
 ) {}
