@@ -5,7 +5,6 @@ import com.controltower.app.shared.events.UserActionEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,7 +21,6 @@ public class UserActivityEventListener {
 
     private final UserActivityService activityService;
 
-    @Async
     @EventListener
     public void onUserAction(UserActionEvent event) {
         try {

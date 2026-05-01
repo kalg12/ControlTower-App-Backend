@@ -7,7 +7,6 @@ import com.controltower.app.support.domain.Ticket;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -17,7 +16,6 @@ public class HealthIncidentListener {
 
     private final TicketService ticketService;
 
-    @Async
     @EventListener
     public void onIncidentOpened(HealthIncidentOpenedEvent event) {
         log.info("Auto-creating ticket for health incident {} on branch {}",

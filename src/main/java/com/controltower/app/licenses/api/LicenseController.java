@@ -2,6 +2,7 @@ package com.controltower.app.licenses.api;
 
 import com.controltower.app.licenses.api.dto.ActivateLicenseRequest;
 import com.controltower.app.licenses.api.dto.LicenseResponse;
+import com.controltower.app.licenses.api.dto.PlanResponse;
 import com.controltower.app.licenses.application.LicenseService;
 import com.controltower.app.licenses.domain.PlanRepository;
 import com.controltower.app.licenses.domain.Plan;
@@ -100,7 +101,18 @@ public class LicenseController {
     @Operation(summary = "List plans", description = "Returns all active subscription plans available for license activation. Requires the 'license:read' permission.")
     @GetMapping("/plans")
     @PreAuthorize("hasAuthority('license:read')")
-    public ResponseEntity<ApiResponse<List<Plan>>> listPlans() {
-        return ResponseEntity.ok(ApiResponse.ok(planRepository.findByActiveTrue()));
+    public ResponseEntity<ApiResponse<List<PlanResponse>>> listPlans() {
+        List<PlanResponse> plans = planRepository.findByActiveTrue().stream()
+                .map(plan -> PlanResponse.builder()
+                        .id(plan.getId())
+                        .name(plan.getName())
+                        .description(plan.getDescription())
+                        .maxBranches(plan.getMaxBranches())
+                        .maxUsers(plan.getMaxUsers())
+                        .priceMonthly(plan.getPriceMonthly())
+                        .active(plan.isActive())
+                        .build())
+                .toList();
+        return ResponseEntity.ok(ApiResponse.ok(plans));
     }
 }

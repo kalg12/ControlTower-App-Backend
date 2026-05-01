@@ -1,11 +1,13 @@
 package com.controltower.app;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.test.annotation.DirtiesContext;
 
 /**
  * Verifies that the Spring application context loads successfully with
  * real PostgreSQL and Redis containers (Testcontainers).
  */
+@DirtiesContext
 class ControltowerAppApplicationTests extends BaseIntegrationTest {
 
     @Test

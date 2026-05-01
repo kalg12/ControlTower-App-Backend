@@ -553,7 +553,7 @@ public class TicketService {
             case IN_PROGRESS -> to == Ticket.TicketStatus.WAITING || to == Ticket.TicketStatus.RESOLVED || to == Ticket.TicketStatus.CLOSED;
             case WAITING     -> to == Ticket.TicketStatus.IN_PROGRESS || to == Ticket.TicketStatus.RESOLVED;
             case RESOLVED    -> to == Ticket.TicketStatus.CLOSED || to == Ticket.TicketStatus.OPEN;
-            case CLOSED      -> to == Ticket.TicketStatus.OPEN || to == Ticket.TicketStatus.IN_PROGRESS || to == Ticket.TicketStatus.RESOLVED;
+            case CLOSED      -> to == Ticket.TicketStatus.OPEN;
         };
         if (!valid) {
             throw new ControlTowerException(

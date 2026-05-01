@@ -10,6 +10,7 @@ import lombok.Setter;
 @Setter
 public class HeartbeatRequest {
 
+    private String status;
     private Integer latencyMs;
     private String version;
     private String metadata;

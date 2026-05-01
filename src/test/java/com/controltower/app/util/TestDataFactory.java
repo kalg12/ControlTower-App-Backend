@@ -8,7 +8,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Helper utilities shared across integration tests.
@@ -27,20 +26,26 @@ public final class TestDataFactory {
     public static String onboardAndGetToken(MockMvc mvc, String slug, String email, String password)
             throws Exception {
 
+        String resolvedSlug = slug + "-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+
         // 1. Onboard (idempotent: if tenant already exists, skip and proceed to login)
-        int onboardStatus = mvc.perform(post("/api/v1/tenants/onboard")
+        MvcResult onboardResult = mvc.perform(post("/api/v1/tenants/onboard")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(MAPPER.writeValueAsString(Map.of(
-                    "tenantName",     "Test Tenant " + slug,
-                    "tenantSlug",     slug,
+                    "tenantName",     "Test Tenant " + resolvedSlug,
+                    "tenantSlug",     resolvedSlug,
                     "adminEmail",     email,
                     "adminPassword",  password,
-                    "adminFullName",  "Admin " + slug
+                    "adminFullName",  "Admin " + resolvedSlug
                 ))))
-                .andReturn().getResponse().getStatus();
+                .andReturn();
+        int onboardStatus = onboardResult.getResponse().getStatus();
 
-        if (onboardStatus != 201 && onboardStatus != 200) {
-            // Tenant already exists from a previous @BeforeEach call — just login
+        if (onboardStatus != 201 && onboardStatus != 200 && onboardStatus != 409) {
+            throw new AssertionError(
+                "Onboarding failed for slug='" + resolvedSlug + "' with status " + onboardStatus
+                + ". Body: " + onboardResult.getResponse().getContentAsString()
+            );
         }
 
         // 2. Login and return access token
@@ -57,8 +62,15 @@ public final class TestDataFactory {
                     "email",    email,
                     "password", password
                 ))))
-                .andExpect(status().isOk())
                 .andReturn();
+
+        int loginStatus = result.getResponse().getStatus();
+        if (loginStatus != 200) {
+            throw new AssertionError(
+                "Login failed for email='" + email + "' with status " + loginStatus
+                + ". Body: " + result.getResponse().getContentAsString()
+            );
+        }
 
         String body = result.getResponse().getContentAsString();
         @SuppressWarnings("unchecked")

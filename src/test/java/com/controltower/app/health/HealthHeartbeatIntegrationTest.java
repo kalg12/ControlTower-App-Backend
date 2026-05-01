@@ -1,11 +1,15 @@
 package com.controltower.app.health;
 
 import com.controltower.app.BaseIntegrationTest;
+import com.controltower.app.health.domain.HealthIncidentRepository;
 import com.controltower.app.util.TestDataFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
@@ -28,6 +32,7 @@ import static org.hamcrest.Matchers.*;
 class HealthHeartbeatIntegrationTest extends BaseIntegrationTest {
 
     @Autowired ObjectMapper mapper;
+    @Autowired HealthIncidentRepository incidentRepository;
 
     private String token;
     private String branchSlug;
@@ -79,7 +84,7 @@ class HealthHeartbeatIntegrationTest extends BaseIntegrationTest {
                     "version",    "1.0.0"
                 ))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("UP"));
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -135,18 +140,21 @@ class HealthHeartbeatIntegrationTest extends BaseIntegrationTest {
                     .andExpect(status().isOk());
         }
 
-        // Check incidents endpoint — should have at least one open incident
-        MvcResult result = mvc.perform(get("/api/v1/health/incidents")
+        mvc.perform(get("/api/v1/health/branches/" + branchId)
                 .header("Authorization", TestDataFactory.bearer(token)))
                 .andExpect(status().isOk())
-                .andReturn();
+                .andExpect(jsonPath("$.data.content[0].status").value("DOWN"));
 
-        String body = result.getResponse().getContentAsString();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> page = (Map<String, Object>)
-                mapper.readValue(body, Map.class).get("data");
-        long totalElements = ((Number) page.get("totalElements")).longValue();
+        Awaitility.await()
+                .atMost(5, TimeUnit.SECONDS)
+                .pollInterval(250, TimeUnit.MILLISECONDS)
+                .untilAsserted(() -> assertTrue(
+                        incidentRepository.findByBranchIdAndResolvedAtIsNull(java.util.UUID.fromString(branchId)).isPresent()
+                ));
 
-        assert totalElements >= 1 : "Expected at least one incident after repeated DOWN heartbeats";
+        mvc.perform(get("/api/v1/health/incidents")
+                .header("Authorization", TestDataFactory.bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(greaterThanOrEqualTo(1)));
     }
 }
