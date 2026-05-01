@@ -46,6 +46,22 @@ public class Expense extends BaseEntity {
     @Column(name = "paid_at", nullable = false)
     private Instant paidAt = Instant.now();
 
+    @Column(name = "is_recurring", nullable = false)
+    private boolean isRecurring = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recurrence_type", length = 20)
+    private RecurrenceType recurrenceType;
+
+    @Column(name = "recurrence_end_date")
+    private java.time.LocalDate recurrenceEndDate;
+
+    @Column(name = "next_occurrence_date")
+    private java.time.LocalDate nextOccurrenceDate;
+
+    @Column(name = "parent_recurring_id")
+    private UUID parentRecurringId;
+
     public enum ExpenseCategory {
         PAYROLL, SERVICES, RENT, MARKETING, TECH, TRAVEL, SUPPLIES, TAXES, OTHER
     }

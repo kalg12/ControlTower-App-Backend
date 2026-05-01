@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -73,4 +74,13 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
           AND i.dueDate = :dueDate
         """)
     List<Invoice> findInvoicesDueOn(@Param("dueDate") java.time.LocalDate dueDate);
+
+    @Query("""
+        SELECT i FROM Invoice i
+        WHERE i.isRecurring = true
+          AND i.deletedAt IS NULL
+          AND i.nextOccurrenceDate <= :today
+          AND (i.recurrenceEndDate IS NULL OR i.recurrenceEndDate >= :today)
+        """)
+    List<Invoice> findDueForRecurrence(@Param("today") LocalDate today);
 }

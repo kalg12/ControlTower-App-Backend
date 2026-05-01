@@ -14,48 +14,48 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface PaymentRepository extends JpaRepository<Payment, UUID> {
+public interface PurchaseRecordRepository extends JpaRepository<PurchaseRecord, UUID> {
 
-    Optional<Payment> findByIdAndDeletedAtIsNull(UUID id);
+    Optional<PurchaseRecord> findByIdAndDeletedAtIsNull(UUID id);
 
     @Query("""
-        SELECT p FROM Payment p
+        SELECT p FROM PurchaseRecord p
         WHERE p.tenantId = :tenantId
           AND p.deletedAt IS NULL
-          AND (:clientId IS NULL OR p.clientId = :clientId)
-        ORDER BY p.paidAt DESC
+          AND (:source IS NULL OR p.source = :source)
+          AND (:category IS NULL OR p.category = :category)
+          AND (:vendor IS NULL OR LOWER(p.vendor) LIKE LOWER(CONCAT('%', :vendor, '%')))
+          AND (:from IS NULL OR p.purchasedAt >= :from)
+          AND (:to IS NULL OR p.purchasedAt <= :to)
+        ORDER BY p.purchasedAt DESC
         """)
-    Page<Payment> findFiltered(
+    Page<PurchaseRecord> findFiltered(
             @Param("tenantId") UUID tenantId,
-            @Param("clientId") UUID clientId,
+            @Param("source") PurchaseRecord.PurchaseSource source,
+            @Param("category") Expense.ExpenseCategory category,
+            @Param("vendor") String vendor,
+            @Param("from") Instant from,
+            @Param("to") Instant to,
             Pageable pageable);
 
     @Query("""
-        SELECT COALESCE(SUM(p.amount), 0) FROM Payment p
-        WHERE p.clientId = :clientId AND p.deletedAt IS NULL
-        """)
-    java.math.BigDecimal sumAmountByClientId(@Param("clientId") UUID clientId);
-
-    long countByClientIdAndDeletedAtIsNull(UUID clientId);
-
-    @Query("""
-        SELECT p FROM Payment p
+        SELECT p FROM PurchaseRecord p
         WHERE p.tenantId = :tenantId
           AND p.deletedAt IS NULL
-          AND p.paidAt >= :from
-          AND p.paidAt < :to
+          AND p.purchasedAt >= :from
+          AND p.purchasedAt < :to
         """)
-    List<Payment> findByTenantIdAndPaidAtBetween(
+    List<PurchaseRecord> findByTenantIdAndPurchasedAtBetween(
             @Param("tenantId") UUID tenantId,
             @Param("from") Instant from,
             @Param("to") Instant to);
 
     @Query("""
-        SELECT p FROM Payment p
+        SELECT p FROM PurchaseRecord p
         WHERE p.isRecurring = true
           AND p.deletedAt IS NULL
           AND p.nextOccurrenceDate <= :today
           AND (p.recurrenceEndDate IS NULL OR p.recurrenceEndDate >= :today)
         """)
-    List<Payment> findDueForRecurrence(@Param("today") LocalDate today);
+    List<PurchaseRecord> findDueForRecurrence(@Param("today") LocalDate today);
 }

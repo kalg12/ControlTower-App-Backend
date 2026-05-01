@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 
 @Entity
 @Table(name = "invoices")
@@ -60,6 +61,22 @@ public class Invoice extends BaseEntity {
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("position ASC")
     private List<InvoiceLineItem> lineItems = new ArrayList<>();
+
+    @Column(name = "is_recurring", nullable = false)
+    private boolean isRecurring = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recurrence_type", length = 20)
+    private RecurrenceType recurrenceType;
+
+    @Column(name = "recurrence_end_date")
+    private LocalDate recurrenceEndDate;
+
+    @Column(name = "next_occurrence_date")
+    private LocalDate nextOccurrenceDate;
+
+    @Column(name = "parent_recurring_id")
+    private UUID parentRecurringId;
 
     /** Recomputes subtotal, taxAmount and total from line items. */
     public void recalculate() {
