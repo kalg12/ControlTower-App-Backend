@@ -109,7 +109,7 @@ tasks.named('test') {
 		exceptionFormat 'full'
 		showExceptions true
 		showCauses true
-		showStackTraces false
+		showStackTraces true
 	}
 }
 

@@ -3,6 +3,7 @@ package com.controltower.app.security;
 import com.controltower.app.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.annotation.DirtiesContext;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -14,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   - X-Frame-Options: DENY
  *   - Content-Security-Policy
  */
+@DirtiesContext
 class SecurityHeadersTest extends BaseIntegrationTest {
 
 
