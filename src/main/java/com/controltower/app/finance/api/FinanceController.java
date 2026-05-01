@@ -1,6 +1,7 @@
 package com.controltower.app.finance.api;
 
 import com.controltower.app.finance.api.dto.*;
+import com.controltower.app.finance.application.FinancePdfService;
 import com.controltower.app.finance.application.FinanceService;
 import com.controltower.app.finance.domain.Expense.ExpenseCategory;
 import com.controltower.app.finance.domain.Invoice.InvoiceStatus;
@@ -15,12 +16,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Tag(name = "Finance", description = "Invoices, payments and expenses")
@@ -31,6 +36,7 @@ import java.util.UUID;
 public class FinanceController {
 
     private final FinanceService financeService;
+    private final FinancePdfService financePdfService;
 
     // ── INVOICES ─────────────────────────────────────────────────────────────
 
@@ -283,5 +289,49 @@ public class FinanceController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return ResponseEntity.ok(ApiResponse.ok(financeService.getPnlReport(from, to)));
+    }
+
+    // ── PDF ENDPOINTS ─────────────────────────────────────────────────────────
+
+    @Operation(summary = "Download invoice PDF")
+    @GetMapping(value = "/invoices/{id}/pdf", produces = "application/pdf")
+    @PreAuthorize("hasAuthority('finance:read')")
+    public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable UUID id) {
+        InvoiceResponse inv = financeService.getInvoice(id);
+        byte[] pdf = financePdfService.generateInvoicePdf(inv);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"invoice-" + inv.number() + ".pdf\"")
+                .body(pdf);
+    }
+
+    @Operation(summary = "Download expense report PDF")
+    @GetMapping(value = "/reports/expense-pdf", produces = "application/pdf")
+    @PreAuthorize("hasAuthority('finance:read')")
+    public ResponseEntity<byte[]> downloadExpenseReportPdf(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        var summary = financeService.getExpenseSummary(from, to);
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
+        byte[] pdf = financePdfService.generateExpenseReportPdf(summary, fmt.format(from), fmt.format(to));
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"expense-report.pdf\"")
+                .body(pdf);
+    }
+
+    @Operation(summary = "Download P&L report PDF")
+    @GetMapping(value = "/reports/pnl-pdf", produces = "application/pdf")
+    @PreAuthorize("hasAuthority('finance:read')")
+    public ResponseEntity<byte[]> downloadPnlPdf(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        PnlReportResponse pnl = financeService.getPnlReport(from, to);
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
+        byte[] pdf = financePdfService.generatePnlReportPdf(pnl, fmt.format(from), fmt.format(to));
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"pnl-report.pdf\"")
+                .body(pdf);
     }
 }
