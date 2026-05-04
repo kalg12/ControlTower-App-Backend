@@ -9,6 +9,7 @@ import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.shared.events.UserActionEvent;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +42,8 @@ public class BoardService {
     private final ChecklistItemRepository  checklistRepository;
     private final ApplicationEventPublisher publisher;
     private final TenantRepository         tenantRepository;
-    private final UserRepository          userRepository;
+    private final UserRepository           userRepository;
+    private final EmailService             emailService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -331,6 +333,18 @@ private List<String> getAssigneeNames(Card card) {
                 .description("Moved card '" + cardTitle + "' from '" + fromColumn + "' to '" + target.getName() + "'")
                 .metadata(Map.of("fromColumn", fromColumn, "toColumn", target.getName(), "wasOverdue", String.valueOf(wasOverdue)))
                 .build());
+
+        // Send email to assignees when explicitly requested
+        if (request.isNotifyByEmail() && !card.getAssigneeIds().isEmpty()) {
+            final String toColumn = target.getName();
+            final String moverName = userRepository.findById(userId)
+                    .map(User::getFullName).orElse("Usuario CT");
+            card.getAssigneeIds().forEach(assigneeId ->
+                    userRepository.findById(assigneeId).ifPresent(u ->
+                            emailService.sendKanbanCardNotification(
+                                    u.getEmail(), u.getFullName(),
+                                    cardTitle, moverName, fromColumn, toColumn)));
+        }
 
         return toCardResponse(card);
     }

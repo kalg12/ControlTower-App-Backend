@@ -1,10 +1,12 @@
 package com.controltower.app.support.application;
 
+import com.controltower.app.clients.domain.ClientRepository;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.annotation.Audited;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
@@ -43,9 +45,11 @@ public class TicketService {
     private final PosWebhookService      posWebhookService;
     private final SlaConfigService       slaConfigService;
     private final UserRepository         userRepository;
+    private final ClientRepository       clientRepository;
     private final NoteRepository         noteRepository;
     private final TimeEntryRepository    timeEntryRepository;
     private final NotificationService    notificationService;
+    private final EmailService           emailService;
 
     @Transactional(readOnly = true)
     public Page<TicketResponse> listTickets(
@@ -413,6 +417,36 @@ public class TicketService {
                 "Nuevo comentario en ticket",
                 "Nuevo comentario en: " + saved.getTitle(),
                 Map.of("ticketId", saved.getId().toString()));
+
+        // Send email notifications for public comments
+        if (!request.isInternal()) {
+            String agentName = userRepository.findById(authorId)
+                    .map(User::getFullName).orElse("Operador CT");
+
+            // Manual ticket with linked client
+            if (saved.getClientId() != null) {
+                clientRepository.findById(saved.getClientId()).ifPresent(client -> {
+                    if (client.getPrimaryEmail() != null && !client.getPrimaryEmail().isBlank()) {
+                        emailService.sendTicketCommentNotification(
+                                client.getPrimaryEmail(), saved.getTitle(),
+                                agentName, request.getContent());
+                    }
+                });
+            }
+
+            // POS ticket: notify submitter and manager if emails are in posContext
+            if (saved.getSource() == Ticket.TicketSource.POS && saved.getPosContext() != null) {
+                String submitterEmail = (String) saved.getPosContext().get("submitterEmail");
+                String managerEmail   = (String) saved.getPosContext().get("managerEmail");
+                for (String email : new String[]{submitterEmail, managerEmail}) {
+                    if (email != null && !email.isBlank()) {
+                        emailService.sendTicketCommentNotification(
+                                email, saved.getTitle(), agentName, request.getContent());
+                    }
+                }
+            }
+        }
+
         return toResponse(saved);
     }
 
@@ -547,18 +581,20 @@ public class TicketService {
         slaRepository.save(sla);
     }
 
-    private void validateTransition(Ticket.TicketStatus from, Ticket.TicketStatus to) {
-        boolean valid = switch (from) {
-            case OPEN        -> to == Ticket.TicketStatus.IN_PROGRESS || to == Ticket.TicketStatus.RESOLVED || to == Ticket.TicketStatus.CLOSED;
-            case IN_PROGRESS -> to == Ticket.TicketStatus.WAITING || to == Ticket.TicketStatus.RESOLVED || to == Ticket.TicketStatus.CLOSED;
-            case WAITING     -> to == Ticket.TicketStatus.IN_PROGRESS || to == Ticket.TicketStatus.RESOLVED;
-            case RESOLVED    -> to == Ticket.TicketStatus.CLOSED || to == Ticket.TicketStatus.OPEN;
-            case CLOSED      -> to == Ticket.TicketStatus.OPEN;
-        };
-        if (!valid) {
-            throw new ControlTowerException(
-                "Invalid status transition: " + from + " → " + to, HttpStatus.BAD_REQUEST
+    private static final Map<Ticket.TicketStatus, java.util.Set<Ticket.TicketStatus>> ALLOWED_TRANSITIONS =
+            Map.of(
+                Ticket.TicketStatus.OPEN,        java.util.Set.of(Ticket.TicketStatus.IN_PROGRESS, Ticket.TicketStatus.RESOLVED, Ticket.TicketStatus.CLOSED),
+                Ticket.TicketStatus.IN_PROGRESS, java.util.Set.of(Ticket.TicketStatus.WAITING, Ticket.TicketStatus.RESOLVED, Ticket.TicketStatus.CLOSED),
+                Ticket.TicketStatus.WAITING,     java.util.Set.of(Ticket.TicketStatus.IN_PROGRESS, Ticket.TicketStatus.RESOLVED),
+                Ticket.TicketStatus.RESOLVED,    java.util.Set.of(Ticket.TicketStatus.CLOSED, Ticket.TicketStatus.OPEN),
+                Ticket.TicketStatus.CLOSED,      java.util.Set.of(Ticket.TicketStatus.OPEN)
             );
+
+    private void validateTransition(Ticket.TicketStatus from, Ticket.TicketStatus to) {
+        java.util.Set<Ticket.TicketStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(from, java.util.Set.of());
+        if (!allowed.contains(to)) {
+            throw new ControlTowerException(
+                "Transición de estado no permitida: " + from + " → " + to, HttpStatus.BAD_REQUEST);
         }
     }
 
