@@ -35,4 +35,6 @@ public class LoginResponse {
 
     @Builder.Default
     private final boolean superAdmin = false;
+
+    private final String avatarUrl;
 }

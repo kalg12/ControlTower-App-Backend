@@ -1,5 +1,7 @@
 package com.controltower.app.shared.infrastructure;
 
+import com.controltower.app.tenancy.domain.TenantConfigRepository;
+import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,10 +11,13 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Thin wrapper around JavaMailSender.
  * If mail is not configured, logs a warning and silently skips sending.
+ * The From address resolves per-tenant via TenantConfig key "mail.from",
+ * falling back to the global spring.mail.from property.
  */
 @Slf4j
 @Service
@@ -21,8 +26,24 @@ public class EmailService {
     @Autowired(required = false)
     private JavaMailSender mailSender;
 
+    @Autowired(required = false)
+    private TenantConfigRepository tenantConfigRepository;
+
     @Value("${spring.mail.from:noreply@controltower.io}")
-    private String from;
+    private String defaultFrom;
+
+    private String resolveFrom() {
+        try {
+            UUID tenantId = TenantContext.getTenantId();
+            if (tenantId != null && tenantConfigRepository != null) {
+                return tenantConfigRepository.findByTenantIdAndKey(tenantId, "mail.from")
+                        .map(cfg -> cfg.getValue())
+                        .filter(v -> v != null && !v.isBlank())
+                        .orElse(defaultFrom);
+            }
+        } catch (Exception ignored) {}
+        return defaultFrom;
+    }
 
     public void sendPasswordReset(String toEmail, String resetLink) {
         if (mailSender == null) {
@@ -31,7 +52,7 @@ public class EmailService {
         }
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(from);
+            message.setFrom(resolveFrom());
             message.setTo(toEmail);
             message.setSubject("Reset your Control Tower password");
             message.setText("Click the link below to reset your password (expires in 1 hour):\n\n"
@@ -50,7 +71,7 @@ public class EmailService {
         }
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(from);
+            message.setFrom(resolveFrom());
             message.setTo(toEmail);
             message.setSubject("Welcome to Control Tower!");
             message.setText("Hi " + fullName + ",\n\nYour Control Tower account has been created. "
@@ -71,7 +92,7 @@ public class EmailService {
         }
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(from);
+            message.setFrom(resolveFrom());
             message.setTo(toEmail);
             message.setSubject("Propuesta Económica " + proposalNumber + " — " + proposalTitle);
             message.setText(
@@ -109,7 +130,7 @@ public class EmailService {
             body.append("\nGenerado automáticamente por Control Tower.");
 
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(this.from);
+            message.setFrom(resolveFrom());
             message.setTo(toEmail);
             message.setSubject("Reporte de Gastos — " + from + " al " + to);
             message.setText(body.toString());
@@ -128,7 +149,7 @@ public class EmailService {
         }
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(from);
+            message.setFrom(resolveFrom());
             message.setTo(toEmail);
             message.setSubject("Nueva respuesta en tu ticket: " + ticketTitle);
             message.setText(
@@ -152,7 +173,7 @@ public class EmailService {
         }
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(from);
+            message.setFrom(resolveFrom());
             message.setTo(toEmail);
             message.setSubject("Tienes un nuevo mensaje de soporte");
             message.setText(
@@ -177,7 +198,7 @@ public class EmailService {
         }
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(from);
+            message.setFrom(resolveFrom());
             message.setTo(toEmail);
             message.setSubject("Actualización en tarjeta: " + cardTitle);
             message.setText(
@@ -217,7 +238,7 @@ public class EmailService {
                 "Generado automáticamente por Control Tower.";
 
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(this.from);
+            message.setFrom(resolveFrom());
             message.setTo(toEmail);
             message.setSubject("Recibo de Nómina — " + periodLabel);
             message.setText(body);

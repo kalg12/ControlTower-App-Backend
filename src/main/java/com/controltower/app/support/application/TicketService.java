@@ -582,17 +582,14 @@ public class TicketService {
     }
 
     private void validateTransition(Ticket.TicketStatus from, Ticket.TicketStatus to) {
-        boolean valid = switch (from) {
-            case OPEN        -> to == Ticket.TicketStatus.IN_PROGRESS || to == Ticket.TicketStatus.RESOLVED || to == Ticket.TicketStatus.CLOSED;
-            case IN_PROGRESS -> to == Ticket.TicketStatus.WAITING || to == Ticket.TicketStatus.RESOLVED || to == Ticket.TicketStatus.CLOSED;
-            case WAITING     -> to == Ticket.TicketStatus.IN_PROGRESS || to == Ticket.TicketStatus.RESOLVED;
-            case RESOLVED    -> to == Ticket.TicketStatus.CLOSED || to == Ticket.TicketStatus.OPEN;
-            case CLOSED      -> to == Ticket.TicketStatus.OPEN;
-        };
-        if (!valid) {
+        if (from == to) {
             throw new ControlTowerException(
-                "Invalid status transition: " + from + " → " + to, HttpStatus.BAD_REQUEST
-            );
+                "El ticket ya se encuentra en estado " + from, HttpStatus.BAD_REQUEST);
+        }
+        // Closed tickets can only be reopened
+        if (from == Ticket.TicketStatus.CLOSED && to != Ticket.TicketStatus.OPEN) {
+            throw new ControlTowerException(
+                "Un ticket cerrado solo puede reabrirse (estado OPEN)", HttpStatus.BAD_REQUEST);
         }
     }
 
