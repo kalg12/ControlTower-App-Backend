@@ -581,15 +581,20 @@ public class TicketService {
         slaRepository.save(sla);
     }
 
+    private static final Map<Ticket.TicketStatus, java.util.Set<Ticket.TicketStatus>> ALLOWED_TRANSITIONS =
+            Map.of(
+                Ticket.TicketStatus.OPEN,        java.util.Set.of(Ticket.TicketStatus.IN_PROGRESS, Ticket.TicketStatus.RESOLVED, Ticket.TicketStatus.CLOSED),
+                Ticket.TicketStatus.IN_PROGRESS, java.util.Set.of(Ticket.TicketStatus.WAITING, Ticket.TicketStatus.RESOLVED, Ticket.TicketStatus.CLOSED),
+                Ticket.TicketStatus.WAITING,     java.util.Set.of(Ticket.TicketStatus.IN_PROGRESS, Ticket.TicketStatus.RESOLVED),
+                Ticket.TicketStatus.RESOLVED,    java.util.Set.of(Ticket.TicketStatus.CLOSED, Ticket.TicketStatus.OPEN),
+                Ticket.TicketStatus.CLOSED,      java.util.Set.of(Ticket.TicketStatus.OPEN)
+            );
+
     private void validateTransition(Ticket.TicketStatus from, Ticket.TicketStatus to) {
-        if (from == to) {
+        java.util.Set<Ticket.TicketStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(from, java.util.Set.of());
+        if (!allowed.contains(to)) {
             throw new ControlTowerException(
-                "El ticket ya se encuentra en estado " + from, HttpStatus.BAD_REQUEST);
-        }
-        // Closed tickets can only be reopened
-        if (from == Ticket.TicketStatus.CLOSED && to != Ticket.TicketStatus.OPEN) {
-            throw new ControlTowerException(
-                "Un ticket cerrado solo puede reabrirse (estado OPEN)", HttpStatus.BAD_REQUEST);
+                "Transición de estado no permitida: " + from + " → " + to, HttpStatus.BAD_REQUEST);
         }
     }
 
