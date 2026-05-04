@@ -1,10 +1,12 @@
 package com.controltower.app.support.application;
 
+import com.controltower.app.clients.domain.ClientRepository;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.annotation.Audited;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.integrations.api.dto.PosTicketCommentDto;
@@ -43,9 +45,11 @@ public class TicketService {
     private final PosWebhookService      posWebhookService;
     private final SlaConfigService       slaConfigService;
     private final UserRepository         userRepository;
+    private final ClientRepository       clientRepository;
     private final NoteRepository         noteRepository;
     private final TimeEntryRepository    timeEntryRepository;
     private final NotificationService    notificationService;
+    private final EmailService           emailService;
 
     @Transactional(readOnly = true)
     public Page<TicketResponse> listTickets(
@@ -413,6 +417,36 @@ public class TicketService {
                 "Nuevo comentario en ticket",
                 "Nuevo comentario en: " + saved.getTitle(),
                 Map.of("ticketId", saved.getId().toString()));
+
+        // Send email notifications for public comments
+        if (!request.isInternal()) {
+            String agentName = userRepository.findById(authorId)
+                    .map(User::getFullName).orElse("Operador CT");
+
+            // Manual ticket with linked client
+            if (saved.getClientId() != null) {
+                clientRepository.findById(saved.getClientId()).ifPresent(client -> {
+                    if (client.getPrimaryEmail() != null && !client.getPrimaryEmail().isBlank()) {
+                        emailService.sendTicketCommentNotification(
+                                client.getPrimaryEmail(), saved.getTitle(),
+                                agentName, request.getContent());
+                    }
+                });
+            }
+
+            // POS ticket: notify submitter and manager if emails are in posContext
+            if (saved.getSource() == Ticket.TicketSource.POS && saved.getPosContext() != null) {
+                String submitterEmail = (String) saved.getPosContext().get("submitterEmail");
+                String managerEmail   = (String) saved.getPosContext().get("managerEmail");
+                for (String email : new String[]{submitterEmail, managerEmail}) {
+                    if (email != null && !email.isBlank()) {
+                        emailService.sendTicketCommentNotification(
+                                email, saved.getTitle(), agentName, request.getContent());
+                    }
+                }
+            }
+        }
+
         return toResponse(saved);
     }
 

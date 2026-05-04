@@ -14,4 +14,6 @@ public class MoveCardRequest {
     private UUID targetColumnId;
 
     private int position = 0;
+
+    private boolean notifyByEmail = false;
 }

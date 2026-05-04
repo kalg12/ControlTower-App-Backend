@@ -9,6 +9,7 @@ import com.controltower.app.chat.api.dto.PublicConversationResponse;
 import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
+import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +41,7 @@ public class ChatService {
     private final UserRepository userRepository;
     private final AuditService auditService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final EmailService emailService;
 
     // ── Visitor: start conversation ──────────────────────────────────────────
 
@@ -228,6 +230,17 @@ public class ChatService {
                 .build();
 
         broadcast(conversationId, payload);
+
+        // Send email notification to visitor when an agent replies
+        if (senderType == SenderType.AGENT) {
+            String visitorEmail = conv.getVisitorEmail();
+            if (visitorEmail != null && !visitorEmail.isBlank()) {
+                String agentName = sender != null ? sender.getFullName() : "Agente CT";
+                emailService.sendChatReplyNotification(
+                        visitorEmail, conv.getVisitorName(), agentName, content);
+            }
+        }
+
         return response;
     }
 

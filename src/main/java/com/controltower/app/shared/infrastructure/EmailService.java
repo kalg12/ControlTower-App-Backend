@@ -120,6 +120,80 @@ public class EmailService {
         }
     }
 
+    public void sendTicketCommentNotification(String toEmail, String ticketTitle,
+                                               String agentName, String commentContent) {
+        if (mailSender == null) {
+            log.warn("Mail sender not configured. Ticket comment notification for {}", toEmail);
+            return;
+        }
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(from);
+            message.setTo(toEmail);
+            message.setSubject("Nueva respuesta en tu ticket: " + ticketTitle);
+            message.setText(
+                    "Hola,\n\n"
+                    + agentName + " ha respondido en tu ticket \"" + ticketTitle + "\":\n\n"
+                    + "---\n" + commentContent + "\n---\n\n"
+                    + "Si tienes alguna duda, puedes responder directamente a este correo o acceder al portal.\n\n"
+                    + "Atentamente,\nControl Tower");
+            mailSender.send(message);
+            log.info("Ticket comment notification sent to {} for ticket '{}'", toEmail, ticketTitle);
+        } catch (MailException ex) {
+            log.warn("Failed to send ticket comment notification to {}: {}", toEmail, ex.getMessage());
+        }
+    }
+
+    public void sendChatReplyNotification(String toEmail, String visitorName,
+                                           String agentName, String messageContent) {
+        if (mailSender == null) {
+            log.warn("Mail sender not configured. Chat reply notification for {}", toEmail);
+            return;
+        }
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(from);
+            message.setTo(toEmail);
+            message.setSubject("Tienes un nuevo mensaje de soporte");
+            message.setText(
+                    "Hola " + visitorName + ",\n\n"
+                    + agentName + " te ha enviado un mensaje en el chat de soporte:\n\n"
+                    + "---\n" + messageContent + "\n---\n\n"
+                    + "Ingresa al chat para continuar la conversación.\n\n"
+                    + "Atentamente,\nControl Tower");
+            mailSender.send(message);
+            log.info("Chat reply notification sent to {}", toEmail);
+        } catch (MailException ex) {
+            log.warn("Failed to send chat reply notification to {}: {}", toEmail, ex.getMessage());
+        }
+    }
+
+    public void sendKanbanCardNotification(String toEmail, String assigneeName,
+                                            String cardTitle, String movedBy,
+                                            String fromColumn, String toColumn) {
+        if (mailSender == null) {
+            log.warn("Mail sender not configured. Kanban card notification for {}", toEmail);
+            return;
+        }
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(from);
+            message.setTo(toEmail);
+            message.setSubject("Actualización en tarjeta: " + cardTitle);
+            message.setText(
+                    "Hola " + assigneeName + ",\n\n"
+                    + movedBy + " movió la tarjeta \"" + cardTitle + "\":\n\n"
+                    + "  De: " + fromColumn + "\n"
+                    + "  A:  " + toColumn + "\n\n"
+                    + "Ingresa a Control Tower para ver los detalles.\n\n"
+                    + "Atentamente,\nControl Tower");
+            mailSender.send(message);
+            log.info("Kanban card notification sent to {} for card '{}'", toEmail, cardTitle);
+        } catch (MailException ex) {
+            log.warn("Failed to send kanban card notification to {}: {}", toEmail, ex.getMessage());
+        }
+    }
+
     public void sendReciboNomina(String toEmail, String employeeName, String periodLabel,
                                   String grossPay, String imssEmployee, String isr,
                                   String infonavit, String otherDeductions, String netPay,
