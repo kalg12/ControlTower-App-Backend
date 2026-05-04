@@ -402,7 +402,7 @@ public class ChatService {
         ChatRating r = new ChatRating();
         r.setConversationId(conversationId);
         r.setTenantId(conv.getTenantId());
-        r.setRating(rating);
+        r.setRating((short) rating);
         r.setComment(comment);
         ratingRepository.save(r);
 
