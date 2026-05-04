@@ -4,9 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
 
-import java.sql.Types;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -26,9 +24,8 @@ public class ChatRating {
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
 
-    @JdbcTypeCode(Types.SMALLINT)
     @Column(name = "rating", nullable = false)
-    private int rating;
+    private short rating;
 
     @Column(name = "comment", length = 1000)
     private String comment;
