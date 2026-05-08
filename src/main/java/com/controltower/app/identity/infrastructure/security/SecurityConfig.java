@@ -53,6 +53,7 @@ public class SecurityConfig {
         "/api/v1/auth/2fa/verify",
         "/api/v1/health/heartbeat/**",                          // public heartbeat from client systems
         "/api/v1/integrations/events",                          // public push events from client systems
+        "/api/v1/monitoring/logs",                              // public log ingest from external systems (X-Api-Key auth)
         "/api/v1/integrations/*/pos-tickets/*/status",          // POS ticket status poll (X-Api-Key auth)
         "/api/v1/integrations/*/pos-tickets/*/comments",        // POS chat sync (X-Api-Key auth)
         "/api/v1/billing/stripe/webhook",                       // Stripe webhook (signature verified internally)
