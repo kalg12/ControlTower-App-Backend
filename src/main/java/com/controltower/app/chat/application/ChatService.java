@@ -58,6 +58,16 @@ public class ChatService {
 
         ChatConversation saved = conversationRepository.save(conv);
 
+        // Auto-greeting for landing page conversations so agents have context
+        if ("LANDING".equals(saved.getSource())) {
+            ChatMessage greeting = new ChatMessage();
+            greeting.setConversation(saved);
+            greeting.setSenderType(SenderType.SYSTEM);
+            greeting.setContent("¡Hola! 👋 Un agente estará contigo en breve.");
+            greeting.setRead(true);
+            messageRepository.save(greeting);
+        }
+
         // notify agents subscribed to the queue
         messagingTemplate.convertAndSend(
                 "/topic/chat.queue." + req.tenantId(),
