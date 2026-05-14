@@ -27,6 +27,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
@@ -236,18 +237,25 @@ public class ChatService {
                 .senderAvatarUrl(sender != null ? sender.getAvatarUrl() : null)
                 .content(content)
                 .isRead(saved.isRead())
-                .createdAt(saved.getCreatedAt())
+                .createdAt(saved.getCreatedAt().toString())
                 .build();
 
         broadcast(conversationId, payload);
 
-        // Send email notification to visitor when an agent replies
+        // Send email notification to visitor when an agent replies — async to avoid
+        // blocking the STOMP clientInboundChannel thread on SMTP auth/network latency.
         if (senderType == SenderType.AGENT) {
             String visitorEmail = conv.getVisitorEmail();
             if (visitorEmail != null && !visitorEmail.isBlank()) {
                 String agentName = sender != null ? sender.getFullName() : "Agente CT";
-                emailService.sendChatReplyNotification(
-                        visitorEmail, conv.getVisitorName(), agentName, content);
+                final String vEmail = visitorEmail;
+                final String vName = conv.getVisitorName();
+                CompletableFuture.runAsync(() ->
+                    emailService.sendChatReplyNotification(vEmail, vName, agentName, content)
+                ).exceptionally(ex -> {
+                    log.warn("[Chat] Email notification failed: {}", ex.getMessage());
+                    return null;
+                });
             }
         }
 
@@ -283,7 +291,7 @@ public class ChatService {
                 .content(msg.getContent())
                 .attachmentUrl(attachmentUrl)
                 .isRead(true)
-                .createdAt(saved.getCreatedAt())
+                .createdAt(saved.getCreatedAt().toString())
                 .build());
 
         return response;
@@ -516,7 +524,7 @@ public class ChatService {
                 .conversationId(conv.getId())
                 .senderType(SenderType.SYSTEM)
                 .content(text)
-                .createdAt(saved.getCreatedAt())
+                .createdAt(saved.getCreatedAt().toString())
                 .build());
     }
 
@@ -533,7 +541,7 @@ public class ChatService {
                 .senderName(agent != null ? agent.getFullName() : null)
                 .senderAvatarUrl(agent != null ? agent.getAvatarUrl() : null)
                 .conversationStatus(status.name())
-                .createdAt(Instant.now())
+                .createdAt(Instant.now().toString())
                 .build();
     }
 

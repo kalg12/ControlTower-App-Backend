@@ -3,7 +3,6 @@ package com.controltower.app.chat.api.dto;
 import com.controltower.app.chat.domain.SenderType;
 import lombok.Builder;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @Builder
@@ -18,6 +17,6 @@ public record ChatMessagePayload(
         String content,
         String attachmentUrl,
         boolean isRead,
-        Instant createdAt,
+        String createdAt,        // ISO-8601 string — avoids Jackson Instant serialization quirks
         String conversationStatus  // for STATUS_CHANGED events
 ) {}
