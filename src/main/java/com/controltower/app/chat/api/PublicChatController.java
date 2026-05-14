@@ -3,6 +3,7 @@ package com.controltower.app.chat.api;
 import com.controltower.app.chat.api.dto.*;
 import com.controltower.app.chat.application.ChatService;
 import com.controltower.app.chat.domain.ChatConversation;
+import com.controltower.app.chat.domain.SenderType;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -74,6 +75,21 @@ public class PublicChatController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error("Invalid visitor token for this conversation"));
         }
+    }
+
+    @Operation(summary = "Send message via REST (fallback when visitor STOMP is unavailable)")
+    @PostMapping("/conversations/{id}/messages")
+    public ResponseEntity<ApiResponse<ChatMessageResponse>> sendVisitorMessage(
+            @PathVariable UUID id,
+            @RequestParam UUID visitorToken,
+            @RequestBody SendMessageRequest req) {
+        ChatConversation conv = chatService.requireConversationByToken(visitorToken);
+        if (!conv.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Invalid visitor token for this conversation"));
+        }
+        ChatMessageResponse msg = chatService.sendMessage(id, SenderType.VISITOR, null, req.content());
+        return ResponseEntity.ok(ApiResponse.ok(msg));
     }
 
     @Operation(summary = "Submit visitor rating after conversation closes")
