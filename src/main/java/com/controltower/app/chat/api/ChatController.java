@@ -3,6 +3,7 @@ package com.controltower.app.chat.api;
 import com.controltower.app.chat.api.dto.*;
 import com.controltower.app.chat.application.ChatService;
 import com.controltower.app.chat.domain.ConversationStatus;
+import com.controltower.app.chat.domain.SenderType;
 import com.controltower.app.shared.infrastructure.FileStorageService;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
@@ -175,6 +176,18 @@ public class ChatController {
     public ResponseEntity<ApiResponse<List<com.controltower.app.chat.api.dto.OnlineAgentResponse>>> listOnlineAgents() {
         UUID tenantId = com.controltower.app.tenancy.domain.TenantContext.getTenantId();
         return ResponseEntity.ok(ApiResponse.ok(chatService.listOnlineAgents(tenantId)));
+    }
+
+    @Operation(summary = "Send message via REST (fallback when STOMP is unavailable)")
+    @PostMapping("/conversations/{id}/messages")
+    @PreAuthorize("hasAuthority('chat:write')")
+    public ResponseEntity<ApiResponse<ChatMessageResponse>> sendMessage(
+            @PathVariable UUID id,
+            @RequestBody SendMessageRequest req,
+            Authentication auth) {
+        UUID agentId = UUID.fromString(auth.getName());
+        ChatMessageResponse msg = chatService.sendMessage(id, SenderType.AGENT, agentId, req.content());
+        return ResponseEntity.ok(ApiResponse.ok(msg));
     }
 
     @Operation(summary = "Get visitor rating for a conversation")
