@@ -54,7 +54,7 @@ public class ChatWebSocketController {
                 .type("TYPING")
                 .conversationId(conversationId)
                 .senderType(isAgent ? SenderType.AGENT : SenderType.VISITOR)
-                .createdAt(Instant.now())
+                .createdAt(Instant.now().toString())
                 .build();
 
         messagingTemplate.convertAndSend("/topic/chat." + conversationId, payload);
@@ -73,7 +73,7 @@ public class ChatWebSocketController {
                 .senderType(SenderType.VISITOR)
                 .senderName(conv.getVisitorName())
                 .content("Visitante conectado")
-                .createdAt(Instant.now())
+                .createdAt(Instant.now().toString())
                 .build();
 
         messagingTemplate.convertAndSend("/topic/chat." + conversationId, joinPayload);
