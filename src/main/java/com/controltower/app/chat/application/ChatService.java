@@ -220,7 +220,10 @@ public class ChatService {
         msg.setSenderId(senderId);
         msg.setContent(content);
         msg.setRead(senderType == SenderType.AGENT);
-        ChatMessage saved = messageRepository.save(msg);
+        // saveAndFlush: forces immediate DB flush so @CreationTimestamp is populated
+        // before we call saved.getCreatedAt().toString() — plain save() only schedules
+        // the INSERT and the field remains null until commit.
+        ChatMessage saved = messageRepository.saveAndFlush(msg);
 
         User sender = (senderId != null)
                 ? userRepository.findByIdAndDeletedAtIsNull(senderId).orElse(null)
@@ -275,7 +278,7 @@ public class ChatService {
         msg.setContent(filename != null ? "📎 " + filename : "📎 Adjunto");
         msg.setAttachmentUrl(attachmentUrl);
         msg.setRead(true);
-        ChatMessage saved = messageRepository.save(msg);
+        ChatMessage saved = messageRepository.saveAndFlush(msg);
 
         User sender = userRepository.findByIdAndDeletedAtIsNull(agentId).orElse(null);
         ChatMessageResponse response = toMessageResponse(saved, sender);
@@ -516,7 +519,7 @@ public class ChatService {
         msg.setSenderType(SenderType.SYSTEM);
         msg.setContent(text);
         msg.setRead(true);
-        ChatMessage saved = messageRepository.save(msg);
+        ChatMessage saved = messageRepository.saveAndFlush(msg);
 
         broadcast(conv.getId(), ChatMessagePayload.builder()
                 .type("SYSTEM")
