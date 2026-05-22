@@ -29,6 +29,7 @@ public class TimeAnalyticsResponse {
     @Builder
     public static class UserTimeEntry {
         private final UUID   userId;
+        private final String fullName;
         private final long   totalMinutes;
     }
 }

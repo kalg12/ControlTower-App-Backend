@@ -1,5 +1,7 @@
 package com.controltower.app.time.application;
 
+import com.controltower.app.identity.domain.User;
+import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.support.domain.TicketSlaRepository;
 import com.controltower.app.support.domain.TicketRepository;
 import com.controltower.app.tenancy.domain.TenantContext;
@@ -14,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +27,7 @@ public class TimeAnalyticsService {
     private final TimeEntryRepository timeEntryRepository;
     private final TicketSlaRepository slaRepository;
     private final TicketRepository    ticketRepository;
+    private final UserRepository      userRepository;
 
     /**
      * Returns aggregated time metrics for the current tenant over the given period.
@@ -63,14 +68,24 @@ public class TimeAnalyticsService {
                 : Math.round(((totalTickets - breachedTickets) * 100.0) / totalTickets * 100.0) / 100.0;
 
         // Top users by logged minutes
+        Map<UUID, String> nameMap = userRepository
+                .findByTenantIdAndDeletedAtIsNull(tenantId, PageRequest.of(0, 500))
+                .getContent()
+                .stream()
+                .collect(Collectors.toMap(User::getId, User::getFullName));
+
         List<TimeAnalyticsResponse.UserTimeEntry> topUsers = timeEntryRepository
                 .sumMinutesPerUser(tenantId, from)
                 .stream()
                 .limit(10)
-                .map(row -> TimeAnalyticsResponse.UserTimeEntry.builder()
-                        .userId((UUID) row[0])
-                        .totalMinutes(((Number) row[1]).longValue())
-                        .build())
+                .map(row -> {
+                    UUID userId = (UUID) row[0];
+                    return TimeAnalyticsResponse.UserTimeEntry.builder()
+                            .userId(userId)
+                            .fullName(nameMap.getOrDefault(userId, userId.toString().substring(0, 8)))
+                            .totalMinutes(((Number) row[1]).longValue())
+                            .build();
+                })
                 .toList();
 
         return TimeAnalyticsResponse.builder()
