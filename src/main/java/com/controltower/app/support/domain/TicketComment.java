@@ -34,6 +34,14 @@ public class TicketComment {
     @Column(name = "is_internal", nullable = false)
     private boolean internal = false;
 
+    /** Origin of this comment: AGENT (default), EMAIL (inbound), SYSTEM (automated). */
+    @Column(name = "source", nullable = false)
+    private String source = "AGENT";
+
+    /** Reference to the raw inbound email that generated this comment (when source=EMAIL). */
+    @Column(name = "email_raw_id")
+    private java.util.UUID emailRawId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
