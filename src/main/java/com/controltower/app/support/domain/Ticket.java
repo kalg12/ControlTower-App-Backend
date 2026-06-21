@@ -65,6 +65,18 @@ public class Ticket extends BaseEntity {
     @Column(name = "escalated_at")
     private java.time.Instant escalatedAt;
 
+    /** Email that originated this ticket (populated when source=EMAIL). */
+    @Column(name = "source_email_id")
+    private java.util.UUID sourceEmailId;
+
+    /** Email address of the external requester (populated when source=EMAIL or POS). */
+    @Column(name = "requester_email")
+    private String requesterEmail;
+
+    /** Department this ticket belongs to. */
+    @Column(name = "department_id")
+    private java.util.UUID departmentId;
+
     @Array(length = 20)
     @Column(name = "labels", columnDefinition = "TEXT[]")
     private String[] labels = new String[0];
