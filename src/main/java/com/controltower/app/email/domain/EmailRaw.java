@@ -8,6 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -87,8 +88,8 @@ public class EmailRaw {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
-    @Column(name = "spam_score")
-    private Double spamScore;
+    @Column(name = "spam_score", precision = 5, scale = 2)
+    private BigDecimal spamScore;
 
     @Column(name = "is_spam", nullable = false)
     private boolean spam = false;
