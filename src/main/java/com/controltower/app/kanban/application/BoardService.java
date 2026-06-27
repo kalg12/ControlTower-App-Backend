@@ -6,6 +6,8 @@ import com.controltower.app.identity.domain.Tenant;
 import com.controltower.app.identity.domain.TenantRepository;
 import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
+import com.controltower.app.notifications.application.NotificationService;
+import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.events.UserActionEvent;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
@@ -44,6 +46,7 @@ public class BoardService {
     private final TenantRepository         tenantRepository;
     private final UserRepository           userRepository;
     private final EmailService             emailService;
+    private final NotificationService      notificationService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -334,11 +337,35 @@ private List<String> getAssigneeNames(Card card) {
                 .metadata(Map.of("fromColumn", fromColumn, "toColumn", target.getName(), "wasOverdue", String.valueOf(wasOverdue)))
                 .build());
 
+        final String toColumn = target.getName();
+        final UUID boardId = target.getBoard().getId();
+        final String moverName = userRepository.findById(userId)
+                .map(User::getFullName).orElse("Usuario CT");
+
+        // Auto in-app notification to all assignees when card is moved
+        if (!card.getAssigneeIds().isEmpty()) {
+            UUID tenantId = TenantContext.getTenantId();
+            List<UUID> assigneeRecipients = card.getAssigneeIds().stream()
+                    .filter(aid -> !aid.equals(userId))
+                    .toList();
+            if (!assigneeRecipients.isEmpty()) {
+                notificationService.send(
+                        tenantId,
+                        "CARD_MOVED",
+                        "Tarjeta movida: " + cardTitle,
+                        moverName + " movió \"" + cardTitle + "\" de \"" + fromColumn + "\" a \"" + toColumn + "\"",
+                        Notification.Severity.INFO,
+                        Map.of("cardId", cardId.toString(),
+                               "boardId", boardId.toString(),
+                               "fromColumn", fromColumn,
+                               "toColumn", toColumn),
+                        assigneeRecipients
+                );
+            }
+        }
+
         // Send email to assignees when explicitly requested
         if (request.isNotifyByEmail() && !card.getAssigneeIds().isEmpty()) {
-            final String toColumn = target.getName();
-            final String moverName = userRepository.findById(userId)
-                    .map(User::getFullName).orElse("Usuario CT");
             card.getAssigneeIds().forEach(assigneeId ->
                     userRepository.findById(assigneeId).ifPresent(u ->
                             emailService.sendKanbanCardNotification(
@@ -369,6 +396,11 @@ private List<String> getAssigneeNames(Card card) {
         }
         
         return toCardResponse(cardRepository.save(card));
+    }
+
+    @Transactional(readOnly = true)
+    public CardResponse getCard(UUID cardId) {
+        return toCardResponse(resolveCard(cardId));
     }
 
     @Transactional
@@ -514,6 +546,7 @@ private List<String> getAssigneeNames(Card card) {
         return CardResponse.builder()
                 .id(c.getId())
                 .columnId(c.getBoardColumn().getId())
+                .boardId(c.getBoardColumn().getBoard().getId())
                 .title(c.getTitle())
                 .description(c.getDescription())
                 .assigneeIds(c.getAssigneeIds())

@@ -8,6 +8,7 @@ import com.controltower.app.monitoring.api.dto.LogIngestRequest;
 import com.controltower.app.monitoring.api.dto.RemoteLogResponse;
 import com.controltower.app.monitoring.domain.RemoteLog;
 import com.controltower.app.monitoring.domain.RemoteLogRepository;
+import com.controltower.app.monitoring.domain.RemoteLogSpecification;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.infrastructure.AesEncryptor;
@@ -84,14 +85,10 @@ public class RemoteLogService {
         if (level != null && !level.isBlank()) {
             try { parsedLevel = RemoteLog.Level.valueOf(level.toUpperCase()); } catch (IllegalArgumentException ignored) {}
         }
-        var pageable = PageRequest.of(page, size);
-        var result = remoteLogRepository.findFiltered(
-                tenantId,
-                parsedLevel,
-                service,
-                business,
-                from,
-                to,
+        var pageable = PageRequest.of(page, size,
+                org.springframework.data.domain.Sort.by("receivedAt").descending());
+        var result = remoteLogRepository.findAll(
+                RemoteLogSpecification.filter(tenantId, parsedLevel, service, business, from, to),
                 pageable
         );
         return PageResponse.from(result.map(RemoteLogResponse::from));

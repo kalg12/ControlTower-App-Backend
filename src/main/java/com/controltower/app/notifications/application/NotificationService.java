@@ -1,5 +1,6 @@
 package com.controltower.app.notifications.application;
 
+import com.controltower.app.mobile.application.MobilePushService;
 import com.controltower.app.notifications.api.dto.NotificationResponse;
 import com.controltower.app.notifications.domain.*;
 import com.controltower.app.notifications.infrastructure.WebSocketNotificationChannel;
@@ -9,9 +10,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +29,7 @@ public class NotificationService {
     private final NotificationUserStateRepository  stateRepository;
     private final WebSocketNotificationChannel     webSocketChannel;
     private final NotificationPreferenceRepository preferenceRepository;
+    private final MobilePushService                mobilePushService;
 
     /**
      * Creates a notification and fans it out to all specified recipients.
@@ -55,6 +59,24 @@ public class NotificationService {
             stateRepository.save(state);
             webSocketChannel.push(userId, toResponse(state));
         });
+
+        // Send mobile push asynchronously so Expo API latency doesn't block the caller
+        sendMobilePush(filtered, notification);
+    }
+
+    @Async
+    protected void sendMobilePush(List<UUID> userIds, Notification notification) {
+        Map<String, Object> pushData = new HashMap<>();
+        if (notification.getMetadata() != null) pushData.putAll(notification.getMetadata());
+        pushData.put("notificationType", notification.getType());
+
+        for (UUID userId : userIds) {
+            try {
+                mobilePushService.sendToUser(userId, notification.getTitle(), notification.getBody(), pushData);
+            } catch (Exception e) {
+                log.warn("Mobile push failed for user {}: {}", userId, e.getMessage());
+            }
+        }
     }
 
     @Transactional(readOnly = true)

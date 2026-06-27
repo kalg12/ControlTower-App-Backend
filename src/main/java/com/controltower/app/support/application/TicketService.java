@@ -154,6 +154,27 @@ public class TicketService {
         return toResponse(ticketRepository.save(ticket));
     }
 
+    /** Returns all internal (developer-only) comments for a ticket. */
+    @Transactional(readOnly = true)
+    public List<TicketCommentResponse> getInternalComments(UUID ticketId) {
+        Ticket ticket = resolveTicket(ticketId);
+        return ticket.getComments().stream()
+                .filter(TicketComment::isInternal)
+                .sorted(java.util.Comparator.comparing(TicketComment::getCreatedAt))
+                .map(c -> {
+                    String authorName = null;
+                    if (c.getAuthorId() != null) {
+                        authorName = userRepository.findById(c.getAuthorId())
+                                .map(u -> u.getFullName())
+                                .orElse(null);
+                    }
+                    return new TicketCommentResponse(
+                            c.getId(), c.getAuthorId(), authorName, c.getContent(),
+                            c.isInternal(), "OPERATOR", c.getCreatedAt());
+                })
+                .toList();
+    }
+
     /** Returns all public (non-internal) comments for a ticket. */
     @Transactional(readOnly = true)
     public List<TicketCommentResponse> getPublicComments(UUID ticketId) {

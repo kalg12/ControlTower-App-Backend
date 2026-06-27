@@ -9,7 +9,8 @@ public record AiAssistRequest(
     public enum AiTask {
         GENERATE_CARD_PROMPT,
         IMPROVE_TICKET_REPLY,
-        QUICK_REPLY
+        QUICK_REPLY,
+        GENERATE_KB_CONTENT
     }
 
     public record AiContext(
@@ -20,12 +21,21 @@ public record AiAssistRequest(
         String cardPriority,
         String boardName,
         String clientName,
+        java.util.List<String> devNotes,
 
         // Ticket context
         String ticketSubject,
         String ticketDescription,
+        String ticketStatus,
+        String ticketPriority,
+        String ticketSource,
         String draftReply,
-        QuickReplyType quickReplyType
+        java.util.List<String> previousReplies,
+        String requesterEmail,
+        QuickReplyType quickReplyType,
+
+        // Knowledge base context
+        java.util.List<String> kbArticles
     ) {}
 
     public enum QuickReplyType {
