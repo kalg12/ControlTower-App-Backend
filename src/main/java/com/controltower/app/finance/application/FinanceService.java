@@ -139,7 +139,8 @@ public class FinanceService {
     @Transactional(readOnly = true)
     public Page<InvoiceResponse> listInvoices(InvoiceStatus status, UUID clientId, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        Page<Invoice> page = invoiceRepository.findFiltered(tenantId, status, clientId, pageable);
+        Page<Invoice> page = invoiceRepository.findAll(
+                InvoiceSpecification.filter(tenantId, status, clientId), pageable);
         Map<UUID, Client> clients = loadClients(page.stream()
                 .map(Invoice::getClientId).filter(Objects::nonNull).collect(Collectors.toList()));
         return page.map(i -> toInvoiceResponse(i, clients));
@@ -269,7 +270,8 @@ public class FinanceService {
     @Transactional(readOnly = true)
     public Page<ExpenseResponse> listExpenses(Expense.ExpenseCategory category, UUID clientId, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        Page<Expense> page = expenseRepository.findFiltered(tenantId, category, clientId, pageable);
+        Page<Expense> page = expenseRepository.findAll(
+                ExpenseSpecification.filter(tenantId, category, clientId, null, null, null, null, null), pageable);
         Map<UUID, Client> clients = loadClients(page.stream()
                 .map(Expense::getClientId).filter(Objects::nonNull).collect(Collectors.toList()));
         return page.map(e -> toExpenseResponse(e, clients));
@@ -281,8 +283,9 @@ public class FinanceService {
             BigDecimal amountMin, BigDecimal amountMax,
             Instant from, Instant to, Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
-        Page<Expense> page = expenseRepository.findFilteredAdvanced(
-                tenantId, category, clientId, vendor, amountMin, amountMax, from, to, pageable);
+        Page<Expense> page = expenseRepository.findAll(
+                ExpenseSpecification.filter(tenantId, category, clientId, vendor, amountMin, amountMax, from, to),
+                pageable);
         Map<UUID, Client> clients = loadClients(page.stream()
                 .map(Expense::getClientId).filter(Objects::nonNull).collect(Collectors.toList()));
         return page.map(e -> toExpenseResponse(e, clients));
@@ -421,7 +424,7 @@ public class FinanceService {
             Pageable pageable) {
         UUID tenantId = TenantContext.getTenantId();
         return purchaseRecordRepository
-                .findFiltered(tenantId, source, category, vendor, from, to, pageable)
+                .findAll(PurchaseRecordSpecification.filter(tenantId, source, category, vendor, from, to), pageable)
                 .map(this::toPurchaseResponse);
     }
 
