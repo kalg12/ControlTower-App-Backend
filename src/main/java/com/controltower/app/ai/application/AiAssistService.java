@@ -91,6 +91,11 @@ public class AiAssistService {
                 "Eres un agente de soporte técnico profesional de habla hispana. Generas respuestas cortas, " +
                 "formales y amigables para tickets de soporte. Solo devuelves el texto de la respuesta, " +
                 "sin explicaciones, sin comillas, sin prefijos. Usa 'usted' como tratamiento formal.";
+            case GENERATE_KB_CONTENT ->
+                "Eres un experto en documentación técnica de habla hispana. Redactas artículos claros, " +
+                "estructurados y útiles para bases de conocimiento de soporte técnico. " +
+                "El contenido debe estar en HTML limpio usando: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <code>. " +
+                "No incluyas <html>, <head>, <body>. No incluyas markdown, solo HTML.";
         };
     }
 
@@ -98,9 +103,10 @@ public class AiAssistService {
         if (ctx == null) throw new ControlTowerException("El contexto es requerido", HttpStatus.BAD_REQUEST);
 
         return switch (task) {
-            case GENERATE_CARD_PROMPT -> buildCardPrompt(ctx);
-            case IMPROVE_TICKET_REPLY -> buildImprovePrompt(ctx);
-            case QUICK_REPLY          -> buildQuickReplyPrompt(ctx);
+            case GENERATE_CARD_PROMPT  -> buildCardPrompt(ctx);
+            case IMPROVE_TICKET_REPLY  -> buildImprovePrompt(ctx);
+            case QUICK_REPLY           -> buildQuickReplyPrompt(ctx);
+            case GENERATE_KB_CONTENT   -> buildKbContentPrompt(ctx);
         };
     }
 
@@ -121,6 +127,10 @@ public class AiAssistService {
             sb.append("- Checklist:\n");
             ctx.cardChecklist().forEach(item -> sb.append("  * ").append(item).append("\n"));
         }
+        if (ctx.devNotes() != null && !ctx.devNotes().isEmpty()) {
+            sb.append("\n**NOTAS INTERNAS DEL EQUIPO:**\n");
+            ctx.devNotes().forEach(note -> sb.append("- ").append(note).append("\n"));
+        }
         sb.append("\n**INSTRUCCIONES:**\n");
         sb.append("El prompt debe incluir:\n");
         sb.append("1. Objetivo claro y contexto del problema\n");
@@ -140,8 +150,22 @@ public class AiAssistService {
         if (hasText(ctx.ticketSubject()))
             sb.append("Asunto del ticket: ").append(ctx.ticketSubject()).append("\n");
         if (hasText(ctx.ticketDescription()))
-            sb.append("Descripción del ticket: ").append(ctx.ticketDescription()).append("\n\n");
-        sb.append("Borrador a mejorar:\n").append(ctx.draftReply());
+            sb.append("Descripción del ticket: ").append(ctx.ticketDescription()).append("\n");
+        if (hasText(ctx.ticketStatus()))
+            sb.append("Estado actual: ").append(ctx.ticketStatus()).append("\n");
+        if (hasText(ctx.ticketPriority()))
+            sb.append("Prioridad: ").append(ctx.ticketPriority()).append("\n");
+        if (hasText(ctx.clientName()))
+            sb.append("Cliente: ").append(ctx.clientName()).append("\n");
+        if (ctx.kbArticles() != null && !ctx.kbArticles().isEmpty()) {
+            sb.append("\n**ARTÍCULOS RELEVANTES DE LA BASE DE CONOCIMIENTO:**\n");
+            ctx.kbArticles().forEach(a -> sb.append("- ").append(a).append("\n"));
+        }
+        if (ctx.previousReplies() != null && !ctx.previousReplies().isEmpty()) {
+            sb.append("\n**HISTORIAL DE RESPUESTAS PREVIAS:**\n");
+            ctx.previousReplies().stream().limit(3).forEach(r -> sb.append("- ").append(r).append("\n"));
+        }
+        sb.append("\nBorrador a mejorar:\n").append(ctx.draftReply());
         return sb.toString();
     }
 
@@ -149,10 +173,22 @@ public class AiAssistService {
         if (ctx.quickReplyType() == null)
             throw new ControlTowerException("Se requiere el tipo de respuesta rápida", HttpStatus.BAD_REQUEST);
 
-        String base = "Genera una respuesta profesional en español para un ticket de soporte";
+        StringBuilder sb = new StringBuilder();
+        sb.append("Genera una respuesta profesional en español para un ticket de soporte");
         if (hasText(ctx.ticketSubject()))
-            base += " con asunto: \"" + ctx.ticketSubject() + "\"";
-        base += ".\n\n";
+            sb.append(" con asunto: \"").append(ctx.ticketSubject()).append("\"");
+        sb.append(".\n\n");
+        if (hasText(ctx.ticketDescription()))
+            sb.append("Contexto del problema: ").append(ctx.ticketDescription()).append("\n");
+        if (hasText(ctx.clientName()))
+            sb.append("Nombre del cliente: ").append(ctx.clientName()).append("\n");
+        if (hasText(ctx.ticketSource()))
+            sb.append("Origen: ").append(ctx.ticketSource()).append("\n");
+        if (ctx.kbArticles() != null && !ctx.kbArticles().isEmpty()) {
+            sb.append("\nInformación de la base de conocimiento que puedes referenciar:\n");
+            ctx.kbArticles().stream().limit(2).forEach(a -> sb.append("- ").append(a).append("\n"));
+        }
+        sb.append("\n");
 
         String instruction = switch (ctx.quickReplyType()) {
             case STARTED_REVIEW ->
@@ -172,7 +208,30 @@ public class AiAssistService {
                 "Indica que el equipo está disponible y pide que el cliente sugiera horario o comparta su disponibilidad.";
         };
 
-        return base + instruction + "\n\nLa respuesta debe ser de 2-4 párrafos cortos, profesional y empática.";
+        sb.append(instruction);
+        sb.append("\n\nLa respuesta debe ser de 2-4 párrafos cortos, profesional, empática y en español. Usa 'usted' como tratamiento formal.");
+        return sb.toString();
+    }
+
+    private String buildKbContentPrompt(AiAssistRequest.AiContext ctx) {
+        if (!hasText(ctx.ticketSubject()) && !hasText(ctx.cardTitle()))
+            throw new ControlTowerException("Se requiere el título del artículo", HttpStatus.BAD_REQUEST);
+
+        String title = hasText(ctx.ticketSubject()) ? ctx.ticketSubject() : ctx.cardTitle();
+        StringBuilder sb = new StringBuilder();
+        sb.append("Genera el contenido completo para un artículo de base de conocimiento con el siguiente título:\n\n");
+        sb.append("**Título:** ").append(title).append("\n");
+        if (hasText(ctx.ticketDescription()))
+            sb.append("**Contexto adicional:** ").append(ctx.ticketDescription()).append("\n");
+        if (hasText(ctx.clientName()))
+            sb.append("**Audiencia objetivo:** ").append(ctx.clientName()).append("\n");
+        sb.append("\nEl artículo debe incluir:\n");
+        sb.append("1. Una introducción breve que explique de qué trata el tema\n");
+        sb.append("2. Pasos o secciones principales bien estructuradas\n");
+        sb.append("3. Notas o advertencias importantes si aplica\n");
+        sb.append("4. Una sección de preguntas frecuentes si es relevante\n\n");
+        sb.append("Devuelve SOLO el HTML del contenido, sin explicaciones adicionales.");
+        return sb.toString();
     }
 
     private String safe(String s) { return s != null ? s : ""; }
