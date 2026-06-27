@@ -43,7 +43,11 @@ public class KanbanNotificationScheduler {
                         "Tarea por vencer mañana",
                         "La tarea \"" + card.getTitle() + "\" vence mañana (" + dueDate + ")",
                         Notification.Severity.WARNING,
-                        Map.of("cardId", card.getId().toString(), "dueDate", dueDate.toString()),
+                        Map.of(
+                            "cardId",   card.getId().toString(),
+                            "boardId",  card.getBoardColumn().getBoard().getId().toString(),
+                            "dueDate",  dueDate.toString()
+                        ),
                         List.of(assigneeId));
             }
         }
@@ -61,7 +65,11 @@ public class KanbanNotificationScheduler {
                         "Tarea vencida",
                         "La tarea \"" + card.getTitle() + "\" venció el " + card.getDueDate(),
                         Notification.Severity.ERROR,
-                        Map.of("cardId", card.getId().toString(), "dueDate", card.getDueDate().toString()),
+                        Map.of(
+                            "cardId",   card.getId().toString(),
+                            "boardId",  card.getBoardColumn().getBoard().getId().toString(),
+                            "dueDate",  card.getDueDate().toString()
+                        ),
                         List.of(assigneeId));
             }
         }

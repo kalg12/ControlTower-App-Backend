@@ -14,6 +14,7 @@ import java.util.UUID;
 public class CardResponse {
     private final UUID id;
     private final UUID columnId;
+    private final UUID boardId;
     private final String title;
     private final String description;
     private final Set<UUID> assigneeIds;

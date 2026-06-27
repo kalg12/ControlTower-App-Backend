@@ -371,6 +371,11 @@ private List<String> getAssigneeNames(Card card) {
         return toCardResponse(cardRepository.save(card));
     }
 
+    @Transactional(readOnly = true)
+    public CardResponse getCard(UUID cardId) {
+        return toCardResponse(resolveCard(cardId));
+    }
+
     @Transactional
     public CardResponse attendCard(UUID cardId) {
         Card card = resolveCard(cardId);
@@ -514,6 +519,7 @@ private List<String> getAssigneeNames(Card card) {
         return CardResponse.builder()
                 .id(c.getId())
                 .columnId(c.getBoardColumn().getId())
+                .boardId(c.getBoardColumn().getBoard().getId())
                 .title(c.getTitle())
                 .description(c.getDescription())
                 .assigneeIds(c.getAssigneeIds())

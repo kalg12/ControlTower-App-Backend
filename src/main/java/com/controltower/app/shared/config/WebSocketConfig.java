@@ -29,10 +29,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // SockJS endpoint — used by web clients (browsers)
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
                 .withSockJS()
                 .setSessionCookieNeeded(false);
+
+        // Raw WebSocket endpoint — used by React Native (SockJS requires browser APIs not available in RN)
+        registry.addEndpoint("/ws-native")
+                .setAllowedOriginPatterns("*");
     }
 
     @Override

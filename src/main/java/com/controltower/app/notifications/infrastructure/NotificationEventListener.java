@@ -1,5 +1,6 @@
 package com.controltower.app.notifications.infrastructure;
 
+import com.controltower.app.chat.domain.ChatConversationStartedEvent;
 import com.controltower.app.health.domain.HealthIncidentOpenedEvent;
 import com.controltower.app.health.domain.HealthIncidentResolvedEvent;
 import com.controltower.app.identity.domain.UserRepository;
@@ -122,6 +123,27 @@ public class NotificationEventListener {
                     "source",      "POS"
                 ),
                 usersWithPermission(event.getTenantId(), "ticket:read")
+        );
+    }
+
+    @EventListener
+    public void onChatConversationStarted(ChatConversationStartedEvent event) {
+        String visitorLabel = event.getVisitorName() != null ? event.getVisitorName()
+                            : event.getVisitorEmail() != null ? event.getVisitorEmail()
+                            : "Visitante anónimo";
+        String source = event.getSource() != null ? event.getSource() : "web";
+
+        notificationService.send(
+                event.getTenantId(),
+                "CHAT_CONVERSATION_STARTED",
+                "Nuevo chat entrante",
+                visitorLabel + " está esperando atención (via " + source + ")",
+                Notification.Severity.INFO,
+                Map.of(
+                    "conversationId", event.getConversationId().toString(),
+                    "source",         source
+                ),
+                usersWithPermission(event.getTenantId(), "chat:read")
         );
     }
 }

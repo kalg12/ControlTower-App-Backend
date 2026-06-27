@@ -13,6 +13,7 @@ import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.tenancy.domain.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -43,6 +44,7 @@ public class ChatService {
     private final AuditService auditService;
     private final SimpMessagingTemplate messagingTemplate;
     private final EmailService emailService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── Visitor: start conversation ──────────────────────────────────────────
 
@@ -69,10 +71,13 @@ public class ChatService {
             messageRepository.save(greeting);
         }
 
-        // notify agents subscribed to the queue
+        // notify agents subscribed to the queue (WebSocket — web clients)
         messagingTemplate.convertAndSend(
                 "/topic/chat.queue." + req.tenantId(),
                 toResponse(saved, null, 0));
+
+        // notify mobile agents via push
+        eventPublisher.publishEvent(new ChatConversationStartedEvent(saved));
 
         auditService.log(AuditAction.CHAT_CONVERSATION_STARTED,
                 req.tenantId(), null, "ChatConversation", saved.getId().toString());

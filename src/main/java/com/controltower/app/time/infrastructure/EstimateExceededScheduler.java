@@ -69,8 +69,13 @@ public class EstimateExceededScheduler {
                         "La tarea \"" + card.getTitle() + "\" superó su estimación ("
                                 + logged + " min registrados vs " + card.getEstimatedMinutes() + " estimados)",
                         Notification.Severity.WARNING,
-                        Map.of("entityType", "CARD", "entityId", card.getId().toString(),
-                                "logged", logged, "estimated", card.getEstimatedMinutes()),
+                        Map.of(
+                            "entityType", "CARD",
+                            "entityId",  card.getId().toString(),
+                            "boardId",   card.getBoardColumn().getBoard().getId().toString(),
+                            "logged",    logged,
+                            "estimated", card.getEstimatedMinutes()
+                        ),
                         List.of(assigneeId));
             }
         }

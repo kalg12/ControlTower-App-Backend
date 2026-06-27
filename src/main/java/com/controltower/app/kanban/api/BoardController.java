@@ -113,6 +113,13 @@ public class BoardController {
 
     // ── Cards ─────────────────────────────────────────────────────────
 
+    @Operation(summary = "Get card by ID", description = "Returns a single card with its boardId. Useful for deep-linking from notifications. Requires the 'kanban:read' permission.")
+    @GetMapping("/cards/{cardId}")
+    @PreAuthorize("hasAuthority('kanban:read')")
+    public ResponseEntity<ApiResponse<CardResponse>> getCard(@PathVariable UUID cardId) {
+        return ResponseEntity.ok(ApiResponse.ok(boardService.getCard(cardId)));
+    }
+
     @Operation(summary = "Create card", description = "Creates a new card in the specified board column. Requires the 'kanban:write' permission.")
     @PostMapping("/cards")
     @PreAuthorize("hasAuthority('kanban:write')")
