@@ -18,4 +18,7 @@ public class NoteRequest {
     /** e.g. "CLIENT", "TICKET", "BRANCH" */
     private String linkedTo;
     private UUID   linkedId;
+
+    /** Set when creating a reply to an existing note. */
+    private UUID parentId;
 }

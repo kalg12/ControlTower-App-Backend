@@ -32,4 +32,8 @@ public class Note extends BaseEntity {
     /** UUID of the linked entity. */
     @Column(name = "linked_id")
     private UUID linkedId;
+
+    /** Non-null only for replies; points to the root note (one-level threading). */
+    @Column(name = "parent_id")
+    private UUID parentId;
 }

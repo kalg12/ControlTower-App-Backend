@@ -215,6 +215,36 @@ public class EmailService {
         }
     }
 
+    public void sendNoteNotification(String toEmail, String recipientName,
+                                      String authorName, String noteTitle, String noteContent,
+                                      String linkedTo, boolean isReply) {
+        if (mailSender == null) {
+            log.warn("Mail sender not configured. Note notification for {}", toEmail);
+            return;
+        }
+        try {
+            String action = isReply ? "respondió una nota interna" : "escribió una nota interna";
+            String context = linkedTo != null ? " en " + linkedTo.toLowerCase().replace("_", " ") : "";
+            String preview = noteContent != null && !noteContent.isBlank()
+                    ? "\n\n" + noteContent.substring(0, Math.min(noteContent.length(), 300))
+                    : "";
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(resolveFrom());
+            message.setTo(toEmail);
+            message.setSubject((isReply ? "[Respuesta] " : "[Nota] ") + noteTitle);
+            message.setText(
+                    "Hola " + recipientName + ",\n\n"
+                    + authorName + " " + action + context + ":\n\n"
+                    + "  Asunto: " + noteTitle + preview + "\n\n"
+                    + "Ingresa a Control Tower para ver y responder.\n\n"
+                    + "Atentamente,\nControl Tower");
+            mailSender.send(message);
+            log.info("Note notification sent to {} (isReply={})", toEmail, isReply);
+        } catch (MailException ex) {
+            log.warn("Failed to send note notification to {}: {}", toEmail, ex.getMessage());
+        }
+    }
+
     public void sendReciboNomina(String toEmail, String employeeName, String periodLabel,
                                   String grossPay, String imssEmployee, String isr,
                                   String infonavit, String otherDeductions, String netPay,
