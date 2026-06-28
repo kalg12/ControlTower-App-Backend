@@ -23,24 +23,31 @@ public final class RemoteLogSpecification {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            predicates.add(cb.equal(root.get("tenantId"), tenantId));
+            // Clear order-by for count queries to avoid join issues
+            if (query != null && Long.class.equals(query.getResultType())) {
+                query.orderBy(java.util.Collections.emptyList());
+            }
+
+            predicates.add(cb.equal(root.<UUID>get("tenantId"), tenantId));
 
             if (level != null) {
-                predicates.add(cb.equal(root.get("level"), level));
+                predicates.add(cb.equal(root.<RemoteLog.Level>get("level"), level));
             }
             if (service != null && !service.isBlank()) {
-                predicates.add(cb.like(cb.lower(root.get("serviceName")),
+                predicates.add(cb.like(
+                        cb.lower(root.<String>get("serviceName")),
                         "%" + service.toLowerCase() + "%"));
             }
             if (business != null && !business.isBlank()) {
-                predicates.add(cb.like(cb.lower(root.get("businessName")),
+                predicates.add(cb.like(
+                        cb.lower(root.<String>get("businessName")),
                         "%" + business.toLowerCase() + "%"));
             }
             if (from != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("receivedAt"), from));
+                predicates.add(cb.greaterThanOrEqualTo(root.<Instant>get("receivedAt"), from));
             }
             if (to != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("receivedAt"), to));
+                predicates.add(cb.lessThanOrEqualTo(root.<Instant>get("receivedAt"), to));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
