@@ -20,12 +20,12 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests the ticket state machine transitions.
  *
- * Valid transitions (from ENDPOINTS.md):
- *   OPEN → IN_PROGRESS | RESOLVED | CLOSED
+ * Valid transitions:
+ *   OPEN        → IN_PROGRESS | RESOLVED | CLOSED
  *   IN_PROGRESS → WAITING | RESOLVED | CLOSED
- *   WAITING → IN_PROGRESS | RESOLVED
- *   RESOLVED → CLOSED | OPEN
- *   CLOSED → OPEN
+ *   WAITING     → IN_PROGRESS | RESOLVED
+ *   RESOLVED    → CLOSED | OPEN
+ *   CLOSED      → OPEN | RESOLVED | IN_PROGRESS
  */
 @DirtiesContext
 class TicketStateMachineTest extends BaseIntegrationTest {
@@ -116,11 +116,21 @@ class TicketStateMachineTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("CLOSED → RESOLVED is an INVALID transition → 400")
-    void closedToResolved_isInvalid() throws Exception {
+    @DisplayName("CLOSED → RESOLVED is a valid transition (re-resolve)")
+    void closedToResolved_isValid() throws Exception {
         String ticketId = createTicket();
         transitionTicket(ticketId, "CLOSED").andExpect(status().isOk());
         transitionTicket(ticketId, "RESOLVED")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status", is("RESOLVED")));
+    }
+
+    @Test
+    @DisplayName("CLOSED → WAITING is an INVALID transition → 400")
+    void closedToWaiting_isInvalid() throws Exception {
+        String ticketId = createTicket();
+        transitionTicket(ticketId, "CLOSED").andExpect(status().isOk());
+        transitionTicket(ticketId, "WAITING")
                 .andExpect(status().isBadRequest());
     }
 
