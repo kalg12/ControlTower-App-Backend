@@ -608,7 +608,7 @@ public class TicketService {
                 Ticket.TicketStatus.IN_PROGRESS, java.util.Set.of(Ticket.TicketStatus.WAITING, Ticket.TicketStatus.RESOLVED, Ticket.TicketStatus.CLOSED),
                 Ticket.TicketStatus.WAITING,     java.util.Set.of(Ticket.TicketStatus.IN_PROGRESS, Ticket.TicketStatus.RESOLVED),
                 Ticket.TicketStatus.RESOLVED,    java.util.Set.of(Ticket.TicketStatus.CLOSED, Ticket.TicketStatus.OPEN),
-                Ticket.TicketStatus.CLOSED,      java.util.Set.of(Ticket.TicketStatus.OPEN)
+                Ticket.TicketStatus.CLOSED,      java.util.Set.of(Ticket.TicketStatus.OPEN, Ticket.TicketStatus.RESOLVED, Ticket.TicketStatus.IN_PROGRESS)
             );
 
     private void validateTransition(Ticket.TicketStatus from, Ticket.TicketStatus to) {
