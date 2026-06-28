@@ -1,13 +1,15 @@
 package com.controltower.app.email.api;
 
+import com.controltower.app.email.api.dto.DeliveryResponse;
 import com.controltower.app.email.api.dto.MailboxRequest;
 import com.controltower.app.email.api.dto.MailboxResponse;
 import com.controltower.app.email.api.dto.TestSendRequest;
-import com.controltower.app.email.api.dto.DeliveryResponse;
 import com.controltower.app.email.application.EmailOutboundService;
 import com.controltower.app.email.application.ImapFetcherService;
+import com.controltower.app.email.domain.EmailDelivery;
 import com.controltower.app.email.domain.EmailMailboxConfig;
 import com.controltower.app.email.domain.EmailMailboxConfigRepository;
+import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.shared.infrastructure.AesEncryptor;
 import com.controltower.app.shared.response.ApiResponse;
@@ -124,12 +126,17 @@ public class EmailMailboxController {
     @Operation(summary = "Send a test email via a configured mailbox")
     public ResponseEntity<ApiResponse<DeliveryResponse>> testSend(@Valid @RequestBody TestSendRequest req) {
         UUID tenantId = TenantContext.getTenantId();
-        DeliveryResponse delivery = DeliveryResponse.from(
+        EmailDelivery delivery =
             outboundService.sendTest(tenantId, req.mailboxId(), req.to(),
-                req.subject() != null ? req.subject() : "Test de Control Tower",
-                req.bodyHtml())
-        );
-        return ResponseEntity.ok(ApiResponse.ok("Test email queued", delivery));
+                req.subject() != null ? req.subject() : "Test desde Control Tower",
+                req.bodyHtml());
+
+        if (delivery.getStatus() == EmailDelivery.DeliveryStatus.FAILED) {
+            String err = delivery.getErrorMessage() != null ? delivery.getErrorMessage() : "SMTP_UNKNOWN_ERROR";
+            throw new ControlTowerException(err, HttpStatus.UNPROCESSABLE_ENTITY);
+        }
+
+        return ResponseEntity.ok(ApiResponse.ok("Test email sent", DeliveryResponse.from(delivery)));
     }
 
     // ── Mapping helper ────────────────────────────────────────────────────────
