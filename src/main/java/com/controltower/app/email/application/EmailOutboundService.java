@@ -9,11 +9,17 @@ import com.controltower.app.shared.infrastructure.AesEncryptor;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.markenwerk.utils.mail.dkim.Canonicalization;
+import net.markenwerk.utils.mail.dkim.DkimMessage;
+import net.markenwerk.utils.mail.dkim.DkimSigner;
+import net.markenwerk.utils.mail.dkim.SigningAlgorithm;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Properties;
 import java.util.UUID;
@@ -21,6 +27,7 @@ import java.util.UUID;
 /**
  * Sends outbound emails via the tenant's configured SMTP mailbox.
  * Creates a dynamic JavaMailSender per mailbox config (multi-tenant).
+ * Signs with DKIM when a key is configured.
  */
 @Slf4j
 @Service
@@ -34,10 +41,8 @@ public class EmailOutboundService {
     private static final int MAX_RETRY_ATTEMPTS = 3;
     private static final long RETRY_BACKOFF_MINUTES = 10;
 
-    /**
-     * Sends an outbound reply for a ticket.
-     * Call this when an agent adds a comment and the original ticket has a requesterEmail.
-     */
+    // ── Public API ────────────────────────────────────────────────────────────
+
     public EmailDelivery sendTicketReply(UUID tenantId, UUID mailboxId, UUID ticketId,
                                           String toEmail, String subject, String bodyHtml,
                                           String inReplyToMessageId) {
@@ -52,12 +57,10 @@ public class EmailOutboundService {
         delivery.setDeliveryType(EmailDelivery.DeliveryType.TICKET_REPLY);
         delivery.setStatus(EmailDelivery.DeliveryStatus.QUEUED);
         deliveryRepo.save(delivery);
-
         attempt(delivery);
         return delivery;
     }
 
-    /** Sends a test email — used by the admin panel "test send" endpoint. */
     public EmailDelivery sendTest(UUID tenantId, UUID mailboxId, String toEmail,
                                    String subject, String bodyHtml) {
         EmailMailboxConfig config = mailboxRepo.findById(mailboxId)
@@ -67,19 +70,18 @@ public class EmailOutboundService {
         EmailDelivery delivery = new EmailDelivery();
         delivery.setTenantId(tenantId);
         delivery.setMailboxId(mailboxId);
-        delivery.setFromEmail(config.getFromEmail());   // required NOT NULL column
+        delivery.setFromEmail(config.getFromEmail());
         delivery.setToEmail(new String[]{toEmail});
         delivery.setSubject(subject);
-        delivery.setBodyHtml(bodyHtml != null ? bodyHtml : "<p>Test email from Control Tower</p>");
+        delivery.setBodyHtml(bodyHtml != null ? bodyHtml : buildTestBody(config));
         delivery.setDeliveryType(EmailDelivery.DeliveryType.TEST);
         delivery.setStatus(EmailDelivery.DeliveryStatus.QUEUED);
         deliveryRepo.save(delivery);
-
-        attempt(delivery, config);   // pass already-fetched config to skip second DB lookup
+        attempt(delivery, config);
         return delivery;
     }
 
-    /** Called by EmailRetryScheduler for QUEUED deliveries that have failed before. */
+    /** Called by retry scheduler for QUEUED deliveries that failed before. */
     public void attempt(EmailDelivery delivery) {
         EmailMailboxConfig config = mailboxRepo.findById(delivery.getMailboxId()).orElse(null);
         if (config == null) {
@@ -90,18 +92,20 @@ public class EmailOutboundService {
         attempt(delivery, config);
     }
 
-    /** Internal overload used when the config was already fetched (avoids double DB lookup). */
     void attempt(EmailDelivery delivery, EmailMailboxConfig config) {
         delivery.setAttempts(delivery.getAttempts() + 1);
         delivery.setLastAttemptAt(Instant.now());
+
+        warnIfFromAuthMismatch(config);
 
         try {
             doSend(delivery, config);
             delivery.setStatus(EmailDelivery.DeliveryStatus.SENT);
             delivery.setSentAt(Instant.now());
             delivery.setErrorMessage(null);
-            log.info("[SMTP] Delivered to {} via {}:{} (delivery {})",
-                    delivery.getToEmail()[0], config.getSmtpHost(), config.getSmtpPort(), delivery.getId());
+            log.info("[SMTP] Delivered — to={} host={}:{} dkim={} delivery={}",
+                    delivery.getToEmail()[0], config.getSmtpHost(), config.getSmtpPort(),
+                    config.getDkimSelector() != null, delivery.getId());
         } catch (Exception e) {
             String code = classifySmtpError(e);
             String classified = code + ": " + e.getMessage();
@@ -121,36 +125,84 @@ public class EmailOutboundService {
         deliveryRepo.save(delivery);
     }
 
+    // ── Core send ─────────────────────────────────────────────────────────────
+
     private void doSend(EmailDelivery delivery, EmailMailboxConfig config) throws Exception {
         JavaMailSenderImpl sender = buildSender(config);
         MimeMessage message = sender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
+        // From / To
         helper.setFrom(config.getFromEmail(),
-            config.getFromName() != null ? config.getFromName() : config.getFromEmail());
+                config.getFromName() != null ? config.getFromName() : config.getFromEmail());
         helper.setTo(delivery.getToEmail());
 
         if (delivery.getCcEmail() != null && delivery.getCcEmail().length > 0) {
             helper.setCc(delivery.getCcEmail());
         }
 
-        // Reply-To: ticket+{ticketId}@domain for future thread detection
+        // Reply-To for thread tracking (tickets only)
         if (delivery.getTicketId() != null) {
-            String domain = config.getFromEmail().substring(config.getFromEmail().indexOf('@') + 1);
+            String domain = domainOf(config.getFromEmail());
             helper.setReplyTo("ticket+" + delivery.getTicketId() + "@" + domain);
         }
 
         helper.setSubject(delivery.getSubject() != null ? delivery.getSubject() : "(Sin asunto)");
         helper.setText(delivery.getBodyHtml() != null ? delivery.getBodyHtml() : "", true);
 
+        // Thread headers
         if (delivery.getInReplyTo() != null) {
             message.setHeader("In-Reply-To", delivery.getInReplyTo());
             message.setHeader("References", delivery.getInReplyTo());
         }
-        message.setHeader("X-Auto-Submitted", "auto-replied");
 
-        sender.send(message);
+        // Only mark automated for ticket replies, not for regular notifications/test
+        if (delivery.getDeliveryType() == EmailDelivery.DeliveryType.TICKET_REPLY) {
+            message.setHeader("X-Auto-Submitted", "auto-replied");
+        }
+
+        // ── DKIM signing ──────────────────────────────────────────────────────
+        MimeMessage finalMessage = message;
+        if (hasDkim(config)) {
+            try {
+                DkimSigner signer = buildDkimSigner(config);
+                finalMessage = new DkimMessage(message, signer);
+                log.debug("[DKIM] Signed with selector={} domain={}", config.getDkimSelector(), domainOf(config.getFromEmail()));
+            } catch (Exception e) {
+                log.warn("[DKIM] Could not sign — continuing without DKIM. selector={} error={}",
+                        config.getDkimSelector(), e.getMessage());
+            }
+        } else {
+            log.debug("[DKIM] No DKIM key configured for mailbox={}", config.getId());
+        }
+
+        sender.send(finalMessage);
     }
+
+    // ── DKIM helpers ──────────────────────────────────────────────────────────
+
+    private boolean hasDkim(EmailMailboxConfig config) {
+        return config.getDkimSelector() != null && !config.getDkimSelector().isBlank()
+                && config.getDkimPrivateKey() != null && !config.getDkimPrivateKey().isBlank();
+    }
+
+    private DkimSigner buildDkimSigner(EmailMailboxConfig config) throws Exception {
+        String domain = domainOf(config.getFromEmail());
+        String pemKey = aesEncryptor.decrypt(config.getDkimPrivateKey());
+        byte[] keyBytes = pemKey.getBytes(StandardCharsets.UTF_8);
+
+        DkimSigner signer = new DkimSigner(domain, config.getDkimSelector(),
+                new ByteArrayInputStream(keyBytes));
+        signer.setHeaderCanonicalization(Canonicalization.RELAXED);
+        signer.setBodyCanonicalization(Canonicalization.RELAXED);
+        signer.setSigningAlgorithm(SigningAlgorithm.SHA256_WITH_RSA);
+        signer.setLengthParam(false);
+        signer.setZParam(false);
+        signer.setCheckDomainKey(false); // don't DNS-verify on send
+        return signer;
+    }
+
+    // ── SMTP builder ──────────────────────────────────────────────────────────
 
     private JavaMailSenderImpl buildSender(EmailMailboxConfig config) {
         JavaMailSenderImpl sender = new JavaMailSenderImpl();
@@ -164,21 +216,19 @@ public class EmailOutboundService {
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.connectiontimeout", "15000");
         props.put("mail.smtp.timeout", "15000");
+        props.put("mail.smtp.writetimeout", "15000");
 
         if (config.getSmtpPort() == 465) {
-            // SMTPS — SSL/TLS from the start (port 465)
             props.put("mail.smtp.ssl.enable", "true");
             props.put("mail.smtp.starttls.enable", "false");
             props.put("mail.smtp.socketFactory.port", "465");
             props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
             props.put("mail.smtp.socketFactory.fallback", "false");
         } else if (config.isSmtpSsl()) {
-            // STARTTLS — upgrade after plaintext connect (port 587 or custom)
             props.put("mail.smtp.starttls.enable", "true");
             props.put("mail.smtp.starttls.required", "true");
             props.put("mail.smtp.ssl.enable", "false");
         } else {
-            // No encryption (port 25 or custom without SSL)
             props.put("mail.smtp.starttls.enable", "false");
             props.put("mail.smtp.ssl.enable", "false");
         }
@@ -186,7 +236,9 @@ public class EmailOutboundService {
         return sender;
     }
 
-    private String classifySmtpError(Exception e) {
+    // ── Error classification ──────────────────────────────────────────────────
+
+    public String classifySmtpError(Exception e) {
         String msg = (e.getMessage() != null ? e.getMessage() : "").toLowerCase();
         if (e.getCause() != null && e.getCause().getMessage() != null) {
             msg += " " + e.getCause().getMessage().toLowerCase();
@@ -222,8 +274,54 @@ public class EmailOutboundService {
         return "SMTP_UNKNOWN_ERROR";
     }
 
+    // ── Utilities ─────────────────────────────────────────────────────────────
+
+    private void warnIfFromAuthMismatch(EmailMailboxConfig config) {
+        if (config.getFromEmail() == null || config.getSmtpUsername() == null) return;
+        String fromDomain   = domainOf(config.getFromEmail());
+        String authDomain   = domainOf(config.getSmtpUsername());
+        boolean userMatch   = config.getFromEmail().equalsIgnoreCase(config.getSmtpUsername());
+        boolean domainMatch = fromDomain.equalsIgnoreCase(authDomain);
+        if (!userMatch && !domainMatch) {
+            log.warn("[SMTP] From/auth domain mismatch — From={} AuthUser={} — " +
+                    "Hotmail/Outlook often rejects cross-domain sends silently",
+                    config.getFromEmail(), config.getSmtpUsername());
+        } else if (!userMatch) {
+            log.debug("[SMTP] From={} differs from AuthUser={} (same domain — usually OK)",
+                    config.getFromEmail(), config.getSmtpUsername());
+        }
+    }
+
+    private static String domainOf(String email) {
+        int at = email.lastIndexOf('@');
+        return at >= 0 ? email.substring(at + 1).toLowerCase() : email.toLowerCase();
+    }
+
     private void markFailed(EmailDelivery delivery, String error) {
         delivery.setStatus(EmailDelivery.DeliveryStatus.FAILED);
         delivery.setErrorMessage(error);
+    }
+
+    private String buildTestBody(EmailMailboxConfig config) {
+        boolean dkimEnabled = hasDkim(config);
+        return "<div style='font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px'>"
+                + "<h2 style='color:#1a56db'>Prueba de envío — Control Tower</h2>"
+                + "<p>Este correo confirma que tu configuración SMTP funciona correctamente.</p>"
+                + "<table style='border-collapse:collapse;width:100%;margin-top:16px'>"
+                + row("Buzón", config.getName())
+                + row("Remitente", config.getFromEmail())
+                + row("SMTP", config.getSmtpHost() + ":" + config.getSmtpPort())
+                + row("DKIM", dkimEnabled ? "✅ Configurado (selector: " + config.getDkimSelector() + ")" : "⚠️ No configurado")
+                + "</table>"
+                + (dkimEnabled ? "" : "<p style='margin-top:16px;padding:12px;background:#fffbeb;border:1px solid #f59e0b;border-radius:6px;font-size:13px'>"
+                        + "<strong>Tip:</strong> Sin DKIM, Gmail y Hotmail pueden rechazar o marcar como spam tus correos. "
+                        + "Configura DKIM en Settings → Email → tu buzón → sección DKIM.</p>")
+                + "<p style='margin-top:24px;color:#6b7280;font-size:12px'>Control Tower · Enviado automáticamente</p>"
+                + "</div>";
+    }
+
+    private static String row(String label, String value) {
+        return "<tr><td style='padding:8px;border:1px solid #e5e7eb;font-weight:600;background:#f9fafb'>" + label + "</td>"
+                + "<td style='padding:8px;border:1px solid #e5e7eb'>" + value + "</td></tr>";
     }
 }

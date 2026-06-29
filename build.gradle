@@ -82,6 +82,9 @@ dependencies {
 	// ── PDF Generation ───────────────────────────────────────────────
 	implementation 'com.github.librepdf:openpdf:1.3.30'
 
+	// ── DKIM Email Signing ───────────────────────────────────────────
+	implementation 'net.markenwerk:utils-mail-dkim:2.0.1'
+
 	// ── Observability ────────────────────────────────────────────────
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
