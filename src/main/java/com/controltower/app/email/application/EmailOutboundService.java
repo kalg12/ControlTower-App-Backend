@@ -9,26 +9,15 @@ import com.controltower.app.shared.infrastructure.AesEncryptor;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.markenwerk.utils.mail.dkim.Canonicalization;
-import net.markenwerk.utils.mail.dkim.DkimMessage;
-import net.markenwerk.utils.mail.dkim.DkimSigner;
-import net.markenwerk.utils.mail.dkim.SigningAlgorithm;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Properties;
 import java.util.UUID;
 
-/**
- * Sends outbound emails via the tenant's configured SMTP mailbox.
- * Creates a dynamic JavaMailSender per mailbox config (multi-tenant).
- * Signs with DKIM when a key is configured.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -81,7 +70,6 @@ public class EmailOutboundService {
         return delivery;
     }
 
-    /** Called by retry scheduler for QUEUED deliveries that failed before. */
     public void attempt(EmailDelivery delivery) {
         EmailMailboxConfig config = mailboxRepo.findById(delivery.getMailboxId()).orElse(null);
         if (config == null) {
@@ -103,9 +91,8 @@ public class EmailOutboundService {
             delivery.setStatus(EmailDelivery.DeliveryStatus.SENT);
             delivery.setSentAt(Instant.now());
             delivery.setErrorMessage(null);
-            log.info("[SMTP] Delivered — to={} host={}:{} dkim={} delivery={}",
-                    delivery.getToEmail()[0], config.getSmtpHost(), config.getSmtpPort(),
-                    config.getDkimSelector() != null, delivery.getId());
+            log.info("[SMTP] Delivered — to={} host={}:{} delivery={}",
+                    delivery.getToEmail()[0], config.getSmtpHost(), config.getSmtpPort(), delivery.getId());
         } catch (Exception e) {
             String code = classifySmtpError(e);
             String classified = code + ": " + e.getMessage();
@@ -132,7 +119,6 @@ public class EmailOutboundService {
         MimeMessage message = sender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-        // From / To
         helper.setFrom(config.getFromEmail(),
                 config.getFromName() != null ? config.getFromName() : config.getFromEmail());
         helper.setTo(delivery.getToEmail());
@@ -141,7 +127,6 @@ public class EmailOutboundService {
             helper.setCc(delivery.getCcEmail());
         }
 
-        // Reply-To for thread tracking (tickets only)
         if (delivery.getTicketId() != null) {
             String domain = domainOf(config.getFromEmail());
             helper.setReplyTo("ticket+" + delivery.getTicketId() + "@" + domain);
@@ -150,56 +135,16 @@ public class EmailOutboundService {
         helper.setSubject(delivery.getSubject() != null ? delivery.getSubject() : "(Sin asunto)");
         helper.setText(delivery.getBodyHtml() != null ? delivery.getBodyHtml() : "", true);
 
-        // Thread headers
         if (delivery.getInReplyTo() != null) {
             message.setHeader("In-Reply-To", delivery.getInReplyTo());
             message.setHeader("References", delivery.getInReplyTo());
         }
 
-        // Only mark automated for ticket replies, not for regular notifications/test
         if (delivery.getDeliveryType() == EmailDelivery.DeliveryType.TICKET_REPLY) {
             message.setHeader("X-Auto-Submitted", "auto-replied");
         }
 
-        // ── DKIM signing ──────────────────────────────────────────────────────
-        MimeMessage finalMessage = message;
-        if (hasDkim(config)) {
-            try {
-                DkimSigner signer = buildDkimSigner(config);
-                finalMessage = new DkimMessage(message, signer);
-                log.debug("[DKIM] Signed with selector={} domain={}", config.getDkimSelector(), domainOf(config.getFromEmail()));
-            } catch (Exception e) {
-                log.warn("[DKIM] Could not sign — continuing without DKIM. selector={} error={}",
-                        config.getDkimSelector(), e.getMessage());
-            }
-        } else {
-            log.debug("[DKIM] No DKIM key configured for mailbox={}", config.getId());
-        }
-
-        sender.send(finalMessage);
-    }
-
-    // ── DKIM helpers ──────────────────────────────────────────────────────────
-
-    private boolean hasDkim(EmailMailboxConfig config) {
-        return config.getDkimSelector() != null && !config.getDkimSelector().isBlank()
-                && config.getDkimPrivateKey() != null && !config.getDkimPrivateKey().isBlank();
-    }
-
-    private DkimSigner buildDkimSigner(EmailMailboxConfig config) throws Exception {
-        String domain = domainOf(config.getFromEmail());
-        String pemKey = aesEncryptor.decrypt(config.getDkimPrivateKey());
-        byte[] keyBytes = pemKey.getBytes(StandardCharsets.UTF_8);
-
-        DkimSigner signer = new DkimSigner(domain, config.getDkimSelector(),
-                new ByteArrayInputStream(keyBytes));
-        signer.setHeaderCanonicalization(Canonicalization.RELAXED);
-        signer.setBodyCanonicalization(Canonicalization.RELAXED);
-        signer.setSigningAlgorithm(SigningAlgorithm.SHA256_WITH_RSA);
-        signer.setLengthParam(false);
-        signer.setZParam(false);
-        signer.setCheckDomainKey(false); // don't DNS-verify on send
-        return signer;
+        sender.send(message);
     }
 
     // ── SMTP builder ──────────────────────────────────────────────────────────
@@ -278,16 +223,11 @@ public class EmailOutboundService {
 
     private void warnIfFromAuthMismatch(EmailMailboxConfig config) {
         if (config.getFromEmail() == null || config.getSmtpUsername() == null) return;
-        String fromDomain   = domainOf(config.getFromEmail());
-        String authDomain   = domainOf(config.getSmtpUsername());
-        boolean userMatch   = config.getFromEmail().equalsIgnoreCase(config.getSmtpUsername());
-        boolean domainMatch = fromDomain.equalsIgnoreCase(authDomain);
-        if (!userMatch && !domainMatch) {
+        String fromDomain = domainOf(config.getFromEmail());
+        String authDomain = domainOf(config.getSmtpUsername());
+        if (!fromDomain.equalsIgnoreCase(authDomain)) {
             log.warn("[SMTP] From/auth domain mismatch — From={} AuthUser={} — " +
                     "Hotmail/Outlook often rejects cross-domain sends silently",
-                    config.getFromEmail(), config.getSmtpUsername());
-        } else if (!userMatch) {
-            log.debug("[SMTP] From={} differs from AuthUser={} (same domain — usually OK)",
                     config.getFromEmail(), config.getSmtpUsername());
         }
     }
@@ -303,7 +243,6 @@ public class EmailOutboundService {
     }
 
     private String buildTestBody(EmailMailboxConfig config) {
-        boolean dkimEnabled = hasDkim(config);
         return "<div style='font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px'>"
                 + "<h2 style='color:#1a56db'>Prueba de envío — Control Tower</h2>"
                 + "<p>Este correo confirma que tu configuración SMTP funciona correctamente.</p>"
@@ -311,11 +250,7 @@ public class EmailOutboundService {
                 + row("Buzón", config.getName())
                 + row("Remitente", config.getFromEmail())
                 + row("SMTP", config.getSmtpHost() + ":" + config.getSmtpPort())
-                + row("DKIM", dkimEnabled ? "✅ Configurado (selector: " + config.getDkimSelector() + ")" : "⚠️ No configurado")
                 + "</table>"
-                + (dkimEnabled ? "" : "<p style='margin-top:16px;padding:12px;background:#fffbeb;border:1px solid #f59e0b;border-radius:6px;font-size:13px'>"
-                        + "<strong>Tip:</strong> Sin DKIM, Gmail y Hotmail pueden rechazar o marcar como spam tus correos. "
-                        + "Configura DKIM en Settings → Email → tu buzón → sección DKIM.</p>")
                 + "<p style='margin-top:24px;color:#6b7280;font-size:12px'>Control Tower · Enviado automáticamente</p>"
                 + "</div>";
     }
