@@ -82,14 +82,6 @@ public class EmailMailboxConfig extends BaseEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
-    // ── DKIM signing ──────────────────────────────────────────────────────────
-    /** DNS selector: e.g. "mail" → mail._domainkey.domain.com TXT record. */
-    @Column(name = "dkim_selector")
-    private String dkimSelector;
-
-    /** AES-256-GCM encrypted PKCS#8 PEM private key for DKIM signing. */
-    @Column(name = "dkim_private_key", columnDefinition = "TEXT")
-    private String dkimPrivateKey;
 
     public void incrementErrorCount() {
         this.errorCount++;

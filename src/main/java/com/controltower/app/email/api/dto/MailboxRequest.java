@@ -28,9 +28,5 @@ public record MailboxRequest(
 
     // Control
     Integer pollIntervalSec,
-    UUID departmentId,
-
-    // DKIM — both null means no DKIM signing
-    String dkimSelector,
-    String dkimPrivateKey
+    UUID departmentId
 ) {}
