@@ -20,12 +20,14 @@ import static org.hamcrest.Matchers.is;
 /**
  * Tests the ticket state machine transitions.
  *
- * Valid transitions:
- *   OPEN        → IN_PROGRESS | RESOLVED | CLOSED
+ * Valid transitions (fully bidirectional, any status → any other status):
+ *   OPEN        → IN_PROGRESS | WAITING | RESOLVED | CLOSED
  *   IN_PROGRESS → WAITING | RESOLVED | CLOSED
- *   WAITING     → IN_PROGRESS | RESOLVED
- *   RESOLVED    → CLOSED | OPEN
- *   CLOSED      → OPEN | RESOLVED | IN_PROGRESS
+ *   WAITING     → OPEN | IN_PROGRESS | RESOLVED | CLOSED
+ *   RESOLVED    → OPEN | IN_PROGRESS | WAITING | CLOSED
+ *   CLOSED      → OPEN | IN_PROGRESS | WAITING | RESOLVED
+ *
+ * Still invalid: IN_PROGRESS → OPEN (not in allowed set)
  */
 @DirtiesContext
 class TicketStateMachineTest extends BaseIntegrationTest {
@@ -108,11 +110,12 @@ class TicketStateMachineTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("OPEN → WAITING is an INVALID transition → 400")
-    void openToWaiting_isInvalid() throws Exception {
+    @DisplayName("OPEN → WAITING is a valid transition (ticket awaiting client info)")
+    void openToWaiting_isValid() throws Exception {
         String ticketId = createTicket();
         transitionTicket(ticketId, "WAITING")
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status", is("WAITING")));
     }
 
     @Test
@@ -126,11 +129,21 @@ class TicketStateMachineTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("CLOSED → WAITING is an INVALID transition → 400")
-    void closedToWaiting_isInvalid() throws Exception {
+    @DisplayName("CLOSED → WAITING is a valid transition (post-support revert)")
+    void closedToWaiting_isValid() throws Exception {
         String ticketId = createTicket();
         transitionTicket(ticketId, "CLOSED").andExpect(status().isOk());
         transitionTicket(ticketId, "WAITING")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status", is("WAITING")));
+    }
+
+    @Test
+    @DisplayName("IN_PROGRESS → OPEN is an INVALID transition → 400")
+    void inProgressToOpen_isInvalid() throws Exception {
+        String ticketId = createTicket();
+        transitionTicket(ticketId, "IN_PROGRESS").andExpect(status().isOk());
+        transitionTicket(ticketId, "OPEN")
                 .andExpect(status().isBadRequest());
     }
 
