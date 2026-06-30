@@ -10,7 +10,8 @@ public record AiAssistRequest(
         GENERATE_CARD_PROMPT,
         IMPROVE_TICKET_REPLY,
         QUICK_REPLY,
-        GENERATE_KB_CONTENT
+        GENERATE_KB_CONTENT,
+        GENERATE_TEMPLATE_CONTENT
     }
 
     public record AiContext(
@@ -35,7 +36,11 @@ public record AiAssistRequest(
         QuickReplyType quickReplyType,
 
         // Knowledge base context
-        java.util.List<String> kbArticles
+        java.util.List<String> kbArticles,
+
+        // Response template context
+        String templateName,
+        String templateCategory
     ) {}
 
     public enum QuickReplyType {
