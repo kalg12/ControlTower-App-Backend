@@ -13,6 +13,8 @@ import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
 import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.tenancy.domain.TenantContext;
+import com.controltower.app.time.domain.TimeEntry;
+import com.controltower.app.time.domain.TimeEntryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -47,6 +49,7 @@ public class BoardService {
     private final UserRepository           userRepository;
     private final EmailService             emailService;
     private final NotificationService      notificationService;
+    private final TimeEntryRepository      timeEntryRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -326,6 +329,29 @@ private List<String> getAssigneeNames(Card card) {
         card.setBoardColumn(target);
         card.setPosition(request.getPosition());
         card = cardRepository.save(card);
+
+        // Auto-start timer when card enters an IN_PROGRESS column
+        if (target.getColumnKind() == BoardColumn.ColumnKind.IN_PROGRESS) {
+            UUID tenantId = TenantContext.getTenantId();
+            try {
+                // Stop any running timer for this user first (one active per user)
+                timeEntryRepository.findActiveByTenantAndUser(tenantId, userId)
+                        .ifPresent(active -> {
+                            active.stop();
+                            timeEntryRepository.save(active);
+                        });
+                TimeEntry entry = new TimeEntry();
+                entry.setTenantId(tenantId);
+                entry.setUserId(userId);
+                entry.setEntityType(TimeEntry.EntityType.CARD);
+                entry.setEntityId(cardId);
+                entry.setStartedAt(java.time.Instant.now());
+                timeEntryRepository.save(entry);
+                log.info("[Kanban] Auto-started timer for user {} on card {} (moved to IN_PROGRESS)", userId, cardId);
+            } catch (Exception e) {
+                log.warn("[Kanban] Could not auto-start timer for card {}: {}", cardId, e.getMessage());
+            }
+        }
 
         publisher.publishEvent(UserActionEvent.builder()
                 .tenantId(TenantContext.getTenantId())

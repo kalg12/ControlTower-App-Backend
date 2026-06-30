@@ -96,6 +96,12 @@ public class AiAssistService {
                 "estructurados y útiles para bases de conocimiento de soporte técnico. " +
                 "El contenido debe estar en HTML limpio usando: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <code>. " +
                 "No incluyas <html>, <head>, <body>. No incluyas markdown, solo HTML.";
+            case GENERATE_TEMPLATE_CONTENT ->
+                "Eres un experto en redacción de plantillas de respuesta para equipos de soporte técnico de habla hispana. " +
+                "Redactas plantillas profesionales, empáticas y reutilizables que los agentes pueden enviar a clientes. " +
+                "El contenido debe estar en HTML limpio usando: <p>, <ul>, <ol>, <li>, <strong>, <em>, <u>. " +
+                "No incluyas <html>, <head>, <body> ni markdown. Usa 'usted' como tratamiento formal. " +
+                "Usa {{nombreCliente}}, {{nombreAgente}}, {{numeroTicket}} como variables cuando sea útil.";
         };
     }
 
@@ -103,10 +109,11 @@ public class AiAssistService {
         if (ctx == null) throw new ControlTowerException("El contexto es requerido", HttpStatus.BAD_REQUEST);
 
         return switch (task) {
-            case GENERATE_CARD_PROMPT  -> buildCardPrompt(ctx);
-            case IMPROVE_TICKET_REPLY  -> buildImprovePrompt(ctx);
-            case QUICK_REPLY           -> buildQuickReplyPrompt(ctx);
-            case GENERATE_KB_CONTENT   -> buildKbContentPrompt(ctx);
+            case GENERATE_CARD_PROMPT      -> buildCardPrompt(ctx);
+            case IMPROVE_TICKET_REPLY      -> buildImprovePrompt(ctx);
+            case QUICK_REPLY               -> buildQuickReplyPrompt(ctx);
+            case GENERATE_KB_CONTENT       -> buildKbContentPrompt(ctx);
+            case GENERATE_TEMPLATE_CONTENT -> buildTemplateContentPrompt(ctx);
         };
     }
 
@@ -231,6 +238,25 @@ public class AiAssistService {
         sb.append("3. Notas o advertencias importantes si aplica\n");
         sb.append("4. Una sección de preguntas frecuentes si es relevante\n\n");
         sb.append("Devuelve SOLO el HTML del contenido, sin explicaciones adicionales.");
+        return sb.toString();
+    }
+
+    private String buildTemplateContentPrompt(AiAssistRequest.AiContext ctx) {
+        if (!hasText(ctx.templateName()))
+            throw new ControlTowerException("Se requiere el nombre de la plantilla", HttpStatus.BAD_REQUEST);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Genera el contenido HTML para una plantilla de respuesta de soporte técnico.\n\n");
+        sb.append("**Nombre de la plantilla:** ").append(ctx.templateName()).append("\n");
+        if (hasText(ctx.templateCategory()))
+            sb.append("**Categoría:** ").append(ctx.templateCategory()).append("\n");
+        sb.append("\nLa plantilla debe:\n");
+        sb.append("1. Ser directa y clara para el agente que la usará\n");
+        sb.append("2. Tener un saludo apropiado usando la variable {{nombreCliente}}\n");
+        sb.append("3. Incluir el cuerpo principal relacionado con '").append(ctx.templateName()).append("'\n");
+        sb.append("4. Cerrar con firma profesional usando {{nombreAgente}}\n");
+        sb.append("5. Usar {{numeroTicket}} si es relevante para referenciar el caso\n\n");
+        sb.append("Devuelve SOLO el HTML del contenido de la plantilla, sin explicaciones adicionales.");
         return sb.toString();
     }
 

@@ -30,7 +30,10 @@ public class EmailPollerService {
     public void pollDueMailboxes() {
         Instant now = Instant.now();
 
-        List<EmailMailboxConfig> dueMailboxes = mailboxRepo.findDueForPoll(now);
+        List<EmailMailboxConfig> dueMailboxes = mailboxRepo.findDueForPoll(now).stream()
+                .filter(m -> m.getLastPolledAt() == null
+                        || m.getLastPolledAt().isBefore(now.minusSeconds(m.getPollIntervalSec())))
+                .toList();
 
         if (dueMailboxes.isEmpty()) return;
 
