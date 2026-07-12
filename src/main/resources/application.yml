@@ -141,6 +141,17 @@ app:
     model: ${AI_MODEL:gpt-4o-mini}
     timeout-ms: ${AI_TIMEOUT_MS:45000}
 
+# ── OpenWA WhatsApp Gateway ───────────────────────────────────────────
+# Sends alerts to the Comerza dev team WhatsApp group via a self-hosted OpenWA instance.
+# Set OPENWA_ENABLED=true and fill the other vars to activate live sending.
+# While OPENWA_ENABLED=false, alerts are logged (dry-run) but not sent.
+openwa:
+  enabled: ${OPENWA_ENABLED:false}
+  base-url: ${OPENWA_BASE_URL:http://localhost:2785}
+  api-key: ${OPENWA_API_KEY:}
+  session: ${OPENWA_SESSION:}
+  dev-group-id: ${OPENWA_DEV_GROUP_ID:}
+
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
   level:
