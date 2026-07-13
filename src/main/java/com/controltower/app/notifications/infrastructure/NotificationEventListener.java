@@ -1,11 +1,14 @@
 package com.controltower.app.notifications.infrastructure;
 
 import com.controltower.app.chat.domain.ChatConversationStartedEvent;
+import com.controltower.app.clients.domain.ClientBranchRepository;
 import com.controltower.app.health.domain.HealthIncidentOpenedEvent;
 import com.controltower.app.health.domain.HealthIncidentResolvedEvent;
+import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
 import com.controltower.app.notifications.application.NotificationService;
 import com.controltower.app.notifications.domain.Notification;
+import com.controltower.app.notifications.domain.NotificationPreferenceRepository;
 import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.support.domain.PosTicketChatEvent;
 import com.controltower.app.support.domain.PosTicketReceivedEvent;
@@ -26,10 +29,15 @@ public class NotificationEventListener {
     private final NotificationService notificationService;
     private final EmailService emailService;
     private final UserRepository userRepository;
+    private final ClientBranchRepository branchRepository;
+    private final NotificationPreferenceRepository preferenceRepository;
+
+    private List<User> usersByPermission(UUID tenantId, String permission) {
+        return userRepository.findByTenantIdAndPermission(tenantId, permission);
+    }
 
     private List<UUID> usersWithPermission(UUID tenantId, String permission) {
-        return userRepository.findByTenantIdAndPermission(tenantId, permission)
-                .stream().map(u -> u.getId()).toList();
+        return usersByPermission(tenantId, permission).stream().map(User::getId).toList();
     }
 
     @EventListener
@@ -43,6 +51,8 @@ public class NotificationEventListener {
             case CRITICAL -> Notification.Severity.CRITICAL;
         };
 
+        List<User> recipients = usersByPermission(event.getTenantId(), "health:read");
+
         notificationService.send(
                 event.getTenantId(),
                 "HEALTH_INCIDENT",
@@ -53,8 +63,17 @@ public class NotificationEventListener {
                     "incidentId", event.getIncidentId().toString(),
                     "branchId",   event.getBranchId().toString()
                 ),
-                usersWithPermission(event.getTenantId(), "health:read")
+                recipients.stream().map(User::getId).toList()
         );
+
+        String branchName = branchRepository.findById(event.getBranchId())
+                .map(b -> b.getName())
+                .orElse("sucursal desconocida");
+        recipients.stream()
+                .filter(u -> preferenceRepository.isEnabled(u.getId(), "HEALTH_INCIDENT"))
+                .forEach(u -> emailService.sendHealthIncidentNotification(
+                        u.getEmail(), u.getFullName(), branchName,
+                        event.getSeverity().name(), event.getDescription()));
     }
 
     @EventListener
