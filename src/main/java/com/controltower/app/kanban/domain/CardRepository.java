@@ -63,9 +63,13 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
           AND b.deletedAt IS NULL
           AND c.dueDate = :dueDate
           AND SIZE(c.assigneeIds) > 0
+          AND col.columnKind NOT IN (
+              com.controltower.app.kanban.domain.BoardColumn.ColumnKind.DONE,
+              com.controltower.app.kanban.domain.BoardColumn.ColumnKind.HISTORY)
         """)
     List<Card> findByDueDateAndHasAssignees(@Param("dueDate") LocalDate dueDate);
 
+    /** Excludes DONE/HISTORY columns — a card already completed must not be reported as overdue forever. */
     @Query("""
         SELECT c FROM Card c
         JOIN c.boardColumn col
@@ -74,6 +78,9 @@ public interface CardRepository extends JpaRepository<Card, UUID> {
           AND b.deletedAt IS NULL
           AND c.dueDate < :today
           AND SIZE(c.assigneeIds) > 0
+          AND col.columnKind NOT IN (
+              com.controltower.app.kanban.domain.BoardColumn.ColumnKind.DONE,
+              com.controltower.app.kanban.domain.BoardColumn.ColumnKind.HISTORY)
         """)
     List<Card> findOverdueWithAssignees(@Param("today") LocalDate today);
 
