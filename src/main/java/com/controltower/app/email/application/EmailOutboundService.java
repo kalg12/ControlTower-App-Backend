@@ -15,6 +15,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -68,6 +69,37 @@ public class EmailOutboundService {
         deliveryRepo.save(delivery);
         attempt(delivery, config);
         return delivery;
+    }
+
+    /**
+     * Sends a one-off system notification (ticket comments, kanban moves, health
+     * incidents, etc.) through the tenant's own configured mailbox instead of the
+     * global fallback SMTP account, so deliverability (SPF/DKIM/from-domain) matches
+     * what the tenant set up in Settings → Email. Queued as a real {@link EmailDelivery}
+     * so it benefits from the same retry scheduler as ticket replies.
+     *
+     * @return true if a mailbox was found and the send was attempted (regardless of
+     *         success/failure — failures are queued for retry); false if the tenant
+     *         has no active mailbox configured, so the caller should fall back.
+     */
+    public boolean trySendNotification(UUID tenantId, String toEmail, String subject, String bodyHtml) {
+        if (tenantId == null) return false;
+        List<EmailMailboxConfig> mailboxes = mailboxRepo.findByTenantIdAndActiveTrue(tenantId);
+        if (mailboxes.isEmpty()) return false;
+        EmailMailboxConfig config = mailboxes.get(0);
+
+        EmailDelivery delivery = new EmailDelivery();
+        delivery.setTenantId(tenantId);
+        delivery.setMailboxId(config.getId());
+        delivery.setFromEmail(config.getFromEmail());
+        delivery.setToEmail(new String[]{toEmail});
+        delivery.setSubject(subject);
+        delivery.setBodyHtml(bodyHtml);
+        delivery.setDeliveryType(EmailDelivery.DeliveryType.NOTIFICATION);
+        delivery.setStatus(EmailDelivery.DeliveryStatus.QUEUED);
+        deliveryRepo.save(delivery);
+        attempt(delivery, config);
+        return true;
     }
 
     public void attempt(EmailDelivery delivery) {
