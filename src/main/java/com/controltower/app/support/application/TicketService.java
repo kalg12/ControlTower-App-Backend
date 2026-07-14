@@ -6,9 +6,6 @@ import com.controltower.app.notifications.domain.Notification;
 import com.controltower.app.shared.annotation.Audited;
 import com.controltower.app.shared.exception.ControlTowerException;
 import com.controltower.app.shared.exception.ResourceNotFoundException;
-import com.controltower.app.email.application.EmailOutboundService;
-import com.controltower.app.email.domain.EmailRaw;
-import com.controltower.app.email.domain.EmailRawRepository;
 import com.controltower.app.shared.infrastructure.EmailService;
 import com.controltower.app.identity.domain.User;
 import com.controltower.app.identity.domain.UserRepository;
@@ -53,8 +50,6 @@ public class TicketService {
     private final TimeEntryRepository    timeEntryRepository;
     private final NotificationService    notificationService;
     private final EmailService           emailService;
-    private final EmailOutboundService   emailOutboundService;
-    private final EmailRawRepository     emailRawRepository;
 
     @Transactional(readOnly = true)
     public Page<TicketResponse> listTickets(
@@ -472,33 +467,10 @@ public class TicketService {
                 }
             }
 
-            // EMAIL ticket: reply via SMTP to the original requester
-            if (saved.getSource() == Ticket.TicketSource.EMAIL
-                    && saved.getRequesterEmail() != null
-                    && saved.getSourceEmailId() != null) {
-                try {
-                    EmailRaw sourceEmail = emailRawRepository.findById(saved.getSourceEmailId()).orElse(null);
-                    if (sourceEmail != null && sourceEmail.getMailboxId() != null) {
-                        String subject = "Re: " + (saved.getTitle() != null ? saved.getTitle() : "(Sin asunto)");
-                        String bodyHtml = "<div style=\"font-family:sans-serif;line-height:1.6\">"
-                                + "<p>" + escapeHtml(request.getContent()) + "</p>"
-                                + "<br><p style=\"color:#6b7280;font-size:12px\">— " + escapeHtml(agentName)
-                                + " · Control Tower</p></div>";
-                        emailOutboundService.sendTicketReply(
-                                saved.getTenantId(),
-                                sourceEmail.getMailboxId(),
-                                saved.getId(),
-                                saved.getRequesterEmail(),
-                                subject,
-                                bodyHtml,
-                                sourceEmail.getMessageId()
-                        );
-                    }
-                } catch (Exception e) {
-                    // Non-fatal: log and continue — comment is already saved
-                    org.slf4j.LoggerFactory.getLogger(TicketService.class)
-                            .warn("[Email] Could not send SMTP reply for ticket {}: {}", saved.getId(), e.getMessage());
-                }
+            // EMAIL ticket: reply to the original requester
+            if (saved.getSource() == Ticket.TicketSource.EMAIL && saved.getRequesterEmail() != null) {
+                emailService.sendTicketCommentNotification(
+                        saved.getRequesterEmail(), saved.getTitle(), agentName, request.getContent());
             }
         }
 
@@ -708,15 +680,6 @@ public class TicketService {
                 .forEach(recipients::add);
 
         return new java.util.ArrayList<>(recipients);
-    }
-
-    private static String escapeHtml(String text) {
-        if (text == null) return "";
-        return text.replace("&", "&amp;")
-                   .replace("<", "&lt;")
-                   .replace(">", "&gt;")
-                   .replace("\"", "&quot;")
-                   .replace("\n", "<br>");
     }
 
     /**

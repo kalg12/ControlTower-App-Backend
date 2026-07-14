@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
 
 @Configuration
-@EnableConfigurationProperties(OpenWaProperties.class)
+@EnableConfigurationProperties({OpenWaProperties.class, ResendProperties.class})
 public class AppConfig {
 
     @Bean
