@@ -57,17 +57,6 @@ spring:
         # Prevents "Could not safely identify store assignment" INFO noise at startup.
         enabled: false
 
-  # ── Mail ─────────────────────────────────────────────────────────────
-  mail:
-    host: ${MAIL_HOST:smtp.mailtrap.io}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    from: ${MAIL_FROM:noreply@controltower.io}
-    properties:
-      mail.smtp.auth: true
-      mail.smtp.starttls.enable: true
-
   # ── Graceful shutdown ─────────────────────────────────────────────────
   lifecycle:
     timeout-per-shutdown-phase: 30s
@@ -140,6 +129,15 @@ app:
     api-key: ${AI_API_KEY:}
     model: ${AI_MODEL:gpt-4o-mini}
     timeout-ms: ${AI_TIMEOUT_MS:45000}
+
+# ── Resend (outbound email) ────────────────────────────────────────────
+# All system emails (ticket comments, kanban moves, notes, proposals, payroll,
+# password reset, health incidents) send through Resend's HTTP API.
+# Without RESEND_API_KEY set, EmailService logs a warning and skips sending.
+resend:
+  api-key: ${RESEND_API_KEY:}
+  from-email: ${RESEND_FROM_EMAIL:noreply@controltower.io}
+  from-name: ${RESEND_FROM_NAME:Control Tower}
 
 # ── Logging ───────────────────────────────────────────────────────────
 logging:
