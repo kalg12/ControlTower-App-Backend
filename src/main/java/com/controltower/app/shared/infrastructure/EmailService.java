@@ -157,6 +157,23 @@ public class EmailService {
                 "Ticket comment notification (ticket '" + ticketTitle + "')");
     }
 
+    public void sendPosTicketAlert(String toEmail, String recipientName, String ticketTitle,
+                                   String branchName, String submittedBy, String priority,
+                                   String ticketId) {
+        String body =
+                "Hola " + recipientName + ",\n\n"
+                + "Se recibió una nueva incidencia desde el POS.\n\n"
+                + "  Ticket: " + ticketTitle + "\n"
+                + "  Prioridad: " + priority + "\n"
+                + "  Sucursal: " + branchName + "\n"
+                + "  Reportado por: " + submittedBy + "\n"
+                + "  ID Control Tower: " + ticketId + "\n\n"
+                + "Ingresa a Control Tower para asignarla y responder.\n\n"
+                + "Atentamente,\nControl Tower";
+        send(toEmail, "[" + priority + "] Nueva incidencia POS: " + ticketTitle, body,
+                "POS ticket alert (ticket '" + ticketId + "')");
+    }
+
     public void sendChatReplyNotification(String toEmail, String visitorName,
                                            String agentName, String messageContent) {
         String body =

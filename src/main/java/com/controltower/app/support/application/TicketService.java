@@ -14,7 +14,6 @@ import com.controltower.app.integrations.api.dto.PosTicketStatusResponse;
 import com.controltower.app.notes.domain.NoteRepository;
 import com.controltower.app.support.api.dto.*;
 import com.controltower.app.support.domain.*;
-import com.controltower.app.support.infrastructure.PosWebhookService;
 import com.controltower.app.tenancy.domain.TenantContext;
 import com.controltower.app.time.application.SlaConfigService;
 import com.controltower.app.time.domain.TimeEntryRepository;
@@ -42,7 +41,6 @@ public class TicketService {
     private final TicketRepository       ticketRepository;
     private final TicketSlaRepository    slaRepository;
     private final ApplicationEventPublisher publisher;
-    private final PosWebhookService      posWebhookService;
     private final SlaConfigService       slaConfigService;
     private final UserRepository         userRepository;
     private final ClientRepository       clientRepository;
@@ -306,6 +304,11 @@ public class TicketService {
             UUID tenantId, String posTicketId, String title, String description,
             Ticket.Priority priority, UUID branchId, Map<String, Object> posContext) {
 
+        var existing = ticketRepository.findBySourceRefIdAndTenantIdIncludingDeleted(posTicketId, tenantId);
+        if (existing.isPresent()) {
+            return toResponse(existing.get());
+        }
+
         Ticket ticket = new Ticket();
         ticket.setTenantId(tenantId);
         ticket.setBranchId(branchId);
@@ -315,6 +318,9 @@ public class TicketService {
         ticket.setSource(Ticket.TicketSource.POS);
         ticket.setSourceRefId(posTicketId);
         ticket.setPosContext(posContext);
+        if (posContext != null && posContext.get("submitterEmail") instanceof String email) {
+            ticket.setRequesterEmail(email);
+        }
         ticketRepository.save(ticket);
         attachSla(ticket);
         ticketRepository.save(ticket);
@@ -346,7 +352,8 @@ public class TicketService {
         if (saved.getSource() == Ticket.TicketSource.POS && saved.getSourceRefId() != null) {
             String callbackUrl = saved.getPosContext() != null
                     ? (String) saved.getPosContext().get("callbackUrl") : null;
-            posWebhookService.notifyStatusChange(saved.getSourceRefId(), callbackUrl, newStatus.name());
+            publisher.publishEvent(PosTicketWebhookEvent.statusChange(
+                    saved.getSourceRefId(), callbackUrl, newStatus.name()));
         }
         // Notify all relevant recipients (assignee + commenters + all agents), excluding the user who changed the status
         notifyTicketChange(
@@ -428,7 +435,11 @@ public class TicketService {
                 !request.isInternal()) {
             String callbackUrl = saved.getPosContext() != null
                     ? (String) saved.getPosContext().get("callbackUrl") : null;
-            posWebhookService.notifyNewComment(saved.getSourceRefId(), callbackUrl, request.getContent(), authorId.toString());
+            String agentName = userRepository.findById(authorId)
+                    .map(User::getFullName).orElse("Operador CT");
+            publisher.publishEvent(PosTicketWebhookEvent.newComment(
+                    saved.getSourceRefId(), callbackUrl, comment.getId(), request.getContent(),
+                    agentName, comment.getCreatedAt()));
         }
         // Notify all relevant recipients about the new comment (excluding the author)
         notifyTicketChange(
@@ -459,7 +470,7 @@ public class TicketService {
             if (saved.getSource() == Ticket.TicketSource.POS && saved.getPosContext() != null) {
                 String submitterEmail = (String) saved.getPosContext().get("submitterEmail");
                 String managerEmail   = (String) saved.getPosContext().get("managerEmail");
-                for (String email : new String[]{submitterEmail, managerEmail}) {
+                for (String email : new java.util.LinkedHashSet<>(java.util.Arrays.asList(submitterEmail, managerEmail))) {
                     if (email != null && !email.isBlank()) {
                         emailService.sendTicketCommentNotification(
                                 email, saved.getTitle(), agentName, request.getContent());

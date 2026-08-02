@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
 import java.util.Map;
@@ -104,7 +106,7 @@ public class NotificationEventListener {
         );
     }
 
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onPosTicketChat(PosTicketChatEvent event) {
         log.info("Sending chat notification for POS ticket {}", event.getPosTicketId());
         notificationService.send(
@@ -123,9 +125,11 @@ public class NotificationEventListener {
         );
     }
 
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onPosTicketReceived(PosTicketReceivedEvent event) {
         log.info("Sending notification for POS ticket {}", event.getPosTicketId());
+
+        List<User> recipients = usersByPermission(event.getTenantId(), "ticket:read");
 
         notificationService.send(
                 event.getTenantId(),
@@ -141,8 +145,14 @@ public class NotificationEventListener {
                     "submittedBy", event.getSubmittedBy(),
                     "source",      "POS"
                 ),
-                usersWithPermission(event.getTenantId(), "ticket:read")
+                recipients.stream().map(User::getId).toList()
         );
+
+        recipients.stream()
+                .filter(u -> preferenceRepository.isEnabled(u.getId(), "POS_TICKET"))
+                .forEach(u -> emailService.sendPosTicketAlert(
+                        u.getEmail(), u.getFullName(), event.getTitle(), event.getBranchName(),
+                        event.getSubmittedBy(), event.getPriority().name(), event.getTicketId().toString()));
     }
 
     @EventListener
