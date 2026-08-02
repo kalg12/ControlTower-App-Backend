@@ -262,6 +262,9 @@ public class IntegrationService {
     private void processPosTicket(IntegrationEndpoint endpoint, Map<String, Object> payload) {
         String posTicketId = (String) payload.get("posTicketId");
         try {
+            if (posTicketId == null || posTicketId.isBlank()) {
+                throw new IllegalArgumentException("posTicketId is required");
+            }
             String title       = (String) payload.getOrDefault("title", "Support ticket from POS");
             String description = (String) payload.getOrDefault("description", "");
             String priorityStr = (String) payload.getOrDefault("priority", "MEDIUM");
@@ -302,6 +305,13 @@ public class IntegrationService {
             String senderName  = (String) payload.getOrDefault("senderName", "POS User");
             String branchName  = (String) payload.getOrDefault("branchName", "");
 
+            if (posTicketId == null || posTicketId.isBlank()) {
+                throw new IllegalArgumentException("posTicketId is required");
+            }
+            if (content.isBlank()) {
+                throw new IllegalArgumentException("content is required");
+            }
+
             String fullContent = "[" + senderName + "]: " + content;
             ticketService.addExternalComment(posTicketId, endpoint.getTenantId(), fullContent);
 
@@ -319,6 +329,10 @@ public class IntegrationService {
             } catch (Exception ignored) {}
         } catch (Exception e) {
             log.error("Failed to process POS chat message: {}", e.getMessage(), e);
+            throw new com.controltower.app.shared.exception.ControlTowerException(
+                    "POS chat delivery failed: " + e.getMessage(),
+                    org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY
+            );
         }
     }
 

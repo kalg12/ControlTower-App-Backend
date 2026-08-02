@@ -1,11 +1,16 @@
 package com.controltower.app.support.infrastructure;
 
+import com.controltower.app.support.domain.PosTicketWebhookEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -27,25 +32,20 @@ public class PosWebhookService {
 
     private final RestClient restClient = RestClient.create();
 
-    /** Called after a POS ticket status changes. */
-    public void notifyStatusChange(String posTicketId, String callbackUrl, String newCtStatus) {
-        if (callbackUrl == null || callbackUrl.isBlank()) return;
-        send(callbackUrl, Map.of(
-                "type", "STATUS_CHANGE",
-                "posTicketId", posTicketId,
-                "ctStatus", newCtStatus
-        ));
-    }
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onPosTicketWebhook(PosTicketWebhookEvent event) {
+        if (event.getCallbackUrl() == null || event.getCallbackUrl().isBlank()) return;
 
-    /** Called after an operator adds a public comment on a POS ticket. */
-    public void notifyNewComment(String posTicketId, String callbackUrl, String content, String senderName) {
-        if (callbackUrl == null || callbackUrl.isBlank()) return;
-        send(callbackUrl, Map.of(
-                "type", "NEW_COMMENT",
-                "posTicketId", posTicketId,
-                "content", content,
-                "senderName", senderName != null ? senderName : "Operador CT"
-        ));
+        Map<String, String> payload = new HashMap<>();
+        payload.put("type", event.getType().name());
+        payload.put("posTicketId", event.getPosTicketId());
+        payload.put("occurredAt", event.getOccurredAt().toString());
+        if (event.getCtStatus() != null) payload.put("ctStatus", event.getCtStatus());
+        if (event.getCommentId() != null) payload.put("commentId", event.getCommentId().toString());
+        if (event.getContent() != null) payload.put("content", event.getContent());
+        if (event.getSenderName() != null) payload.put("senderName", event.getSenderName());
+        send(event.getCallbackUrl(), payload);
     }
 
     private void send(String callbackUrl, Map<String, String> payload) {
