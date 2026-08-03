@@ -56,6 +56,7 @@ public class SecurityConfig {
         "/api/v1/monitoring/logs",                              // public log ingest from external systems (X-Api-Key auth)
         "/api/v1/integrations/*/pos-tickets/*/status",          // POS ticket status poll (X-Api-Key auth)
         "/api/v1/integrations/*/pos-tickets/*/comments",        // POS chat sync (X-Api-Key auth)
+        "/api/v1/integrations/*/verify",                        // POS integration credential check
         "/api/v1/billing/stripe/webhook",                       // Stripe webhook (signature verified internally)
         "/api/v1/tenants/onboard",                              // public tenant onboarding
         "/api/v1/survey/**",                                    // CSAT survey (token-based, no auth)

@@ -81,7 +81,9 @@ public class TicketService {
             validateTransition(t.getStatus(), newStatus);
             t.setStatus(newStatus);
         });
-        return ticketRepository.saveAll(tickets).stream().map(this::toResponse).toList();
+        List<Ticket> saved = ticketRepository.saveAll(tickets);
+        saved.forEach(this::publishPosStatusChange);
+        return saved.stream().map(this::toResponse).toList();
     }
 
     /** Bulk assign — assigns all given tickets to the specified user. */
@@ -349,12 +351,7 @@ public class TicketService {
         }
 
         // Notify POS Backend so its ctStatus updates immediately (no wait for cron)
-        if (saved.getSource() == Ticket.TicketSource.POS && saved.getSourceRefId() != null) {
-            String callbackUrl = saved.getPosContext() != null
-                    ? (String) saved.getPosContext().get("callbackUrl") : null;
-            publisher.publishEvent(PosTicketWebhookEvent.statusChange(
-                    saved.getSourceRefId(), callbackUrl, newStatus.name()));
-        }
+        publishPosStatusChange(saved);
         // Notify all relevant recipients (assignee + commenters + all agents), excluding the user who changed the status
         notifyTicketChange(
                 saved,
@@ -370,8 +367,10 @@ public class TicketService {
     @Audited(action = "TICKET_ASSIGNED", resource = "Ticket")
     public TicketResponse assign(UUID ticketId, UUID assigneeId, UUID assignedByUserId) {
         Ticket ticket = resolveTicket(ticketId);
+        Ticket.TicketStatus previousStatus = ticket.getStatus();
         ticket.assign(assigneeId);
         Ticket saved = ticketRepository.save(ticket);
+        if (saved.getStatus() != previousStatus) publishPosStatusChange(saved);
         notifyTicketChange(
                 saved,
                 assignedByUserId,
@@ -407,8 +406,11 @@ public class TicketService {
                 .orElseThrow(() -> new ControlTowerException("No active users found in tenant", org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY));
 
         Ticket ticket = resolveTicket(ticketId);
+        Ticket.TicketStatus previousStatus = ticket.getStatus();
         ticket.assign(assigneeId);
-        return toResponse(ticketRepository.save(ticket));
+        Ticket saved = ticketRepository.save(ticket);
+        if (saved.getStatus() != previousStatus) publishPosStatusChange(saved);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -428,7 +430,9 @@ public class TicketService {
         comment.setContent(request.getContent());
         comment.setInternal(request.isInternal());
         ticket.getComments().add(comment);
-        Ticket saved = ticketRepository.save(ticket);
+        // Flush before constructing the after-commit event so the generated
+        // comment ID and creation timestamp are present in the webhook payload.
+        Ticket saved = ticketRepository.saveAndFlush(ticket);
         // Notify POS Backend when an operator posts a public comment on a POS ticket
         if (saved.getSource() == Ticket.TicketSource.POS &&
                 saved.getSourceRefId() != null &&
@@ -493,7 +497,10 @@ public class TicketService {
     public void deleteTicket(UUID ticketId) {
         Ticket ticket = resolveTicket(ticketId);
         ticket.softDelete();
-        ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.save(ticket);
+        if (saved.getSource() == Ticket.TicketSource.POS && saved.getSourceRefId() != null) {
+            publishPosStatusChange(saved, Ticket.TicketStatus.CLOSED.name());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -510,7 +517,9 @@ public class TicketService {
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket", ticketId));
         ticket.setDeletedAt(null);
         ticket.setStatus(Ticket.TicketStatus.OPEN);
-        return toResponse(ticketRepository.save(ticket));
+        Ticket saved = ticketRepository.save(ticket);
+        publishPosStatusChange(saved);
+        return toResponse(saved);
     }
 
     /**
@@ -617,6 +626,18 @@ public class TicketService {
         sla.setTicket(ticket);
         sla.setDueAt(Instant.now().plus(Duration.ofHours(hours)));
         slaRepository.save(sla);
+    }
+
+    private void publishPosStatusChange(Ticket ticket) {
+        publishPosStatusChange(ticket, ticket.getStatus().name());
+    }
+
+    private void publishPosStatusChange(Ticket ticket, String status) {
+        if (ticket.getSource() != Ticket.TicketSource.POS || ticket.getSourceRefId() == null) return;
+        String callbackUrl = ticket.getPosContext() != null
+                ? (String) ticket.getPosContext().get("callbackUrl") : null;
+        publisher.publishEvent(PosTicketWebhookEvent.statusChange(
+                ticket.getSourceRefId(), callbackUrl, status));
     }
 
     private static final Map<Ticket.TicketStatus, java.util.Set<Ticket.TicketStatus>> ALLOWED_TRANSITIONS =
