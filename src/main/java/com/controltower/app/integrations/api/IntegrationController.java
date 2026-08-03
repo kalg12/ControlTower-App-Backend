@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -177,5 +178,14 @@ public class IntegrationController {
             @RequestHeader(value = "X-Api-Key", required = false) String apiKey) {
         return ResponseEntity.ok(ApiResponse.ok(
                 integrationService.getPosTicketComments(endpointId, apiKey, posTicketId, since)));
+    }
+
+    @Operation(summary = "Verify POS integration credentials", description = "Checks that the endpoint exists, is active, and accepts the supplied X-Api-Key.")
+    @GetMapping("/{endpointId}/verify")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyPosConnection(
+            @PathVariable UUID endpointId,
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKey) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                integrationService.verifyPosConnection(endpointId, apiKey)));
     }
 }

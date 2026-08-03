@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +36,16 @@ public class PosWebhookService {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onPosTicketWebhook(PosTicketWebhookEvent event) {
-        if (event.getCallbackUrl() == null || event.getCallbackUrl().isBlank()) return;
+        if (event.getCallbackUrl() == null || event.getCallbackUrl().isBlank()) {
+            log.warn("POS webhook skipped: callbackUrl missing (type={}, posTicketId={})",
+                    event.getType(), event.getPosTicketId());
+            return;
+        }
+        if (posWebhookSecret == null || posWebhookSecret.isBlank()) {
+            log.error("POS webhook skipped: POS_WEBHOOK_SECRET is not configured (type={}, posTicketId={}, url={})",
+                    event.getType(), event.getPosTicketId(), event.getCallbackUrl());
+            return;
+        }
 
         Map<String, String> payload = new HashMap<>();
         payload.put("type", event.getType().name());
@@ -49,18 +59,39 @@ public class PosWebhookService {
     }
 
     private void send(String callbackUrl, Map<String, String> payload) {
-        try {
-            restClient.post()
-                    .uri(callbackUrl)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .header("X-Webhook-Secret", posWebhookSecret != null ? posWebhookSecret : "")
-                    .body(payload)
-                    .retrieve()
-                    .toBodilessEntity();
-            log.debug("POS webhook sent to {}: type={} posTicketId={}", callbackUrl, payload.get("type"), payload.get("posTicketId"));
-        } catch (Exception e) {
-            log.warn("POS webhook failed (url={}, type={}, posTicketId={}): {}",
-                    callbackUrl, payload.get("type"), payload.get("posTicketId"), e.getMessage());
+        final int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                restClient.post()
+                        .uri(callbackUrl)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-Webhook-Secret", posWebhookSecret)
+                        .body(payload)
+                        .retrieve()
+                        .toBodilessEntity();
+                log.info("POS webhook delivered (url={}, type={}, posTicketId={}, attempt={})",
+                        callbackUrl, payload.get("type"), payload.get("posTicketId"), attempt);
+                return;
+            } catch (Exception ex) {
+                String detail = ex instanceof RestClientResponseException responseException
+                        ? "HTTP " + responseException.getStatusCode().value() + ": " + responseException.getResponseBodyAsString()
+                        : ex.getMessage();
+                if (attempt == maxAttempts) {
+                    log.error("POS webhook exhausted retries (url={}, type={}, posTicketId={}, attempts={}): {}",
+                            callbackUrl, payload.get("type"), payload.get("posTicketId"), attempt, detail, ex);
+                    return;
+                }
+                log.warn("POS webhook attempt failed (url={}, type={}, posTicketId={}, attempt={}): {}",
+                        callbackUrl, payload.get("type"), payload.get("posTicketId"), attempt, detail);
+                try {
+                    Thread.sleep(250L * attempt);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    log.error("POS webhook retry interrupted (url={}, type={}, posTicketId={})",
+                            callbackUrl, payload.get("type"), payload.get("posTicketId"));
+                    return;
+                }
+            }
         }
     }
 }

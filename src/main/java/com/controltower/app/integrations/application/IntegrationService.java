@@ -24,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -244,6 +245,16 @@ public class IntegrationService {
         return ticketService.getPublicCommentsSince(posTicketId, endpoint.getTenantId(), since);
     }
 
+    /** Authenticated connectivity check used by POS health monitoring. */
+    public Map<String, Object> verifyPosConnection(UUID endpointId, String apiKey) {
+        IntegrationEndpoint endpoint = resolveAndValidateApiKey(endpointId, apiKey);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("endpointId", endpoint.getId());
+        result.put("active", endpoint.isActive());
+        result.put("contractVersion", endpoint.getContractVersion());
+        return result;
+    }
+
     private IntegrationEndpoint resolveAndValidateApiKey(UUID endpointId, String apiKey) {
         IntegrationEndpoint endpoint = endpointRepository.findById(endpointId)
                 .orElseThrow(() -> new ResourceNotFoundException("IntegrationEndpoint", endpointId));
@@ -276,6 +287,19 @@ public class IntegrationService {
                 priority = Ticket.Priority.MEDIUM;
             }
 
+            Map<String, Object> posContext = new HashMap<>(payload);
+            Object suppliedCallback = posContext.get("callbackUrl");
+            if (!(suppliedCallback instanceof String callback) || callback.isBlank()) {
+                String derivedCallback = derivePosCallbackUrl(endpoint.getPullUrl());
+                if (derivedCallback != null) {
+                    posContext.put("callbackUrl", derivedCallback);
+                    log.info("Derived POS callback URL from integration health URL for endpoint {}", endpoint.getId());
+                } else {
+                    log.warn("POS ticket {} has no callback URL and endpoint {} has no usable pull URL; replies will rely on polling",
+                            posTicketId, endpoint.getId());
+                }
+            }
+
             // Do NOT map POS branchId to CT's branch_id FK column —
             // POS branch UUIDs don't exist in client_branches and would cause a FK violation.
             // The full branch info (name, id) is already preserved in posContext (payload).
@@ -286,7 +310,7 @@ public class IntegrationService {
                     description,
                     priority,
                     null,   // branchId — intentionally null for POS tickets
-                    payload
+                    posContext
             );
         } catch (Exception e) {
             log.error("processPosTicket FAILED for posTicketId={}: [{}] {}",
@@ -295,6 +319,28 @@ public class IntegrationService {
                     "POS ticket creation failed: " + e.getMessage(),
                     org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR
             );
+        }
+    }
+
+    static String derivePosCallbackUrl(String pullUrl) {
+        if (pullUrl == null || pullUrl.isBlank()) return null;
+        try {
+            URI source = URI.create(pullUrl.trim());
+            String scheme = source.getScheme();
+            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) || source.getHost() == null) {
+                return null;
+            }
+            return new URI(
+                    source.getScheme(),
+                    null,
+                    source.getHost(),
+                    source.getPort(),
+                    "/support/webhooks/ct",
+                    null,
+                    null
+            ).toString();
+        } catch (IllegalArgumentException | java.net.URISyntaxException ex) {
+            return null;
         }
     }
 

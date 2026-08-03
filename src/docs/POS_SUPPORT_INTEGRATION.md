@@ -24,6 +24,20 @@ RESEND_FROM_NAME=Control Tower
 `CT_BASE_URL` is the API origin only; both a trailing slash and a trailing
 `/api/v1` are normalized by the POS client.
 
+The integration endpoint must be active and the endpoint UUID and API key must
+belong to the same Control Tower environment. A `404 IntegrationEndpoint not
+found` response is a credential/environment mismatch, not a missing POS ticket.
+
+The POS health check validates the actual integration credentials through:
+
+```text
+GET <CT_BASE_URL>/api/v1/integrations/<CT_ENDPOINT_ID>/verify
+X-Api-Key: <CT_API_KEY>
+```
+
+It no longer treats a successful generic Control Tower actuator check as proof
+that ticket delivery is working.
+
 ## Delivery flow
 
 1. POS persists a ticket and sends `POS_SUPPORT_TICKET` with its stable UUID.
@@ -35,6 +49,28 @@ RESEND_FROM_NAME=Control Tower
 5. POS stores the operator message idempotently, emits its own real-time
    notification, and retains polling as a recovery path for 24 hours after a
    ticket is resolved or closed.
+
+If a ticket was created without `callbackUrl`, Control Tower derives the POS
+webhook URL from the endpoint health/pull URL. Polling remains the recovery path
+for older tickets and for temporary webhook failures.
+
+## Email prerequisites
+
+- `RESEND_API_KEY` must be present in the Control Tower backend runtime.
+- `RESEND_FROM_EMAIL` (or the tenant `mail.from` value) must use a domain verified
+  by Resend.
+- Operators must have the `POS_TICKET` email preference enabled to receive new
+  incident alerts.
+- POS ticket payloads must contain `submitterEmail` and, when applicable,
+  `managerEmail` so public replies can be emailed back to the restaurant.
+
+## Deployment order
+
+1. Deploy Control Tower Backend (credential verification and reliable webhook delivery).
+2. Configure the shared secret and Resend variables in the runtime.
+3. Deploy POS Backend (authenticated health check, repaired polling and delivery errors).
+4. Deploy POS Frontend (visible rollback/error when a reply is rejected).
+5. Run the smoke test below before enabling the flow for production users.
 
 ## Smoke test after deployment
 
