@@ -124,7 +124,8 @@ public class PublicChatController {
         String storageKey = fileStorageService.store(file, "chat/" + id);
         String attachmentUrl = "/api/v1/chat/attachments/" + storageKey;
         ChatMessageResponse msg = chatService.sendVisitorMessageWithAttachment(
-                id, attachmentUrl, "captura-pos.jpg");
+                id, attachmentUrl,
+                file.getOriginalFilename() != null ? file.getOriginalFilename() : "captura-pos.jpg");
         return ResponseEntity.ok(ApiResponse.ok(msg));
     }
 
