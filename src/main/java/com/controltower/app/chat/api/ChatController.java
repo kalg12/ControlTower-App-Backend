@@ -65,10 +65,14 @@ public class ChatController {
     public ResponseEntity<ApiResponse<PageResponse<ChatMessageResponse>>> getMessages(
             @PathVariable UUID id,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(defaultValue = "asc") String direction) {
         chatService.markRead(id);
+        Sort.Direction sortDirection = "desc".equalsIgnoreCase(direction)
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.from(
-                chatService.getMessages(id, PageRequest.of(page, size, Sort.by("createdAt").ascending())))));
+                chatService.getMessages(id, PageRequest.of(page, size, Sort.by(sortDirection, "createdAt"))))));
     }
 
     @Operation(summary = "Claim conversation (WAITING → ACTIVE)")

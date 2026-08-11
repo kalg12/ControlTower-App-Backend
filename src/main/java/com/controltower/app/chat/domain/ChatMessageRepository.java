@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -16,7 +17,11 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
 
     Page<ChatMessage> findByConversationIdOrderByCreatedAtAsc(UUID conversationId, Pageable pageable);
 
+    Page<ChatMessage> findByConversationId(UUID conversationId, Pageable pageable);
+
     List<ChatMessage> findTop50ByConversationIdOrderByCreatedAtAsc(UUID conversationId);
+
+    Optional<ChatMessage> findTopByConversationIdOrderByCreatedAtDesc(UUID conversationId);
 
     @Query("SELECT COUNT(m) FROM ChatMessage m WHERE m.conversation.id = :conversationId AND m.isRead = FALSE AND m.senderType <> com.controltower.app.chat.domain.SenderType.AGENT")
     long countUnreadByConversationId(@Param("conversationId") UUID conversationId);
