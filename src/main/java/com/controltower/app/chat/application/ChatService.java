@@ -257,6 +257,14 @@ public class ChatService {
 
         broadcast(conversationId, payload);
 
+        // Keep the global agent widget informed even when nobody is currently
+        // viewing this conversation. Agent messages are excluded to avoid
+        // notifying the sender about their own reply.
+        if (senderType == SenderType.VISITOR) {
+            messagingTemplate.convertAndSend(
+                    "/topic/chat.queue." + conv.getTenantId(), payload);
+        }
+
         // Send email notification to visitor when an agent replies — async to avoid
         // blocking the STOMP clientInboundChannel thread on SMTP auth/network latency.
         if (senderType == SenderType.AGENT) {
