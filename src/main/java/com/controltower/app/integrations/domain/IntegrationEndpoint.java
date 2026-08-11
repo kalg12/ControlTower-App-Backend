@@ -36,6 +36,10 @@ public class IntegrationEndpoint extends BaseEntity {
     @Column(name = "api_key")
     private String apiKey;
 
+    /** Per-endpoint secret used to authenticate Control Tower callbacks to this POS. */
+    @Column(name = "webhook_secret", length = 512)
+    private String webhookSecret;
+
     @Column(name = "heartbeat_interval_seconds", nullable = false)
     private int heartbeatIntervalSeconds = 300;
 

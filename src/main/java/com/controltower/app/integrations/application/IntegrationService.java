@@ -58,11 +58,13 @@ public class IntegrationService {
         return enrichPage(page, pageable);
     }
 
-    public record IntegrationCreateResult(IntegrationEndpointResponse endpoint, String plainApiKey) {}
+    public record IntegrationCreateResult(IntegrationEndpointResponse endpoint, String plainApiKey,
+                                          String plainWebhookSecret) {}
 
     @Transactional
     public IntegrationCreateResult register(IntegrationEndpointRequest request) {
         String plainKey = UUID.randomUUID().toString().replace("-", "");
+        String plainWebhookSecret = UUID.randomUUID().toString().replace("-", "");
         IntegrationEndpoint endpoint = new IntegrationEndpoint();
         endpoint.setTenantId(TenantContext.getTenantId());
         endpoint.setClientBranchId(request.getClientBranchId());
@@ -70,10 +72,12 @@ public class IntegrationService {
         endpoint.setType(request.getType());
         endpoint.setPullUrl(normalizeHealthUrl(request.getPullUrl()));
         endpoint.setApiKey(aesEncryptor.encrypt(plainKey));
+        endpoint.setWebhookSecret(aesEncryptor.encrypt(plainWebhookSecret));
         endpoint.setHeartbeatIntervalSeconds(request.getHeartbeatIntervalSeconds());
         endpoint.setContractVersion(request.getContractVersion());
         endpoint.setMetadata(request.getMetadata());
-        return new IntegrationCreateResult(toResponse(endpointRepository.save(endpoint)), plainKey);
+        return new IntegrationCreateResult(toResponse(endpointRepository.save(endpoint)), plainKey,
+                plainWebhookSecret);
     }
 
     @Transactional
@@ -197,6 +201,15 @@ public class IntegrationService {
         return newKey;
     }
 
+    @Transactional
+    public String regenerateWebhookSecret(UUID endpointId) {
+        IntegrationEndpoint endpoint = resolve(endpointId);
+        String newSecret = UUID.randomUUID().toString().replace("-", "");
+        endpoint.setWebhookSecret(aesEncryptor.encrypt(newSecret));
+        endpointRepository.save(endpoint);
+        return newSecret;
+    }
+
     /**
      * Ingests a push event from an external system.
      * Public endpoint — authenticated via API key in header (validated here).
@@ -288,6 +301,9 @@ public class IntegrationService {
             }
 
             Map<String, Object> posContext = new HashMap<>(payload);
+            // Internal reference used to resolve the per-POS callback secret. It is
+            // never supplied by or returned to the POS client.
+            posContext.put("integrationEndpointId", endpoint.getId().toString());
             Object suppliedCallback = posContext.get("callbackUrl");
             if (!(suppliedCallback instanceof String callback) || callback.isBlank()) {
                 String derivedCallback = derivePosCallbackUrl(endpoint.getPullUrl());

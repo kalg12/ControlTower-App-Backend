@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
@@ -40,16 +41,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             @Param("tenantId") UUID tenantId,
             @Param("permissionCode") String permissionCode);
 
-    @Query("SELECT COUNT(u) FROM User u WHERE u.tenant.id = :tenantId AND u.chatOnline = true AND u.deletedAt IS NULL")
-    long countChatOnlineByTenantId(@Param("tenantId") UUID tenantId);
+    @Query("SELECT COUNT(u) FROM User u WHERE u.tenant.id = :tenantId AND u.chatOnline = true AND u.chatOnlineAt >= :cutoff AND u.deletedAt IS NULL")
+    long countChatOnlineByTenantId(@Param("tenantId") UUID tenantId, @Param("cutoff") Instant cutoff);
 
-    @Query("SELECT u.chatOnline FROM User u WHERE u.id = :userId")
-    java.util.Optional<Boolean> findChatOnlineById(@Param("userId") UUID userId);
+    @Query("SELECT (u.chatOnline = true AND u.chatOnlineAt >= :cutoff) FROM User u WHERE u.id = :userId")
+    java.util.Optional<Boolean> findChatOnlineById(@Param("userId") UUID userId, @Param("cutoff") Instant cutoff);
 
     @Modifying
-    @Query("UPDATE User u SET u.chatOnline = :online WHERE u.id = :userId")
-    void updateChatOnline(@Param("userId") UUID userId, @Param("online") boolean online);
+    @Query("UPDATE User u SET u.chatOnline = :online, u.chatOnlineAt = :seenAt WHERE u.id = :userId")
+    void updateChatOnline(@Param("userId") UUID userId, @Param("online") boolean online,
+                          @Param("seenAt") Instant seenAt);
 
-    @Query("SELECT u FROM User u WHERE u.tenant.id = :tenantId AND u.chatOnline = true AND u.deletedAt IS NULL")
-    java.util.List<User> findChatOnlineAgentsByTenantId(@Param("tenantId") UUID tenantId);
+    @Query("SELECT u FROM User u WHERE u.tenant.id = :tenantId AND u.chatOnline = true AND u.chatOnlineAt >= :cutoff AND u.deletedAt IS NULL")
+    java.util.List<User> findChatOnlineAgentsByTenantId(@Param("tenantId") UUID tenantId,
+                                                        @Param("cutoff") Instant cutoff);
 }

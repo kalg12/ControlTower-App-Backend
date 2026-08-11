@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.time.Instant;
 
 /**
  * A user belongs to a tenant and has one or more roles.
@@ -77,6 +78,10 @@ public class User extends BaseEntity {
     /** True while the agent has the chat panel open and is available for live chat. */
     @Column(name = "chat_online", nullable = false)
     private boolean chatOnline = false;
+
+    /** Last presence heartbeat; online flags without a recent heartbeat are stale. */
+    @Column(name = "chat_online_at")
+    private Instant chatOnlineAt;
 
     /** Returns all permission codes from assigned roles. */
     public Set<String> getAllPermissions() {

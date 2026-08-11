@@ -63,10 +63,10 @@ public class EmailService {
         return "<div style=\"font-family:sans-serif;white-space:pre-wrap\">" + escapeHtml(plainBody) + "</div>";
     }
 
-    private void send(String toEmail, String subject, String plainBody, String logContext) {
+    private boolean send(String toEmail, String subject, String plainBody, String logContext) {
         if (!isConfigured()) {
             log.warn("Resend not configured (RESEND_API_KEY missing). {} for {}", logContext, toEmail);
-            return;
+            return false;
         }
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -83,12 +83,15 @@ public class EmailService {
             var response = restTemplate.postForEntity(RESEND_ENDPOINT, new HttpEntity<>(payload, headers), String.class);
             if (response.getStatusCode().is2xxSuccessful()) {
                 log.info("{} sent via Resend to {}", logContext, toEmail);
+                return true;
             } else {
                 log.warn("Resend returned {} for {} to {}: {}",
                         response.getStatusCode(), logContext, toEmail, response.getBody());
+                return false;
             }
         } catch (RestClientException ex) {
             log.warn("Failed to send {} to {} via Resend: {}", logContext, toEmail, ex.getMessage());
+            return false;
         }
     }
 
@@ -99,8 +102,8 @@ public class EmailService {
                 "Password reset email");
     }
 
-    public void sendTest(String toEmail, String recipientName) {
-        send(toEmail, "Prueba de envío — Control Tower",
+    public boolean sendTest(String toEmail, String recipientName) {
+        return send(toEmail, "Prueba de envío — Control Tower",
                 "Hola " + recipientName + ",\n\n"
                         + "Este es un correo de prueba enviado desde Control Tower vía Resend.\n\n"
                         + "Si lo recibiste, el envío de correo está funcionando correctamente.",

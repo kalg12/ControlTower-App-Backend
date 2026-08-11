@@ -60,7 +60,8 @@ public class IntegrationController {
             @Valid @RequestBody IntegrationEndpointRequest request) {
         var result = integrationService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(new IntegrationCreateResponse(result.endpoint(), result.plainApiKey())));
+                .body(ApiResponse.ok(new IntegrationCreateResponse(
+                        result.endpoint(), result.plainApiKey(), result.plainWebhookSecret())));
     }
 
     @Operation(summary = "Update integration endpoint", description = "Updates the configuration of an existing integration endpoint. Requires the 'integration:write' permission.")
@@ -132,6 +133,13 @@ public class IntegrationController {
     @PreAuthorize("hasAuthority('integration:write')")
     public ResponseEntity<ApiResponse<String>> regenerateKey(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(integrationService.regenerateApiKey(id)));
+    }
+
+    @Operation(summary = "Regenerate POS webhook secret", description = "Generates a new one-time secret for authenticating Control Tower callbacks to this POS.")
+    @PostMapping("/{id}/regenerate-webhook-secret")
+    @PreAuthorize("hasAuthority('integration:write')")
+    public ResponseEntity<ApiResponse<String>> regenerateWebhookSecret(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(integrationService.regenerateWebhookSecret(id)));
     }
 
     /**
