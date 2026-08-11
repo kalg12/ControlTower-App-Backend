@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
+import com.controltower.app.shared.exception.ControlTowerException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -45,8 +47,12 @@ public class EmailStatusController {
         UUID userId = UUID.fromString(principal.getUsername());
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        emailService.sendTest(user.getEmail(), user.getFullName());
-        return ResponseEntity.ok(ApiResponse.ok("Test email queued"));
+        if (!emailService.sendTest(user.getEmail(), user.getFullName())) {
+            throw new ControlTowerException(
+                    "The test email could not be sent. Check RESEND_API_KEY, sender domain and backend logs.",
+                    HttpStatus.BAD_GATEWAY);
+        }
+        return ResponseEntity.ok(ApiResponse.ok("Test email sent"));
     }
 
     public record EmailStatusResponse(boolean configured, String fromEmail, String fromName) {}

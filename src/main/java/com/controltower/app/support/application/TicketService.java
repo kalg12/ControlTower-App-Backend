@@ -439,10 +439,12 @@ public class TicketService {
                 !request.isInternal()) {
             String callbackUrl = saved.getPosContext() != null
                     ? (String) saved.getPosContext().get("callbackUrl") : null;
+            UUID integrationEndpointId = posIntegrationEndpointId(saved);
             String agentName = userRepository.findById(authorId)
                     .map(User::getFullName).orElse("Operador CT");
             publisher.publishEvent(PosTicketWebhookEvent.newComment(
-                    saved.getSourceRefId(), callbackUrl, comment.getId(), request.getContent(),
+                    saved.getSourceRefId(), callbackUrl, integrationEndpointId,
+                    comment.getId(), request.getContent(),
                     agentName, comment.getCreatedAt()));
         }
         // Notify all relevant recipients about the new comment (excluding the author)
@@ -637,7 +639,18 @@ public class TicketService {
         String callbackUrl = ticket.getPosContext() != null
                 ? (String) ticket.getPosContext().get("callbackUrl") : null;
         publisher.publishEvent(PosTicketWebhookEvent.statusChange(
-                ticket.getSourceRefId(), callbackUrl, status));
+                ticket.getSourceRefId(), callbackUrl, posIntegrationEndpointId(ticket), status));
+    }
+
+    private UUID posIntegrationEndpointId(Ticket ticket) {
+        if (ticket.getPosContext() == null) return null;
+        Object value = ticket.getPosContext().get("integrationEndpointId");
+        if (!(value instanceof String text)) return null;
+        try {
+            return UUID.fromString(text);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private static final Map<Ticket.TicketStatus, java.util.Set<Ticket.TicketStatus>> ALLOWED_TRANSITIONS =

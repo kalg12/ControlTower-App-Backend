@@ -35,6 +35,8 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class ChatService {
 
+    private static final long PRESENCE_TTL_SECONDS = 75;
+
     private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository messageRepository;
     private final ChatTransferRepository transferRepository;
@@ -219,6 +221,15 @@ public class ChatService {
         ChatConversation conv = conversationRepository.findByIdAndDeletedAtIsNull(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found: " + conversationId));
 
+        User sender = (senderId != null)
+                ? userRepository.findByIdAndDeletedAtIsNull(senderId).orElse(null)
+                : null;
+        if (senderType == SenderType.AGENT && (sender == null || sender.getTenant() == null
+                || !conv.getTenantId().equals(sender.getTenant().getId()))) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Agent cannot access a conversation from another tenant");
+        }
+
         ChatMessage msg = new ChatMessage();
         msg.setConversation(conv);
         msg.setSenderType(senderType);
@@ -229,10 +240,6 @@ public class ChatService {
         // before we call saved.getCreatedAt().toString() — plain save() only schedules
         // the INSERT and the field remains null until commit.
         ChatMessage saved = messageRepository.saveAndFlush(msg);
-
-        User sender = (senderId != null)
-                ? userRepository.findByIdAndDeletedAtIsNull(senderId).orElse(null)
-                : null;
 
         ChatMessageResponse response = toMessageResponse(saved, sender);
         ChatMessagePayload payload = ChatMessagePayload.builder()
@@ -276,6 +283,13 @@ public class ChatService {
         ChatConversation conv = conversationRepository.findByIdAndDeletedAtIsNull(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found: " + conversationId));
 
+        User sender = userRepository.findByIdAndDeletedAtIsNull(agentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Agent not found"));
+        if (sender.getTenant() == null || !conv.getTenantId().equals(sender.getTenant().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Agent cannot access a conversation from another tenant");
+        }
+
         ChatMessage msg = new ChatMessage();
         msg.setConversation(conv);
         msg.setSenderType(SenderType.AGENT);
@@ -285,7 +299,6 @@ public class ChatService {
         msg.setRead(true);
         ChatMessage saved = messageRepository.saveAndFlush(msg);
 
-        User sender = userRepository.findByIdAndDeletedAtIsNull(agentId).orElse(null);
         ChatMessageResponse response = toMessageResponse(saved, sender);
 
         broadcast(conversationId, ChatMessagePayload.builder()
@@ -387,17 +400,17 @@ public class ChatService {
 
     @Transactional
     public void setPresence(UUID userId, boolean online) {
-        userRepository.updateChatOnline(userId, online);
+        userRepository.updateChatOnline(userId, online, online ? Instant.now() : null);
     }
 
     @Transactional(readOnly = true)
     public boolean getMyPresence(UUID userId) {
-        return userRepository.findChatOnlineById(userId).orElse(false);
+        return userRepository.findChatOnlineById(userId, presenceCutoff()).orElse(false);
     }
 
     @Transactional(readOnly = true)
     public java.util.Map<String, Object> getAvailability(UUID tenantId) {
-        long count = userRepository.countChatOnlineByTenantId(tenantId);
+        long count = userRepository.countChatOnlineByTenantId(tenantId, presenceCutoff());
         return java.util.Map.of("available", count > 0, "agentCount", count);
     }
 
@@ -479,7 +492,7 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public List<OnlineAgentResponse> listOnlineAgents(UUID tenantId) {
-        return userRepository.findChatOnlineAgentsByTenantId(tenantId).stream()
+        return userRepository.findChatOnlineAgentsByTenantId(tenantId, presenceCutoff()).stream()
                 .map(u -> new OnlineAgentResponse(
                         u.getId(),
                         u.getFullName(),
@@ -487,6 +500,10 @@ public class ChatService {
                         conversationRepository.countActiveByAgent(u.getId())
                 ))
                 .toList();
+    }
+
+    private Instant presenceCutoff() {
+        return Instant.now().minusSeconds(PRESENCE_TTL_SECONDS);
     }
 
     // ── Scheduler: auto-archive CLOSED > 90 days ─────────────────────────────
@@ -509,8 +526,13 @@ public class ChatService {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     public ChatConversation requireConversation(UUID id) {
-        return conversationRepository.findByIdAndDeletedAtIsNull(id)
+        ChatConversation conversation = conversationRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found: " + id));
+        UUID tenantId = TenantContext.getTenantId();
+        if (tenantId != null && !tenantId.equals(conversation.getTenantId())) {
+            throw new ResourceNotFoundException("Conversation not found: " + id);
+        }
+        return conversation;
     }
 
     public ChatConversation requireConversationByToken(UUID token) {
