@@ -19,11 +19,13 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
 
     Page<ChatMessage> findByConversationId(UUID conversationId, Pageable pageable);
 
+    Page<ChatMessage> findByConversationIdAndInternalFalse(UUID conversationId, Pageable pageable);
+
     List<ChatMessage> findTop50ByConversationIdOrderByCreatedAtAsc(UUID conversationId);
 
     Optional<ChatMessage> findTopByConversationIdOrderByCreatedAtDesc(UUID conversationId);
 
-    @Query("SELECT COUNT(m) FROM ChatMessage m WHERE m.conversation.id = :conversationId AND m.isRead = FALSE AND m.senderType <> com.controltower.app.chat.domain.SenderType.AGENT")
+    @Query("SELECT COUNT(m) FROM ChatMessage m WHERE m.conversation.id = :conversationId AND m.isRead = FALSE AND m.internal = FALSE AND m.senderType <> com.controltower.app.chat.domain.SenderType.AGENT")
     long countUnreadByConversationId(@Param("conversationId") UUID conversationId);
 
     @Modifying

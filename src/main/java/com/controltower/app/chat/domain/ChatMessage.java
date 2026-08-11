@@ -38,6 +38,9 @@ public class ChatMessage {
     @Column(name = "is_read", nullable = false)
     private boolean isRead = false;
 
+    @Column(name = "internal", nullable = false)
+    private boolean internal = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
