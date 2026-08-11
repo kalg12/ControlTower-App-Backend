@@ -4,8 +4,10 @@ import com.controltower.app.chat.api.dto.*;
 import com.controltower.app.chat.application.ChatService;
 import com.controltower.app.chat.domain.ChatConversation;
 import com.controltower.app.chat.domain.SenderType;
+import com.controltower.app.chat.domain.ConversationStatus;
 import com.controltower.app.shared.response.ApiResponse;
 import com.controltower.app.shared.response.PageResponse;
+import com.controltower.app.shared.infrastructure.FileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -14,9 +16,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.NoSuchElementException;
 
@@ -27,6 +31,10 @@ import java.util.NoSuchElementException;
 public class PublicChatController {
 
     private final ChatService chatService;
+    private final FileStorageService fileStorageService;
+
+    private static final long MAX_SCREENSHOT_BYTES = 8L * 1024 * 1024;
+    private static final Set<String> SCREENSHOT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 
     @Operation(summary = "Check agent availability for a tenant")
     @GetMapping("/availability")
@@ -89,6 +97,34 @@ public class PublicChatController {
                     .body(ApiResponse.error("Invalid visitor token for this conversation"));
         }
         ChatMessageResponse msg = chatService.sendMessage(id, SenderType.VISITOR, null, req.content());
+        return ResponseEntity.ok(ApiResponse.ok(msg));
+    }
+
+    @Operation(summary = "Upload a screenshot from the POS after visitor confirmation")
+    @PostMapping("/conversations/{id}/screenshots")
+    public ResponseEntity<ApiResponse<ChatMessageResponse>> uploadVisitorScreenshot(
+            @PathVariable UUID id,
+            @RequestParam UUID visitorToken,
+            @RequestParam("file") MultipartFile file) {
+        ChatConversation conv = chatService.requireConversationByToken(visitorToken);
+        if (!conv.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Invalid visitor token for this conversation"));
+        }
+        if (conv.getStatus() == ConversationStatus.CLOSED || conv.getStatus() == ConversationStatus.ARCHIVED) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Conversation is closed"));
+        }
+        String contentType = file.getContentType();
+        if (file.isEmpty() || file.getSize() > MAX_SCREENSHOT_BYTES
+                || contentType == null || !SCREENSHOT_TYPES.contains(contentType)) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Screenshot must be an image smaller than 8 MB"));
+        }
+
+        String storageKey = fileStorageService.store(file, "chat/" + id);
+        String attachmentUrl = "/api/v1/chat/attachments/" + storageKey;
+        ChatMessageResponse msg = chatService.sendVisitorMessageWithAttachment(
+                id, attachmentUrl, "captura-pos.jpg");
         return ResponseEntity.ok(ApiResponse.ok(msg));
     }
 
