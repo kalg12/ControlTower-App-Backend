@@ -60,7 +60,7 @@ public class PublicChatController {
 
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").ascending());
         return ResponseEntity.ok(ApiResponse.ok(
-                PageResponse.from(chatService.getMessages(id, pageable))));
+                PageResponse.from(chatService.getPublicMessages(id, pageable))));
     }
 
     @Operation(summary = "Get conversation status for visitor (re-sync after STOMP reconnect)")

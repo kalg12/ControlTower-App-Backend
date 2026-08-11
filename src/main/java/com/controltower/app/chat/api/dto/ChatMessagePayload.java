@@ -16,6 +16,7 @@ public record ChatMessagePayload(
         String senderAvatarUrl,
         String content,
         String attachmentUrl,
+        boolean internal,
         boolean isRead,
         String createdAt,        // ISO-8601 string — avoids Jackson Instant serialization quirks
         String conversationStatus  // for STATUS_CHANGED events

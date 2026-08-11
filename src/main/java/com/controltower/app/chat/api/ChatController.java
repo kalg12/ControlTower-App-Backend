@@ -194,6 +194,18 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.ok(msg));
     }
 
+    @Operation(summary = "Add an internal note visible only to support agents")
+    @PostMapping("/conversations/{id}/notes")
+    @PreAuthorize("hasAuthority('chat:write')")
+    public ResponseEntity<ApiResponse<ChatMessageResponse>> addInternalNote(
+            @PathVariable UUID id,
+            @Valid @RequestBody SendMessageRequest req,
+            Authentication auth) {
+        UUID agentId = UUID.fromString(auth.getName());
+        return ResponseEntity.ok(ApiResponse.ok(
+                chatService.addInternalNote(id, agentId, req.content())));
+    }
+
     @Operation(summary = "Get visitor rating for a conversation")
     @GetMapping("/conversations/{id}/rating")
     @PreAuthorize("hasAuthority('chat:read')")

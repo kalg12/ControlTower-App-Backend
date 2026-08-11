@@ -220,6 +220,9 @@ public class ChatService {
                                            UUID senderId, String content) {
         ChatConversation conv = conversationRepository.findByIdAndDeletedAtIsNull(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation not found: " + conversationId));
+        if (conv.getStatus() == ConversationStatus.CLOSED || conv.getStatus() == ConversationStatus.ARCHIVED) {
+            throw new IllegalStateException("Cannot send messages to a closed conversation");
+        }
 
         User sender = (senderId != null)
                 ? userRepository.findByIdAndDeletedAtIsNull(senderId).orElse(null)
@@ -284,6 +287,35 @@ public class ChatService {
         }
 
         return response;
+    }
+
+    /**
+     * Adds collaboration context for support agents. Internal notes are never
+     * broadcast on the visitor topic and are excluded from the public history.
+     */
+    @Transactional
+    public ChatMessageResponse addInternalNote(UUID conversationId, UUID agentId, String content) {
+        ChatConversation conv = conversationRepository.findByIdAndDeletedAtIsNull(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found: " + conversationId));
+        User sender = userRepository.findByIdAndDeletedAtIsNull(agentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Agent not found"));
+        if (sender.getTenant() == null || !conv.getTenantId().equals(sender.getTenant().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Agent cannot access a conversation from another tenant");
+        }
+
+        ChatMessage note = new ChatMessage();
+        note.setConversation(conv);
+        note.setSenderType(SenderType.AGENT);
+        note.setSenderId(agentId);
+        note.setContent(content.trim());
+        note.setInternal(true);
+        note.setRead(true);
+        ChatMessage saved = messageRepository.saveAndFlush(note);
+
+        auditService.log(AuditAction.CHAT_INTERNAL_NOTE, conv.getTenantId(), agentId,
+                "ChatConversation", conversationId.toString());
+        return toMessageResponse(saved, sender);
     }
 
     @Transactional
@@ -380,6 +412,17 @@ public class ChatService {
     @Transactional(readOnly = true)
     public Page<ChatMessageResponse> getMessages(UUID conversationId, Pageable pageable) {
         return messageRepository.findByConversationId(conversationId, pageable)
+                .map(m -> {
+                    User sender = m.getSenderId() != null
+                            ? userRepository.findByIdAndDeletedAtIsNull(m.getSenderId()).orElse(null)
+                            : null;
+                    return toMessageResponse(m, sender);
+                });
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ChatMessageResponse> getPublicMessages(UUID conversationId, Pageable pageable) {
+        return messageRepository.findByConversationIdAndInternalFalse(conversationId, pageable)
                 .map(m -> {
                     User sender = m.getSenderId() != null
                             ? userRepository.findByIdAndDeletedAtIsNull(m.getSenderId()).orElse(null)
@@ -625,6 +668,7 @@ public class ChatService {
                 avatar,
                 m.getContent(),
                 m.getAttachmentUrl(),
+                m.isInternal(),
                 m.isRead(),
                 m.getCreatedAt()
         );

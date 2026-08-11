@@ -142,6 +142,7 @@ public enum AuditAction {
     CHAT_UNARCHIVED,
     CHAT_RATED,
     CHAT_DELETED,
+    CHAT_INTERNAL_NOTE,
 
     // Generic
     CREATE,
