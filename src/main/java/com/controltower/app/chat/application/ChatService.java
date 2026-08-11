@@ -359,6 +359,43 @@ public class ChatService {
         return response;
     }
 
+    @Transactional
+    public ChatMessageResponse sendVisitorMessageWithAttachment(UUID conversationId,
+                                                                 String attachmentUrl,
+                                                                 String filename) {
+        ChatConversation conv = conversationRepository.findByIdAndDeletedAtIsNull(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found: " + conversationId));
+        if (conv.getStatus() == ConversationStatus.CLOSED || conv.getStatus() == ConversationStatus.ARCHIVED) {
+            throw new IllegalStateException("Cannot send attachments to a closed conversation");
+        }
+
+        ChatMessage msg = new ChatMessage();
+        msg.setConversation(conv);
+        msg.setSenderType(SenderType.VISITOR);
+        msg.setContent(filename != null ? "📷 " + filename : "📷 Captura del POS");
+        msg.setAttachmentUrl(attachmentUrl);
+        msg.setRead(false);
+        ChatMessage saved = messageRepository.saveAndFlush(msg);
+
+        ChatMessageResponse response = toMessageResponse(saved, null);
+        ChatMessagePayload payload = ChatMessagePayload.builder()
+                .type("MESSAGE")
+                .id(saved.getId())
+                .conversationId(conversationId)
+                .senderType(SenderType.VISITOR)
+                .senderName(conv.getVisitorName())
+                .content(saved.getContent())
+                .attachmentUrl(attachmentUrl)
+                .isRead(false)
+                .createdAt(saved.getCreatedAt().toString())
+                .build();
+
+        broadcast(conversationId, payload);
+        messagingTemplate.convertAndSend("/topic/chat.queue." + conv.getTenantId(), payload);
+        eventPublisher.publishEvent(new ChatVisitorMessageReceivedEvent(conv, "El cliente compartió una captura del POS"));
+        return response;
+    }
+
     // ── Read ─────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
