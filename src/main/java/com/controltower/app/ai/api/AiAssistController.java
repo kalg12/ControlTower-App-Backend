@@ -24,7 +24,7 @@ public class AiAssistController {
 
     @Operation(summary = "Generate AI-assisted content (card prompts, ticket replies)")
     @PostMapping("/assist")
-    @PreAuthorize("hasAuthority('ticket:read')")
+    @PreAuthorize("hasAnyAuthority('ticket:read', 'chat:read')")
     public ResponseEntity<ApiResponse<AiAssistResponse>> assist(
             @Valid @RequestBody AiAssistRequest request
     ) {
