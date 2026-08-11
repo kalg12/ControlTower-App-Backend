@@ -11,7 +11,9 @@ public record AiAssistRequest(
         IMPROVE_TICKET_REPLY,
         QUICK_REPLY,
         GENERATE_KB_CONTENT,
-        GENERATE_TEMPLATE_CONTENT
+        GENERATE_TEMPLATE_CONTENT,
+        SUGGEST_CHAT_REPLY,
+        SUMMARIZE_CHAT
     }
 
     public record AiContext(
@@ -40,8 +42,22 @@ public record AiAssistRequest(
 
         // Response template context
         String templateName,
-        String templateCategory
+        String templateCategory,
+
+        // Live chat context
+        String chatVisitorName,
+        String chatStatus,
+        String chatSource,
+        java.util.List<String> chatMessages,
+        ChatAction chatAction
     ) {}
+
+    public enum ChatAction {
+        AUTO,
+        ACKNOWLEDGE,
+        NEED_INFO,
+        RESOLUTION
+    }
 
     public enum QuickReplyType {
         STARTED_REVIEW,
