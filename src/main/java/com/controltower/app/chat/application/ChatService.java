@@ -257,6 +257,15 @@ public class ChatService {
 
         broadcast(conversationId, payload);
 
+        // Keep the global agent widget informed even when nobody is currently
+        // viewing this conversation. Agent messages are excluded to avoid
+        // notifying the sender about their own reply.
+        if (senderType == SenderType.VISITOR) {
+            messagingTemplate.convertAndSend(
+                    "/topic/chat.queue." + conv.getTenantId(), payload);
+            eventPublisher.publishEvent(new ChatVisitorMessageReceivedEvent(conv, content));
+        }
+
         // Send email notification to visitor when an agent replies — async to avoid
         // blocking the STOMP clientInboundChannel thread on SMTP auth/network latency.
         if (senderType == SenderType.AGENT) {
@@ -370,7 +379,7 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public Page<ChatMessageResponse> getMessages(UUID conversationId, Pageable pageable) {
-        return messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId, pageable)
+        return messageRepository.findByConversationId(conversationId, pageable)
                 .map(m -> {
                     User sender = m.getSenderId() != null
                             ? userRepository.findByIdAndDeletedAtIsNull(m.getSenderId()).orElse(null)
@@ -576,6 +585,15 @@ public class ChatService {
     }
 
     private ChatConversationResponse toResponse(ChatConversation c, User agent, long unread) {
+        List<ChatMessageResponse> latestMessage = messageRepository
+                .findTopByConversationIdOrderByCreatedAtDesc(c.getId())
+                .map(message -> {
+                    User messageSender = message.getSenderId() != null
+                            ? userRepository.findByIdAndDeletedAtIsNull(message.getSenderId()).orElse(null)
+                            : null;
+                    return List.of(toMessageResponse(message, messageSender));
+                })
+                .orElseGet(List::of);
         return ChatConversationResponse.builder()
                 .id(c.getId())
                 .tenantId(c.getTenantId())
@@ -588,7 +606,7 @@ public class ChatService {
                 .status(c.getStatus())
                 .source(c.getSource())
                 .unreadCount(unread)
-                .messages(List.of())
+                .messages(latestMessage)
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .closedAt(c.getClosedAt())

@@ -1,6 +1,7 @@
 package com.controltower.app.notifications.infrastructure;
 
 import com.controltower.app.chat.domain.ChatConversationStartedEvent;
+import com.controltower.app.chat.domain.ChatVisitorMessageReceivedEvent;
 import com.controltower.app.clients.domain.ClientBranchRepository;
 import com.controltower.app.health.domain.HealthIncidentOpenedEvent;
 import com.controltower.app.health.domain.HealthIncidentResolvedEvent;
@@ -173,6 +174,31 @@ public class NotificationEventListener {
                     "source",         source
                 ),
                 usersWithPermission(event.getTenantId(), "chat:read")
+        );
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onChatVisitorMessageReceived(ChatVisitorMessageReceivedEvent event) {
+        String visitorLabel = event.getVisitorName() != null && !event.getVisitorName().isBlank()
+                ? event.getVisitorName()
+                : "Visitante";
+        String content = event.getContent() != null ? event.getContent().strip() : "";
+        String preview = content.length() > 120 ? content.substring(0, 117) + "..." : content;
+        List<UUID> recipients = event.getAssignedAgentId() != null
+                ? List.of(event.getAssignedAgentId())
+                : usersWithPermission(event.getTenantId(), "chat:read");
+
+        notificationService.send(
+                event.getTenantId(),
+                "CHAT_MESSAGE_RECEIVED",
+                "Nuevo mensaje de " + visitorLabel,
+                preview.isBlank() ? "Tienes un nuevo mensaje en el chat" : preview,
+                Notification.Severity.INFO,
+                Map.of(
+                    "conversationId", event.getConversationId().toString(),
+                    "senderName", visitorLabel
+                ),
+                recipients
         );
     }
 }
