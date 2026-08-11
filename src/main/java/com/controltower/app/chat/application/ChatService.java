@@ -510,6 +510,8 @@ public class ChatService {
         r.setComment(comment);
         ratingRepository.save(r);
 
+        eventPublisher.publishEvent(new ChatRatedEvent(conv, rating, comment));
+
         auditService.log(AuditAction.CHAT_RATED, conv.getTenantId(), null,
                 "ChatConversation", conversationId.toString());
     }

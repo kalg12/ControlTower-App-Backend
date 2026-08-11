@@ -2,6 +2,7 @@ package com.controltower.app.notifications.infrastructure;
 
 import com.controltower.app.chat.domain.ChatConversationStartedEvent;
 import com.controltower.app.chat.domain.ChatVisitorMessageReceivedEvent;
+import com.controltower.app.chat.domain.ChatRatedEvent;
 import com.controltower.app.clients.domain.ClientBranchRepository;
 import com.controltower.app.health.domain.HealthIncidentOpenedEvent;
 import com.controltower.app.health.domain.HealthIncidentResolvedEvent;
@@ -197,6 +198,33 @@ public class NotificationEventListener {
                 Map.of(
                     "conversationId", event.getConversationId().toString(),
                     "senderName", visitorLabel
+                ),
+                recipients
+        );
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onChatRated(ChatRatedEvent event) {
+        String visitorLabel = event.getVisitorName() != null && !event.getVisitorName().isBlank()
+                ? event.getVisitorName()
+                : "El cliente";
+        String comment = event.getComment() != null ? event.getComment().strip() : "";
+        String preview = comment.length() > 160 ? comment.substring(0, 157) + "..." : comment;
+        String body = visitorLabel + " calificó la atención con " + event.getRating() + "/5"
+                + (preview.isBlank() ? "." : ": " + preview);
+        List<UUID> recipients = event.getAssignedAgentId() != null
+                ? List.of(event.getAssignedAgentId())
+                : usersWithPermission(event.getTenantId(), "chat:read");
+
+        notificationService.send(
+                event.getTenantId(),
+                "CHAT_RATED",
+                event.getRating() <= 2 ? "Evaluación de chat requiere seguimiento" : "Nueva evaluación de chat",
+                body,
+                event.getRating() <= 2 ? Notification.Severity.WARNING : Notification.Severity.INFO,
+                Map.of(
+                        "conversationId", event.getConversationId().toString(),
+                        "rating", event.getRating()
                 ),
                 recipients
         );
