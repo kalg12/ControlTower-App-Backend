@@ -1,5 +1,6 @@
 package com.controltower.app.shared.infrastructure;
 
+import com.controltower.app.shared.exception.FileStorageException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -42,7 +43,8 @@ public class FileStorageService {
             log.info("Stored file {} as {}", file.getOriginalFilename(), storageKey);
             return storageKey;
         } catch (IOException ex) {
-            throw new RuntimeException("Failed to store file: " + ex.getMessage(), ex);
+            log.error("Unable to store upload under {}: {}", storagePath, ex.getMessage(), ex);
+            throw new FileStorageException("No se pudo guardar el archivo en el servidor", ex);
         }
     }
 
