@@ -102,6 +102,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Endpoint not found"));
     }
 
+    @ExceptionHandler(FileStorageException.class)
+    public ResponseEntity<ApiResponse<Void>> handleFileStorageException(FileStorageException ex) {
+        log.error("File storage unavailable: {}", ex.getMessage(), ex);
+        return ResponseEntity.status(HttpStatus.INSUFFICIENT_STORAGE)
+                .body(ApiResponse.error("No pudimos guardar el archivo. Intenta nuevamente en unos momentos."));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneral(Exception ex) {
         log.error("Unexpected error: {}", ex.getMessage(), ex);

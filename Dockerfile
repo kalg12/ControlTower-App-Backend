@@ -24,17 +24,17 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Create non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN addgroup -S appgroup \
+    && adduser -S appuser -G appgroup \
+    && apk add --no-cache su-exec \
+    && mkdir -p /app/uploads \
+    && chown -R appuser:appgroup /app/uploads
 
 # Copy the single deterministic artifact produced by the builder stage
 COPY --from=builder /app/build/libs/app.jar app.jar
-
-USER appuser
+COPY docker-entrypoint.sh docker-entrypoint.sh
+RUN chmod 755 /app/docker-entrypoint.sh
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", \
-  "-XX:+UseContainerSupport", \
-  "-XX:MaxRAMPercentage=75.0", \
-  "-Djava.security.egd=file:/dev/./urandom", \
-  "-jar", "app.jar"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
